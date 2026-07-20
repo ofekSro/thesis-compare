@@ -1,6 +1,11 @@
-# Input data — backed up separately (NPZs/VTKs are ~8 GB), never committed.
-# Copy these in manually per the README before running the pipeline.
-data/
+# Input data — the bulk NPZs/VTKs (~8 GB) are backed up separately and never
+# committed; copy them in manually per the README before running the pipeline.
+# Exception: free_field_data.csv is a 3.5 KB lookup table and a required input,
+# so it IS versioned.
+# Note the two-step form — a bare `data/` would stop git descending into the
+# directory at all, which makes any negation inside it unreachable.
+data/*
+!data/free_field_data.csv
 
 # Generated results — reproducible by re-running the pipeline
 outputs/
