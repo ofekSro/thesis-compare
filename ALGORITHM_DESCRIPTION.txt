@@ -1,0 +1,440 @@
+================================================================================
+  compare_v5 — Algorithm Description
+  (Cross-Validated Formula Fitting with Unified VTK Pool)
+================================================================================
+
+הסבר קצר בעברית
+----------------
+כאשר פצצה מתפוצצת בשטח פתוח, ניתן לחשב בדיוק את עוצמת גל הלחץ בכל מרחק מנקודת
+הפיצוץ. בסביבה עירונית, הבניינים משקפים, מרכזים וחוסמים את הגל — וכך יוצרים
+התנהגות שונה לחלוטין מהשדה הפתוח. המטרה היא למצוא את "רדיוס ההתכנסות" — המרחק
+שמעבר לו גל הלחץ העירוני חוזר להתנהגות של שדה פתוח — ולהבין כיצד פרמטרים
+גיאומטריים של העיר (גודל בניינים, רוחב רחובות, גובה) משפיעים על מרחק זה.
+האלגוריתם מעבד נתוני סימולציה ממאות תצורות עירוניות שונות ומתאים נוסחאות אמפיריות
+המאפשרות לחזות את רדיוס ההתכנסות לתצורה חדשה, ללא צורך בסימולציה נוספת. אימות
+הנוסחאות נעשה באמצעות חלוקה אקראית חוזרת של הנתונים לסט אימון וסט בדיקה, כדי
+לוודא שהנוסחאות מכלילות גם לתצורות עירוניות שלא היו בסט האימון.
+בנוסף לרדיוס ההתכנסות, האלגוריתם מתאים שתי משפחות נוסחאות נוספות עבור האזור
+שלפני ההתכנסות — שם הסביבה העירונית עדיין משפיעה על הגל. עבור כל רמת לחץ/אימפולס
+בשדה פתוח (המאופיינת על ידי מרחק מדורג Z_free), R_urban הוא הרדיוס הפיזי [מטרים]
+בסביבה העירונית שבו מתקבלת אותה רמת עומס בדיוק. Z_urban הוא אותו רדיוס מנורמל לפי
+משקל המטען: Z_urban = R_urban / W^(1/3). היתרון של Z_urban הוא שעבור לחץ הוא אינו
+תלוי כלל במשקל המטען — הנוסחה שלו תלויה רק בגיאומטריה ובZ_free — בניגוד ל-R_urban
+שתמיד כולל גם תלות ב-W. שניהם נושאים את אותו מידע (R_urban = Z_urban * W^(1/3)),
+אך Z_urban מתאים יותר לניתוח פיזיקלי ו-R_urban נותן תשובה ישירה במטרים לצורכי
+הערכת סיכון.
+
+OVERVIEW
+--------
+compare_v5 fits empirical formulas that predict blast load behavior in urban
+environments. The key innovation over compare_v2 is cross-validation: instead
+of fitting on 72 configs and validating on 24 fixed configs, all configs are
+pooled together and random 80/20 train/test splits are used to select robust
+coefficients that generalize to unseen geometry combinations.
+
+Three formula types are fitted:
+  1. Convergence Radius — the distance beyond which the urban blast wave
+     re-converges to free-field behavior.
+  2. Z_urban — scaled distance (Z = R / W^(1/3)) at which free-field equals
+     urban at a given standoff.
+  3. R_urban — physical radius (meters) at which free-field equals urban at a
+     given scaled distance.
+
+Each formula is fitted separately for Pressure and Impulse.
+
+The pipeline has three phases plus a one-time pre-processing step:
+  Phase 0 (once): create_mat_files.py  — VTK → .npz
+  Phase 1 (once): main_ff_compare.py   — .npz → convergence CSVs
+  Phase 2 (repeated): regression.py    — cross-validated regression
+  Phase 3 (optional): check_formulas.py — validation on held-out test set
+
+================================================================================
+  PHASE 0: VTK PRE-PROCESSING  (create_mat_files.py)
+================================================================================
+
+PURPOSE
+-------
+Run once to convert all VTK files into processed .npz files. After this step
+main_ff_compare.py never touches the raw VTK data again.
+
+INPUTS
+------
+  - all_vtks/   — unified pool of all urban and free-field VTK files
+                  (training + validation configs combined)
+  - free_field_data.csv — free-field P/I vs Z for weights 50/250/500/1000/1500 kg
+
+PROCESSING (per config)
+-----------------------
+  1. find_configurations(all_vtks/) — discover config base names
+  2. load_vtk_pair.py — load urban + free-field VTK triplets (_1/_2/_3.vtk)
+  3. process_grids.py — merge grids, apply masks, compute ratios (see below)
+  4. save_processed_data() — write .npz to MAT_files/
+
+OUTPUTS
+-------
+  MAT_files/<config_name>.npz  — one per config
+
+================================================================================
+  PHASE 1: NPZ PROCESSING  (main_ff_compare.py :: _run_phase1)
+================================================================================
+
+INPUTS
+------
+  - MAT_files/*.npz   — pre-processed grid data (from Phase 0)
+  - free_field_data.csv — free-field P/I vs Z for weights 50/250/500/1000/1500 kg
+
+CONFIG NAMING CONVENTION
+------------------------
+  config_XX_detD_bB_sS_hH_wW
+    D  = detonation type (1 = between buildings, 2 = at intersection)
+    B  = building size [m]
+    S  = street width [m]
+    H  = building height [m]
+    W  = charge weight [kg] (50, 250, 500, 1000, or 1500)
+
+PROCESSING PIPELINE (per config)
+---------------------------------
+Each config's .npz contains three merged resolution grids. Phase 1 performs:
+
+  1. load_processed_data() — load .npz from MAT_files/
+
+  2. process_grids.py (done in Phase 0; described here for completeness)
+     - Interpolates coarser grids onto finer grids using linear interpolation,
+       then merges with np.maximum (NaN-propagating: if either value is NaN,
+       result is NaN; otherwise takes the larger value)
+     - Fine grid filled from medium; medium grid filled from coarse
+     - Applies pressure threshold mask (cells below thresholdP_kPa → NaN)
+     - Computes urban / free-field ratio for P and I
+     - "Smart cut": NaNs out medium grid cells where fine grid has valid data,
+       and coarse grid cells where medium grid has valid data (removes overlap)
+     - Forces ratio = 1 where pressure is below minPressure_kPa threshold or
+       |urban - freefield| difference is below that threshold (converged region)
+
+  3. find_convergence_radius.py (angular method)
+     - 91 angular bins from 0° to 90° (1° spacing)
+     - Finds convergence radius in each angular bin using far-to-near scan
+     - Requires K=3 consecutive cells with |ratio - 1| > 5% to declare
+       non-convergence. A single exceedance can arise from grid interpolation
+       artifacts at resolution boundaries or isolated pressure spikes unrelated
+       to the overall convergence trend. Requiring 3 in a row ensures that only
+       a sustained deviation — not numerical noise — triggers the boundary.
+       Returns the last converged point before the violation streak began.
+     - Equivalent Area Radius: Req = sqrt(4A/pi)
+       where A = sum(0.5 * r_i^2 * delta_theta) over all 91 bins
+     - Returns RadiusP (pressure) and RadiusI (impulse)
+
+  4. ff_lookup.py (_find_percentile_radius)
+     - For each scaled distance Z = 1..20:
+       * Tolerance: 15% for Z<5, else 5%
+       * Finds all cells whose value is within tolerance of the free-field
+         reference P_ff (or I_ff)
+       * Bins matching cells into 91 angular bins (0°–90°, 1° spacing)
+       * Takes the maximum distance in each bin
+       * Returns the 95th percentile of those per-bin maxima as MaxR_P / MaxR_I
+     - Records MaxR_P and MaxR_I only if they are less than the convergence radius
+
+GEOMETRY PARAMETERS COMPUTED
+-----------------------------
+  rho (area density)   = b^2 / (b + s)^2
+  lambda (vol density) = rho * H / MAX_HEIGHT
+  C (flow regime)      = 3 - (H/s) - 3*rho
+    C >= 0  -> Channeling regime (open street, wind-tunnel-like flow)
+    C < 0   -> Blocking regime   (dense urban, cavity-like flow)
+  exclude_r:
+    det=1: sqrt((b/2)^2 + (s/2)^2)   (diagonal to nearest corner)
+    det=2: s/2                         (distance to street edge)
+
+OUTPUTS SAVED
+-------------
+  convergence_table.csv  — one row per config:
+    ConfigName, Det, Height, BuildingSize, StreetWidth,
+    AreaDensity, VolumeDensity, ChargeWeight, RadiusP, RadiusI,
+    PressureAtR, ImpulseAtR
+
+  max_radius_per_Z.csv — one row per (config, Z) pair where MaxR < convergence R:
+    Config, Z, P_ff, I_ff, MaxR_P, MaxR_I
+
+  theta_radius_P.csv / theta_radius_I.csv — per-angle convergence radii
+
+  Figures/          — absolute P and I field plots
+  Figures_Ratio/    — P and I ratio (urban/free-field) plots
+  Figures_MaxR/     — max radius vs Z plots
+  Figures_MaxR_Theta_P/I/ — angular max radius histograms
+  Figures_Conv_Theta/ — angular convergence radius histograms
+
+================================================================================
+  PHASE 2: CROSS-VALIDATED REGRESSION  (regression.py :: run_cross_validation)
+================================================================================
+
+STRATIFIED SPLITTING
+--------------------
+Configs are stratified into 4 groups based on (det × regime):
+  det=1 + Blocking    (C < 0)
+  det=1 + Channeling  (C >= 0)
+  det=2 + Blocking    (C < 0)
+  det=2 + Channeling  (C >= 0)
+
+Each CV iteration uses StratifiedShuffleSplit (sklearn) to randomly draw a
+20% test set, ensuring all 4 strata are represented in both train and test.
+
+The total number of iterations is user-specified (default: 500).
+
+--------------------------------------------------------------------------------
+MODEL 1: CONVERGENCE RADIUS  (_fit_convergence_all_groups)
+--------------------------------------------------------------------------------
+
+Formula:
+  R = W^n * (a + b*rho + c*H + d*rho*H + e*(H/s))
+
+  Variables:
+    rho = b^2 / (b+s)^2   — area density
+    H                      — building height [m]
+    s                      — street width [m]
+    H/s                    — street canyon aspect ratio. Controls the urban
+                             flow regime: when H/s is large (tall, narrow streets)
+                             the flow skims over rooftops (skimming flow) and
+                             the blast is partially shielded from the street level;
+                             when H/s is small (wide streets) the blast propagates
+                             more freely. Neither rho nor H alone captures this
+                             behaviour, making H/s a physically necessary feature.
+
+Fitted separately for: 4 groups (det × regime) × 2 targets (RadiusP, RadiusI)
+= 8 formulas total, each with 6 parameters: n, a, b, c, d, e
+
+Minimum samples per group: 5 (one per free linear coefficient).
+
+Fitting procedure (_fit_improved_group):
+  Two variants are run in every CV iteration on the same train/test split:
+
+  FREE n (grid search):
+  - Grid search over W exponent n from 0.10 to 0.80 (step 0.01)
+  - For each n: build design matrix
+      X = [W^n, W^n*rho, W^n*H, W^n*rho*H, W^n*(H/s)]
+  - Solve OLS (numpy lstsq): coef = argmin ||X @ coef - R||^2
+  - Select n that minimizes training MAPE
+
+  FIXED n=1/3 (Hopkinson-Cranz physical constraint):
+  - n is fixed at 1/3 (Hopkinson-Cranz scaling law)
+  - Same OLS path as above: build X with n_power=1/3, call lstsq once
+  - No grid search, no nonlinear solver
+  - Equivalent to: solve (R / W^(1/3)) = a + b*rho + c*H + d*rho*H + e*(H/s) via lstsq
+
+  Both variants produce R² and MAPE on the test split each iteration.
+
+Prediction (_predict_convergence):
+  Given a config's (W, rho, H, det, swidth):
+    1. Compute C = 3 - (H/s) - 3*rho
+    2. Determine loc_idx (0=Street/det1, 1=Intersection/det2)
+    3. Determine regime_idx (0=Blocking/C<0, 1=Channeling/C>=0)
+    4. Look up (loc_idx, regime_idx) coefficients
+    5. Evaluate R = W^n * (a + b*rho + c*H + d*rho*H + e*(H/s))
+
+--------------------------------------------------------------------------------
+MODEL 2: Z_URBAN  (_fit_z_urban_all_groups)
+--------------------------------------------------------------------------------
+
+Formula:
+  Pressure: Z_urban = Z_free^m * (a + b*rho + c*H + d*rho*H)
+  Impulse:  Z_urban = Z_free^m * W^n * (a + b*rho + c*H + d*rho*H)
+
+  where Z_urban = MaxR / W^(1/3)
+
+Fitted by: det only (2 groups) × 2 targets = 4 formulas
+  Parameters: Pressure: 5 (m, a, b, c, d)  |  Impulse: 6 (m, n, a, b, c, d)
+
+Fitting procedure:
+  - Use scipy.optimize.curve_fit with 4 different initial guesses
+  - Only use rows where MaxR < convergence radius (truly urban region)
+  - Select best initial guess by minimum MAPE on training data
+
+--------------------------------------------------------------------------------
+MODEL 3: R_URBAN  (_fit_r_urban_all_groups)
+--------------------------------------------------------------------------------
+
+Formula:
+  R_urban = Z_free^m * W^n * (a + b*rho + c*H + d*rho*H)
+
+Fitted by: det only (2 groups) × 2 targets = 4 formulas
+  Parameters: 6 (m, n, a, b, c, d)
+
+Fitting procedure: same as Z_urban (curve_fit, 4 initial guesses, best MAPE)
+
+--------------------------------------------------------------------------------
+BEST ITERATION SELECTION
+--------------------------------------------------------------------------------
+
+After fitting all three models on the training set and evaluating on the test
+set, the MAPEs recorded for each iteration are:
+  conv_P, conv_I  — convergence radius free-n (Pressure, Impulse)
+  z_P, z_I        — Z_urban (Pressure, Impulse)
+  r_P, r_I        — R_urban (Pressure, Impulse)
+
+The worst-case MAPE = max(conv_P, conv_I, z_P, z_I, r_P, r_I) for that split.
+
+The iteration with the lowest worst-case MAPE is selected as "best".
+Both the free-n and fixed-n=1/3 coefficients from that iteration are retained.
+
+--------------------------------------------------------------------------------
+FIXED n=1/3 vs FREE n DECISION
+--------------------------------------------------------------------------------
+
+After all iterations complete, median MAPEs and R² are computed across all
+iterations for both variants. A comparison table is printed:
+
+  conv_P MAPE / conv_I MAPE / conv_P R² / conv_I R²  — Free n vs Fixed n=1/3
+
+Decision rule (threshold = 2 percentage points):
+  If |median_conv_P_free - median_conv_P_fixed| < 2%
+  AND |median_conv_I_free - median_conv_I_fixed| < 2%:
+    -> Save fixed n=1/3 coefficients (physically preferred, one fewer free param)
+  Else:
+    -> Save free-n coefficients (grid search outperforms physical constraint)
+
+OUTPUTS SAVED
+-------------
+  cv_summary.csv               — per-iteration MAPEs (all iterations), columns:
+                                  iteration, conv_P, conv_I, z_P, z_I, r_P, r_I,
+                                  worst, conv_P_fixed, conv_I_fixed,
+                                  conv_P_r2, conv_I_r2,
+                                  conv_P_fixed_r2, conv_I_fixed_r2
+  best_test_configs.csv        — config names in the best iteration's test set
+  best_convergence_coefficients.csv — 8 rows (4 groups × 2 targets);
+                                      columns: Location, Regime, Target,
+                                      W_power, a, b, c, d, e
+                                      trained on the best iteration's 80% train set
+                                      (fixed-n or free-n per decision rule);
+                                      used by check_formulas.py for unbiased
+                                      test-set evaluation
+  final_production_convergence_coefficients.csv
+                               — 8 rows (4 groups × 2 targets);
+                                      same columns as above;
+                                      trained on 100% of all configs using the
+                                      winning model (fixed-n or free-n per decision
+                                      rule); use this file for thesis formulas
+  best_z_urban_coefficients.csv     — 4 rows (2 det × 2 targets)
+  best_r_urban_coefficients.csv     — 4 rows (2 det × 2 targets)
+  cv_best_convergence.png      — actual vs predicted scatter plots for convergence
+                                  radius (train=blue, test=red)
+  cv_best_z_urban.png          — actual vs predicted scatter plots for Z_urban
+  cv_best_r_urban.png          — actual vs predicted scatter plots for R_urban
+
+================================================================================
+  PHASE 3: VALIDATION CHECK  (check_formulas.py)
+================================================================================
+
+PURPOSE
+-------
+Loads the saved best coefficients and evaluates them ONLY on the test configs
+from the best CV iteration (i.e., the ~20% of configs not used for training).
+This gives an unbiased estimate of generalization performance.
+
+WORKFLOW
+--------
+  1. Load best_convergence_coefficients.csv, best_z_urban_coefficients.csv,
+     best_r_urban_coefficients.csv
+  2. Load best_test_configs.csv — the test set from the best CV split
+  3. Filter convergence_table.csv and max_radius_per_Z.csv to test configs only
+  4. For each test config: predict R_P, R_I using the convergence formula
+  5. For each (test config, Z) row: predict MaxR_P, MaxR_I using Z_urban and R_urban
+  6. Compute R², MAPE for all three model types
+
+OUTPUTS
+-------
+  check_results/validation_convergence_radius.png
+  check_results/validation_z_urban.png
+  check_results/validation_r_urban.png
+  check_results/validation_comparison.csv
+
+================================================================================
+  FORMULA SUMMARY
+================================================================================
+
+  Convergence Radius (8 formulas, 4 per target):
+    R = W^n * (a + b*rho + c*H + d*rho*H + e*(H/s))
+    Grouped by: Location (Street/Intersection) × Regime (Blocking/Channeling)
+
+  Z_urban (4 formulas, 2 per target):
+    Pressure: Z_urban = Z_free^m * (a + b*rho + c*H + d*rho*H)
+    Impulse:  Z_urban = Z_free^m * W^n * (a + b*rho + c*H + d*rho*H)
+    MaxR = Z_urban * W^(1/3)
+    Grouped by: det (1=Street, 2=Intersection)
+
+  R_urban (4 formulas, 2 per target):
+    R_urban = Z_free^m * W^n * (a + b*rho + c*H + d*rho*H)
+    Grouped by: det (1=Street, 2=Intersection)
+
+  Variables:
+    W     = charge weight [kg]
+    rho   = area density = b^2 / (b+s)^2  [dimensionless]
+    H     = building height [m]
+    s     = street width [m]
+    H/s   = street canyon aspect ratio [dimensionless]; governs skimming flow
+            onset — large H/s shields street-level blast, small H/s allows
+            free propagation; not captured by rho or H alone
+    Z_free= scaled free-field distance = R / W^(1/3) [m/kg^(1/3)]
+    C     = flow regime indicator = 3 - H/s - 3*rho
+
+================================================================================
+  FILE MAP
+================================================================================
+
+  create_mat_files.py   — Phase 0: read VTKs from all_vtks/, save .npz to MAT_files/
+  main_ff_compare.py    — Entry point: Phase 1 (load .npz, compute radii) + Phase 2 (CV)
+  regression.py         — CV orchestrator + all model fit/predict/evaluate logic
+  check_formulas.py     — Standalone validation on held-out test configs
+  load_vtk_pair.py      — Load urban + free-field VTK triplets
+  process_grids.py      — Multi-resolution grid merge + ratio computation
+  find_convergence_radius.py — Angular convergence radius (equivalent area method)
+  ff_lookup.py          — Free-field lookup table + 95th-percentile angular radius search
+  constants.py          — Physical constants (MAX_HEIGHT, PARAMS)
+  save_data_file.py     — Save/load processed .npz files
+  plot_absolute.py      — Plot absolute P/I fields
+  plot_ratio.py         — Plot urban/free-field ratio fields
+  plot_max_radius_fig.py— Plot max radius per Z
+  plot_theta_histogram.py — Plot angular radius histograms
+  formulas_printer.py   — Standalone pretty-printer for coefficient CSV files
+
+  Local utilities (self-contained in compare_v5/):
+    readVTK.py          — Binary VTK parser (big-endian float32, structured points)
+    config_parser.py    — Extract geometry params from config name strings
+    find_configurations.py — Discover config base names from VTK folder
+    draw_cuboids_gray.py — Draw gray building rectangles on matplotlib axes
+
+  3-D / observation surface tools:
+    readVTK_obs.py       — Read unstructured VTK files (building surface meshes)
+    create_obs_mat_files.py — Process OBS VTK files and save .npz
+    view_3d.py           — Interactive 3-D viewer (pyvista) for ground + surfaces
+
+  1-D simulation tools (1ds/):
+    extract_1d_peaks.py  — Extract peak P/I from 1D simulation output files;
+                           output: 1d_peaks.csv
+
+================================================================================
+  RUNNING THE CODE
+================================================================================
+
+Step 0 — One-time VTK pre-processing (only when VTK data changes):
+  python compare_v5/create_mat_files.py
+  -> Reads all_vtks/, writes MAT_files/*.npz
+
+Step 1 — First analysis run (load .npz, compute radii, then run CV):
+  python compare_v5/main_ff_compare.py
+  -> Prompts: (1) Reprocess from NPZ / (2) Skip to regression  => choose 1
+  -> Prompts: Scale mode (1=Auto / 2=Manual)                    => choose 1
+  -> Prompts: Number of CV iterations [default 500]             => Enter
+
+Step 2 — Subsequent runs (skip NPZ processing, re-run CV only):
+  python compare_v5/main_ff_compare.py
+  -> Prompts: (1) Reprocess from NPZ / (2) Skip to regression  => choose 2
+  -> Prompts: Number of CV iterations [default 500]             => Enter
+
+Step 3 — Check formulas on test configs only:
+  python compare_v5/check_formulas.py
+  (requires best_test_configs.csv from a previous Phase 2 run)
+  Uses best_convergence_coefficients.csv (80% train set) for unbiased evaluation.
+
+Note on output files after Phase 2:
+  best_convergence_coefficients.csv          — for check_formulas.py (80% train)
+  final_production_convergence_coefficients.csv — for thesis use (100% of data)
+
+================================================================================

@@ -1,0 +1,1044 @@
+================================================================================
+  URBAN BLAST CONVERGENCE RADIUS — PHYSICAL CONCLUSIONS AND FINAL FORMULAS
+  compare_v6  |  96 configurations  |  Master's thesis (Ofek Rotem)
+================================================================================
+
+Data source: convergence_table.csv — 96 configurations
+  = 2 detonation types × 18 geometries × charge weights 50/250/500/1000/1500 kg
+RadiusP / RadiusI = distance from detonation where the urban blast field
+converges to the free-field blast (peak overpressure / impulse).
+
+Notation used throughout:
+  W    = charge weight [kg TNT]
+  b    = building size [m],  s = street width [m],  H = building height [m]
+  rho  = plan area density = b²/(b+s)²
+  det1 = street detonation (between buildings)
+  det2 = intersection detonation
+  Z    = R / W^(1/3)  — Hopkinson-Cranz scaled convergence radius
+  Pi   = H / (s·rho) — confinement index
+  W^(1/3) values: 50 kg → 3.68 m/kg^(1/3),  500 kg → 7.94,  1500 kg → 11.45
+
+
+================================================================================
+  PART I — BUCKINGHAM PI FRAMEWORK
+================================================================================
+
+--------------------------------------------------------------------------------
+1. DERIVATION OF PI GROUPS
+--------------------------------------------------------------------------------
+
+Physical variables governing the problem:
+
+    R   [m]         convergence radius (dependent variable)
+    E   [J]         charge energy, proportional to W [kg TNT]
+    p0  [Pa]        ambient pressure
+    b   [m]         building size
+    s   [m]         street width
+    H   [m]         building height
+
+6 variables, 3 independent dimensions (M, L, T)  →  6 − 3 = 4 dimensionless
+groups (3 independent + 1 dependent).
+
+Choosing E and p0 as repeating variables gives the natural blast length scale
+
+    L* = (E/p0)^(1/3)  ∝  W^(1/3)        (Hopkinson–Cranz scaling law)
+
+Every length in the problem is measured against W^(1/3). The four groups are:
+
+    Π₀ = R / W^(1/3)  = Z              (scaled convergence radius — target)
+    Π₁ = rho = b²/(b+s)²               (plan area density)
+    Π₂ = s / W^(1/3)                   (scaled street width — regime variable)
+    Π₃ = H / s                         (street-canyon aspect ratio)
+
+Buckingham's theorem guarantees:  Z = f( rho, s/W^(1/3), H/s ; det )
+
+The theorem fixes WHAT the formula can depend on; the data tells us the SHAPE.
+
+Note on dimensionality: strictly, (E/p0)^(1/3) carries units m/kg^(1/3). Since
+all simulations share one atmosphere and one explosive type, the constant is
+absorbed into the fitted coefficients. To generalize to other ambient pressures,
+replace W^(1/3) with (E/p0)^(1/3) throughout.
+
+
+--------------------------------------------------------------------------------
+1b. DATA EXTRACTION — HOW THE CONVERGENCE RADII WERE MEASURED
+--------------------------------------------------------------------------------
+The target R (= RadiusP / RadiusI per config) is extracted from the simulation
+grids in find_convergence_radius.py. It is the distance beyond which the urban
+field is indistinguishable from the free-field blast.
+
+INPUT FIELD — the urban/free-field RATIO (not the absolute load):
+  For every cell of the three merged-resolution grids, the ratio is formed in
+  process_grids.py:
+      ratioP = peakP_urban / peakP_freefield     (peak overpressure)
+      ratioI = impulse_urban / impulse_freefield  (impulse)
+  Convergence means ratio → 1. This is a RELATIVE criterion — it asks where the
+  city stops perturbing the wave, independent of the absolute load level.
+
+NEAR-FIELD EXCLUSION:
+  Cells within exclude_r of the detonation are dropped (they sit under/inside
+  buildings where the ratio is meaningless):
+      det=1 (street):       exclude_r = sqrt((b/2)² + (s/2)²)  (corner of the
+                            half-block straddling the charge)
+      det=2 (intersection): exclude_r = s/2                    (half street width)
+
+PER-ANGLE SCAN (91 one-degree bins, 0–90°, same binning as MaxR):
+  Within each angular slice the cells are sorted FAR → NEAR and scanned inward.
+  A running streak counts consecutive cells with |ratio − 1| > 5% (TOLERANCE).
+  Non-convergence is declared only after K = 3 consecutive violations (so a
+  single noisy cell cannot trigger it); the slice's convergence radius is the
+  distance of the last converged cell just before that streak began. This yields
+  one radius r_i per angle (NaN if the slice never converges).
+
+AGGREGATION — Equivalent Area Radius (one scalar per config):
+  The 91 per-angle radii are combined into the radius of a quarter-circle that
+  encloses the SAME AREA as the polygon they sweep:
+      A   = Σ ½ · r_i² · Δθ        (area of the swept polygon)
+      Req = sqrt(4A / π)           (radius of a quarter-circle of equal area)
+  Req is the reported RadiusP / RadiusI.
+
+  What Req IS, precisely: with a fixed Δθ = 1° over ~90 bins, the algebra gives
+  Req² = ⟨r_i²⟩, so Req is the ROOT-MEAN-SQUARE of the per-angle radii — NOT an
+  outlier-robust statistic. Being RMS it weights long radii MORE heavily than
+  the arithmetic mean (RMS ≥ mean always). This is DELIBERATE, not an artifact:
+  the target is the affected-AREA footprint, area integrates r², so r²-weighting
+  is the definition of "equal area." A median or percentile would answer a
+  different question (typical angular reach) and would UNDER-state the footprint
+  of an anisotropic, channeled field by discarding the long street-axis spikes.
+
+  Magnitude (measured over all 96 configs, Req vs simpler summaries):
+    Req / arithmetic-mean  : 1.03–1.08   (pure RMS-vs-mean emphasis — small)
+    Req / median, PRESSURE : s=5 (channeling) 1.23 avg, up to 3.2;
+                             s=20 (open) 1.09;  mid widths 1.07
+    Req / median, IMPULSE  : 1.03–1.06 across all street widths
+  The large Req/median for some narrow-street PRESSURE configs is not RMS
+  "blowing up" (Req/mean is only ~1.08 even there) — it is a SKEWED angular
+  profile: most directions are blocked and converge at short range, a few
+  street-axis directions channel far, so the MEDIAN sits low. The area-
+  equivalent radius keeps the channeled reach in proportion to the area it adds;
+  the median would discard it entirely. The channeling signal the formula fits
+  is therefore a real anisotropy, not an extraction artifact — but its
+  coefficient MAGNITUDE does depend on this area-based summary (a median-based
+  target would yield a smaller, still-positive canyon term). Impulse, whose
+  field is far more isotropic, is insensitive to the choice either way.
+
+AGGREGATION METHOD SWITCH — three selectable definitions of the radius:
+  How the 91 per-angle radii r_i are collapsed into the single reported value is
+  a one-line switch in find_convergence_radius.py (METHOD = 'eq_area'). All three
+  are computed and compared side-by-side by convergence_radius_methods.py, which
+  writes pressure_radius_methods.csv / impulse_radius_methods.csv and per-config
+  figures into Figures_Radius_Methods/.
+
+    'max'      R = max_i r_i
+               The single farthest converged angle. Most conservative, but the
+               NOISIEST — one channeled street or outlier slice fixes the whole
+               radius.
+
+    'p95'      R = 95th percentile of {r_i}
+               A robust near-max: keeps near-worst-case directional reach while
+               discarding the top ~5% of angular outliers.
+
+    'eq_area'  R = sqrt(4A/π),  A = Σ ½ r_i² Δθ        ← CHOSEN (default)
+               The equal-area / RMS radius defined above (the affected-AREA
+               footprint). Smooth angular integral over all 91 bins.
+
+  Ordering across configs: max ≥ p95 ≥ eq_area. The gap WIDENS for anisotropic
+  (narrow-street, channeled) configs and shrinks to ≈1 for isotropic ones — it
+  is a direct measure of how directional each field is.
+
+  WHY eq_area IS USED: the three are monotonic summaries of the SAME angular
+  profile, so the PHYSICAL CONCLUSIONS are invariant to the choice — the
+  Buckingham-Pi formula structure, the coefficient SIGNS, and the regime
+  boundary s = W^(1/3) (hard-coded, not fitted) are unchanged; only coefficient
+  MAGNITUDES rescale (max/p95 amplify the channeling term by emphasising the
+  street axis). The deciding factor is fit quality: switching to 'p95' keeps the
+  test MAPE good but LOWERS R². p95 is a tail-driven statistic that injects
+  angular-tail noise a smooth geometry formula cannot reproduce — this raises the
+  unmodellable variance (penalised by R² = 1 − SS_res/SS_tot, a squared-ABSOLUTE-
+  error metric) while predictions stay accurate in PERCENTAGE terms (MAPE).
+  'eq_area' is the smooth angular integral, giving the best variance-explained
+  fit, and is the reported RadiusP / RadiusI.
+
+CONTRAST WITH THE MaxR EXTRACTION (used for Z_urban, see §10b):
+  Both use the same 91 angular bins, but answer different questions:
+    Convergence radius : RELATIVE ratio → 1 (±5%), far→near consecutive-
+                         violation scan, aggregated by equivalent AREA.
+                         One value per config.
+    MaxR (Z_urban)     : ABSOLUTE exceedance of a free-field LEVEL (≥ ff_val),
+                         outer boundary per angle, aggregated by 95th
+                         PERCENTILE over angles. One value per (config, Z_free).
+
+  Note: §10b dropped a ±5% tolerance BAND for MaxR, so it is fair to ask why a
+  ±5% tolerance survives here. The answer is that the two use it differently and
+  the failure mode does NOT transfer:
+    • The rejected MaxR rule was a band COLLECTOR — match |val − ff_val| ≤
+      5%·ff_val, then take the OUTERMOST matching cell. Near convergence the
+      field is radially flat, so a thick ring falls inside the value-band and
+      the outermost cell overshoots: flatness → inflation.
+    • The convergence radius is a band EDGE-DETECTOR — a far→near scan for the
+      sustained INNER edge of the converged region (K=3 consecutive
+      violations). The flat converged region that broke MaxR is harmless here:
+      the scan simply walks through it with the streak at zero. The radius is
+      pinned by the SHARP inner transition (cells just inside violate by far
+      more than 5%), not by the flat outer field.
+    • Roles differ: for MaxR the 5% was an estimator BANDWIDTH on a
+      tolerance-free target (biased → replaced). Here the 5% is the DEFINITION
+      of "indistinguishable from free-field" — there is no tolerance-free
+      convergence radius it approximates.
+
+TOLERANCE ROBUSTNESS (verified):
+  Re-extracting the convergence radii with TOLERANCE = 3% / 5% / 7% (more than
+  doubling the band width) moves RadiusP by 0% and RadiusI by 0% in almost
+  every config, with a worst case of −5% for one wide-street impulse config
+  (config_12, W=1500), where impulse genuinely has a gradual tail near
+  convergence. The result snaps to grid resolution because the inner transition
+  is sharp — confirming the radius is set by the edge location, not the band
+  width. (For comparison, the MaxR band method shifted results by 3–12% near
+  convergence — the failure that motivated the exceedance switch in §10b.)
+
+
+--------------------------------------------------------------------------------
+2. PHYSICAL MEANING OF EACH PI GROUP — AND HOW IT APPEARS IN THE DATA
+--------------------------------------------------------------------------------
+
+══════════════════════════════════════════════════════════════════════════════
+  Π₀ = Z = R / W^(1/3)   (HOPKINSON-CRANZ SCALED CONVERGENCE RADIUS)
+══════════════════════════════════════════════════════════════════════════════
+
+Physical meaning:
+  The convergence radius measured in units of the natural blast length scale.
+  If urban geometry had NO effect on propagation, we would expect R ∝ W^(1/3)
+  (the free-field Hopkinson law) and Z would be a geometry-only constant.
+  Any Z that varies with W signals a geometry-charge interaction — i.e., the
+  urban effect is not purely scale-invariant.
+
+Why this group is the right target:
+  Dividing out W^(1/3) collapses the enormous dynamic range of R (25 m at W=50
+  to 170 m at W=1500) to a much tighter range of Z (roughly 5–15) that
+  isolates the geometry signal from the charge-size effect.
+
+What the data shows:
+  • Z is NOT perfectly constant with W — it varies by up to ±30% across W
+    values within the same geometry.
+  • At small W (50 kg) Z clusters tightly around 6–8 regardless of geometry.
+    The urban field is barely perturbed by the small charge.
+  • At large W (≥500 kg) Z spreads widely (6–11) and correlates strongly
+    with H/s and rho — the charge now engages the full canyon geometry.
+  • Z is non-monotonic in W for geometries with high Pi (tall, narrow, dense):
+    e.g., det1_b15_s5_h24: Z = 6.1 (W=50) → 9.2 (W=500) → 8.9 (W=1500).
+    The confinement amplifies Z at W=500 but the effect saturates by W=1500.
+  • For low-Pi configs (wide streets, low buildings): Z rises gently with W
+    e.g., det1_b15_s20_h4: Z = 6.4 (W=50) → 7.3 (W=500) → 7.8 (W=1500).
+
+Key conclusion: the Hopkinson scale W^(1/3) IS the correct normalization for
+the problem — it removes 90% of the W-dependence and reveals the geometry signal.
+
+══════════════════════════════════════════════════════════════════════════════
+  Π₂ = s / W^(1/3)   (SCALED STREET WIDTH — THE REGIME VARIABLE)
+══════════════════════════════════════════════════════════════════════════════
+
+Physical meaning:
+  The ratio of street width to the natural blast length scale. Equivalently,
+  Π₂ = 1/Π₂ = W^(1/3)/s tells us whether the charge is large or small relative
+  to the street. This group controls the SIGN of every geometric effect:
+
+  Π₂ > 1  (s > W^(1/3)): street is wide relative to the charge → the wave
+    fits within the street without reaching the building walls; buildings are
+    "far-field obstacles." Regime A: small-charge, absorption-dominated.
+
+  Π₂ < 1  (s < W^(1/3)): charge is large relative to street → the initial
+    blast envelope already envelops the buildings; walls become active waveguide
+    surfaces. Regime B: large-charge, channeling-dominated.
+
+  Π₂ = 1  (s = W^(1/3)): the regime boundary. Geometry has ZERO net effect
+    on the scaled radius; Z collapses to the free-field baseline A.
+
+Crossover charge for each street width (W_crit = s³):
+  s = 5 m  → W_crit ≈ 125 kg  (between our W=50 and W=250 data points)
+  s = 8 m  → W_crit ≈ 512 kg  (between W=250 and W=1000)
+  s = 12 m → W_crit ≈ 1728 kg (barely above W=1500 — rarely crossed)
+  s = 20 m → W_crit ≈ 8000 kg (NEVER crossed in our 96 configs)
+  Important: for all our s=20 configurations, Π₂ > 1 at every W. We always
+  observe "regime A" physics at wide streets, and the crossover at s=20 would
+  require charges far beyond 1500 kg.
+
+How Π₂ appears in the formula:
+  • In the density term: rho·(s/W^(1/3) − a) → Π₂-dependent bracket flips sign.
+  • In the canyon term: sqrt(rho)·(H/s)·(W^(1/3)/s − 1) → (1/Π₂ − 1) flips sign.
+  • In the impulse formula: it is the exponent k·ln(W^(1/3)/s) = −k·ln(Π₂).
+
+What the data shows — the TRUE signature of Π₂=1 is the SIGN FLIP of the
+geometric sensitivities ∂R/∂(H/s) and ∂R/∂rho, NOT the location of any peak
+in Z itself (see §3 for why Z's non-monotonicity is a separate phenomenon):
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │ Sign of height effect on RadiusP  (det1, b=15, W=500, Π₂ = s/7.94)     │
+  │                                                                           │
+  │ s=5  (Π₂=0.63 < 1):  h4 → h24: R = 56 → 73 m  (+31%)  CHANNELING ↑    │
+  │ s=20 (Π₂=2.52 > 1):  h4 → h24: R = 58 → 51 m  (−12%)  BLOCKING  ↓    │
+  └──────────────────────────────────────────────────────────────────────────┘
+  Verified across the full weight sweep (the height-sensitivity plot is the
+  primary evidence): for every s=5 family the slope ∂R/∂(H/s) crosses zero
+  between W=50 (Π₂=1.36, blocking, slope < 0) and W=250 (Π₂=0.79, channeling,
+  slope > 0) — i.e. exactly at the crossover charge W_crit = s³ = 125 kg, where
+  Π₂≈1. For s=20, Π₂ stays > 1 at every weight (W_crit = 8000 kg), so the slope
+  never crosses into channeling and the height effect remains negative
+  throughout. The sign of the height effect is therefore determined purely by
+  which side of Π₂=1 the configuration sits on. The density sensitivity
+  ∂R/∂rho flips sign at the same boundary (clean for det1; noisier for det2 —
+  see Π₁ section below).
+
+══════════════════════════════════════════════════════════════════════════════
+  Π₃ = H / s   (STREET-CANYON ASPECT RATIO)
+══════════════════════════════════════════════════════════════════════════════
+
+Physical meaning:
+  The shape of the street canyon — how deep the "slot" is relative to its
+  width. A high Π₃ means a deep, narrow canyon (like a slot gorge); a low Π₃
+  means a shallow, open corridor.
+
+  Π₃ is the primary waveguide descriptor: it determines the solid angle
+  subtended by the building walls as seen from a point in the street. High Π₃
+  → walls dominate the visible angle → strong multiple-reflection channeling.
+
+  Note that Π₃ depends only on the RATIO H/s, not on H or s individually. A
+  24 m building over a 36 m street (Π₃=0.67, "low") behaves very differently
+  from the same building over a 5 m street (Π₃=4.8, "deep slot").
+
+How Π₃ appears in the formula:
+  In the canyon term as H/s, multiplied by the sign-switching bracket and by
+  the wall-continuity factor sqrt(rho). The HEIGHT itself never appears alone
+  — always as the ratio H/s.
+
+What the data shows:
+  The HEIGHT EFFECT FLIPS SIGN AT THE REGIME BOUNDARY:
+
+  Case 1 — Narrow street, large charge (s=5, W=500, Π₂=0.63 < 1):
+    Increasing H/s from 0.8 (h=4) to 4.8 (h=24) INCREASES RadiusP:
+      det1_b15_s5: R = 56.1 (h4) → 69.8 (h12) → 73.3 m (h24)   +31%
+      det1_b30_s5: R = 48.8 (h4) → 64.8 (h12) → 80.5 m (h24)   +65%
+    Physical reason: high walls act as a continuous waveguide; the shock wave
+    bounces between walls and is channeled far down the street.
+
+  Case 2 — Wide street, large charge (s=20, W=500, Π₂=2.52 > 1):
+    Same height variation DECREASES RadiusP:
+      det1_b15_s20: R = 57.9 (h4) → 53.1 (h12) → 51.3 m (h24)   −12%
+      det1_b30_s20: R = 55.8 (h4) → 53.3 (h12) → 53.6 m (h24)    −4%
+    Physical reason: at wide streets the blast clears the buildings; taller
+    buildings become isolated obstacles that absorb and scatter energy, reducing
+    the range over which the urban field differs from free-field.
+
+  Case 3 — Narrow street, small charge (s=5, W=50, Π₂=1.36 > 1):
+    Height effect is WEAK (near the boundary):
+      det1_b15_s5: R = 25.2 (h4) → 22.5 (h12) → 22.5 m (h24)    −11%
+    Physical reason: the small charge sits inside the street without reaching
+    the walls; the canyon barely affects propagation. We are in regime A.
+
+  Bottom line: Π₃ (H/s) only matters in the large-charge regime (Π₂ < 1),
+  and even there its sign depends on how narrow the street is relative to W^(1/3).
+
+══════════════════════════════════════════════════════════════════════════════
+  Π₁ = rho = b²/(b+s)²   (PLAN AREA DENSITY)
+══════════════════════════════════════════════════════════════════════════════
+
+Physical meaning:
+  The fraction of ground-level area covered by buildings. Equivalently,
+  rho = (b/(b+s))², the square of the linear filling fraction.
+
+  Physically, rho measures how much of the urban fabric is "solid" vs "void":
+    rho → 1: nearly all ground is covered by buildings (very dense city)
+    rho → 0: sparse buildings with wide open spaces
+
+  In our dataset: rho ranges from 0.184 (b=15, s=20) to 0.735 (b=30, s=5).
+
+  Why it is rho = b²/(b+s)² and not some other density measure:
+  This is the 2-D plan area ratio. An alternative 1-D measure — used for
+  the channeling term — is b/(b+s) = sqrt(rho), which captures how continuous
+  the wall surface is along the street (relevant for waveguide leakage).
+
+How rho appears in the formula:
+  1. In the density-switch term: C2·rho·(s/W^(1/3) − a)
+     Here rho weights the overall blocking/reflecting power of the building mass.
+  2. In the canyon term as sqrt(rho) = b/(b+s):
+     The 1-D wall continuity — how much of the canyon wall is actually solid.
+     A building row with large gaps between buildings "leaks" the guided wave.
+
+The sign of the density effect reverses at Π₂ = a (regime boundary):
+
+  Regime A (s/W^(1/3) > a, i.e., street wider than a Hopkinson lengths):
+    The bracket (s/W^(1/3) − a) is POSITIVE → C2·rho > 0 → higher rho INCREASES Z.
+    Physical reason: buildings are in the "far field" of the charge; they act
+    as reflectors that keep feeding the blast back into the street, sustaining
+    the urban perturbation over a larger distance.
+
+  Regime B (s/W^(1/3) < a, i.e., street narrower than a Hopkinson lengths):
+    The bracket is NEGATIVE → higher rho DECREASES Z.
+    Physical reason: buildings are inside the strong-blast zone; a denser city
+    means more frontal surface area absorbing momentum, more energy taken out of
+    the wave close to the charge → the field decays to free-field sooner.
+
+What the data shows:
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │ Density sign flip  (det1, s=5, h=4, changing b from 15→30)              │
+  │                                                                           │
+  │  rho(b=15) = 0.5625,  rho(b=30) = 0.7347                                │
+  │                                                                           │
+  │  W=50  (Π₂=1.36 > 1):  R_b15=25.2, R_b30=29.7  →  +18%  rho↑ → R↑    │
+  │  W=500 (Π₂=0.63 < 1):  R_b15=56.1, R_b30=48.8  →  −13%  rho↑ → R↓    │
+  └──────────────────────────────────────────────────────────────────────────┘
+  At W=50 (regime A): denser city means more reflections feeding the blast
+  → larger convergence radius. At W=500 (regime B): denser city means more
+  frontal blocking → smaller convergence radius. The sign flip is clean.
+
+  For wide streets (s=20) the effect is always regime A (Π₂ > 1 for all W≤1500),
+  so density always increases Z at s=20. However the absolute effect is smaller
+  because the canyon-wall continuity factor sqrt(rho) is lower for the s=20 cases.
+
+  KEY FINDING: the density effect nearly vanishes for large charges at s=5.
+  At W=1500 (Π₂=0.44), the switch bracket is −0.56, but the effect on Z is
+  only ≈ −0.5–1.0 units — the canyon term dominates instead. Density matters
+  most when H/W^(1/3) is large (small charges, tall buildings).
+
+══════════════════════════════════════════════════════════════════════════════
+  COMBINED GROUP: Π_conf = H / (s·rho)   (CONFINEMENT INDEX)
+══════════════════════════════════════════════════════════════════════════════
+
+Physical meaning:
+  Π_conf = Π₃ · (1 + 1/Π₄)²  combines the canyon aspect ratio and the density
+  into a single number that measures how "trapped" the blast wave is:
+
+    High Π_conf: tall buildings (high H/s) AND/OR sparse sidewalls (low rho)
+                 → wave is trapped vertically AND not bled by cross-street gaps.
+    Low Π_conf:  low canyon OR high density (solid walls at low height)
+                 → wave "sees" solid surfaces but they are short, less trapping.
+
+  A key identity:  H/(s·rho) = (H/s) × (b+s)²/b²
+  This shows that wide buildings relative to their spacing (large Π₄=b/s)
+  reduce Π_conf — counter-intuitively, MORE solid walls (high rho) means LESS
+  confinement because the numerator H/s is divided by rho.
+
+  Physically: what matters for channeling is the OPEN SPACE above the buildings
+  relative to the street. A canyon that is 24 m tall and 5 m wide (Π₃=4.8) but
+  has solid walls (rho→1) channels strongly. But if those walls have many gaps
+  (low rho), energy escapes laterally and channeling is weaker.
+
+How it enters the formula:
+  Π_conf is the natural variable for the IMPULSE formula:
+    ln(Z_I) = ln(A) + k·ln(Π_conf)·ln(W^(1/3)/s)
+  A full 6-coefficient log-linear fit of both ln(H/s) and ln(rho) as separate
+  terms recovers coefficients c₄ ≈ −c₅, confirming algebraically that only
+  their ratio H/(s·rho) carries information. The two groups collapse to one.
+
+  For the PRESSURE formula, Π_conf does not enter algebraically as a single
+  ratio — the additive switch formula keeps H/s and rho in separate terms with
+  different roles (canyon waveguide vs bulk blocking). But the same physical
+  compression happens: the data only has 2 degrees of geometric freedom per
+  regime, and Π_conf is one of them.
+
+What the data shows — the Π_conf collapse for impulse:
+  Configs with equal Π_conf but different individual H, s, and rho should give
+  approximately equal Z_I at the same W. Two geometries:
+    b15_s20_h12 (Π₃=0.6, rho=0.184): Π_conf = 0.6/0.184 = 3.26
+    b30_s5_h12  (Π₃=2.4, rho=0.735): Π_conf = 2.4/0.735 = 3.26   ← same!
+  Despite very different individual parameters, both have Π_conf=3.26.
+  Impulse radii at W=500:
+    b15_s20_h12: RadiusI = 89.4 m → Z_I = 11.26
+    b30_s5_h12:  RadiusI = 96.9 m → Z_I = 12.21
+  The values are close but not identical — the venting term (Π₂) differs
+  (s/W^(1/3) = 2.52 vs 0.63), which is the other Pi group that enters.
+
+
+================================================================================
+  PART II — PHYSICAL CONCLUSIONS
+================================================================================
+
+--------------------------------------------------------------------------------
+3. MONOTONICITY WITH CHARGE WEIGHT
+--------------------------------------------------------------------------------
+
+CONCLUSION: For identical geometry, RadiusP and RadiusI grow monotonically with
+W — 0 violations in all 36 geometry groups.
+
+This is the direct manifestation of Hopkinson-Cranz scaling: more energy →
+larger blast footprint at every scale. Urban geometry modulates the RATE of
+growth but cannot reverse it.
+
+HOW GROWTH RATE CHANGES ACROSS THE WEIGHT RANGE:
+
+  50 → 500 kg (factor 10 in W, factor 2.15 in W^(1/3)):
+    R grows FASTER than W^(1/3) on average — factor ×1.23 in R (expected ×2.15
+    from simple Hopkinson); at intersections ×1.39 the Hopkinson prediction.
+    Reason: crossing the regime boundary (s = W^(1/3)) "switches on" the canyon
+    channeling effect. As W grows from 50 to 500 the charge starts engaging the
+    building walls, adding an urban amplification on top of the basic scaling.
+
+  500 → 1500 kg (factor 3 in W, factor 1.44 in W^(1/3)):
+    R grows nearly EXACTLY as W^(1/3) — factor ×1.00 normalized (saturation).
+    Some tall-building, narrow-street configs slightly below (×0.95 in Z).
+    Reason: by W=500 most channeling configurations are already in deep regime B;
+    growing W further deepens the regime but doesn't open new mechanisms.
+
+CONSEQUENCE — Z IS NON-MONOTONIC (a SEPARATE phenomenon from the Π₂=1 crossing):
+  Z = R/W^(1/3) is itself not monotonic in W for high-Pi geometries: it rises,
+  then falls back toward an asymptotic value. This happens in 17 of 36 groups,
+  all with at least moderate Pi (H/s > 1, narrow streets).
+
+  IMPORTANT — do NOT read the Z-peak as the regime boundary. The two are
+  distinct events:
+    • The regime crossing Π₂ = 1 (s = W^(1/3)) for s=5 is at W_crit = s³ = 125 kg,
+      i.e. between W=50 and W=250. Its signature is the sensitivity sign-flip
+      (§Π₂), which has already happened by W=250.
+    • The rise-then-fall of Z is the canyon term first switching on (channeling
+      adds super-Hopkinson growth) and then SATURATING at large W; the turnover
+      sits deep inside regime B, NOT on the boundary.
+
+  Example: det1_b15_s5_h24   (W_crit = 125 kg, so Π₂ < 1 for all W ≥ 250)
+    Z(W=50)  = 22.5/3.68  = 6.1   (Π₂ = 1.36 > 1 — still regime A)
+    Z(W=500) = 73.3/7.94  = 9.2   (Π₂ = 0.63 < 1 — DEEP in regime B, not the
+                                    boundary; this peak is channeling saturation)
+    Z(W=1500)= 101.8/11.45 = 8.9  (Π₂ = 0.44 — slight fall-back)
+  The regime crossing itself (Π₂=1) lies between the first two points, near
+  W=125 — invisible in Z, but visible as the height-sensitivity sign-flip.
+
+  Example (low Pi): det1_b15_s20_h4
+    Z(W=50)  = 23.5/3.68  = 6.4
+    Z(W=500) = 57.9/7.94  = 7.3
+    Z(W=1500)= 88.9/11.45 = 7.8  ← monotonically rising (s=20 never reaches
+                                    Π₂=1 for W ≤ 1500 kg, so no channeling
+                                    switch-on and no turnover)
+
+
+--------------------------------------------------------------------------------
+4. INTERSECTION VS STREET DETONATION
+--------------------------------------------------------------------------------
+
+CONCLUSION: At large charges (W ≥ 250 kg) intersection radii exceed street
+radii by 8–24%. At W=50 the relationship depends on geometry.
+
+Physical reason: at an intersection the blast feeds TWO sets of orthogonal
+canyons (4 directions) instead of one straight canyon (2 directions). The two
+canyon axes act independently as waveguides, so the total "area of influence"
+is larger. This is encoded in:
+  - The larger C0 for det=2 (10.1 vs 7.8) — 4-canyon baseline
+  - The larger a=2 threshold (vs a=1) — both canyon axes must vent simultaneously
+  - The k_intersection ≈ 2·k_street pattern for the log impulse formula
+    (2 independent confinement channels)
+
+At W=50 (regime A) the intersection VENTS more freely for wide-street configs:
+  det1_b15_s20_h4_w50: R = 23.5 m
+  det2_b15_s20_h4_w50: R = 18.5 m  (−21%)
+The blast at an intersection has 4 escape directions, so for a small charge
+in an open layout the urban effect is WEAKER at the intersection. The effect
+reverses when the charge grows large enough to exploit the 4 canyons.
+
+For narrow streets even at W=50, det=2 > det=1 because the 4 canyons already
+confine the small charge:
+  det1_b15_s5_h4_w50: R = 25.2 m
+  det2_b15_s5_h4_w50: R = 29.4 m  (+16%)
+
+
+--------------------------------------------------------------------------------
+5. IMPULSE CONVERGENCE RADIUS VS PRESSURE CONVERGENCE RADIUS
+--------------------------------------------------------------------------------
+
+CONCLUSION: RadiusI > RadiusP in nearly every configuration (impulse converges
+farther from the detonation point than peak overpressure does).
+
+Physical reason: peak overpressure decays rapidly with distance and converges to
+free-field as soon as the strongest portion of the shock front reaches open
+space. Impulse is a TIME INTEGRAL of the positive pressure phase — it accumulates
+the contribution of all reflections, channeled flows, and late-arriving waves.
+Even after the peak has equalized, the integral continues to differ between
+urban and free-field environments until all reflections have propagated out.
+The convergence of impulse therefore happens farther from the source.
+
+Numerically: RadiusI / RadiusP ≈ 1.5–2.0 across all configurations. The ratio
+is largest for narrow-street, tall-building configs at large W (deepest channeling
+creates the longest-lived reflections).
+
+
+--------------------------------------------------------------------------------
+6. SUPER-HOPKINSON SCALING
+--------------------------------------------------------------------------------
+
+CONCLUSION: Some geometries show R ~ W^0.39 rather than the pure Hopkinson
+exponent 1/3. This is NOT a violation of Buckingham — it is an EMERGENT effect
+of the canyon channeling mechanism.
+
+Physical explanation: the canyon term contributes C3·sqrt(rho)·(H/s)·W^(1/3)/s
+to Z = R/W^(1/3). This term grows like W^(1/3), so R contains a component that
+grows as W^(1/3) × W^(1/3) = W^(2/3). Weighted by the actual config parameters
+this interpolates between W^(1/3) (no channeling) and W^(2/3) (pure channeling),
+giving an effective exponent around 0.39–0.44 for high-Pi geometries.
+
+The formula captures this automatically without a free exponent: R ~ W^(1/3)
+is the Hopkinson baseline, and the canyon term adds an urban amplification that
+scales as W^(1/3+1/3)/s, boosting the effective exponent for narrow-street
+tall-building configs.
+
+
+--------------------------------------------------------------------------------
+7. TWO REGIME SUMMARY
+--------------------------------------------------------------------------------
+
+REGIME A — SMALL CHARGE  (Π₂ = s/W^(1/3) > 1):
+  Primary driver: density rho (plan area density).
+  Secondary driver: building SIZE b (wave absorbed by first building row).
+  Height H: nearly irrelevant — wave does not reach walls above street level.
+  Density effect sign: positive (denser city → larger radius; reflective feeding).
+  Practical range in this dataset: W=50 at all street widths; W=250 at s=8 or 12.
+
+REGIME B — LARGE CHARGE  (Π₂ = s/W^(1/3) < 1):
+  Primary driver: canyon aspect ratio H/s (Π₃).
+  Secondary: wall continuity sqrt(rho) (only as channeling efficiency multiplier).
+  Density effect: fades and can reverse sign (frontal blocking).
+  Height effect sign: positive for channeling (narrow s), negative for blocking
+  (wide s, even in regime B since s may still be > W^(1/3)/2 etc.).
+  Practical range: W=500 and 1500 at s=5; W=1000 and 1500 at s=8.
+
+REGIME BOUNDARY: Π₂ = 1, i.e., s = W^(1/3).
+  At this point, all geometric effects exactly cancel: Z = baseline A (the
+  free-field decay distance). The formula gives Z = C0 + 0 + 0 + 0 = C0, and
+  the impulse formula gives Z = A · 1^0 = A. Both are the same physical quantity.
+
+
+================================================================================
+  PART III — FINAL FORMULAS
+================================================================================
+
+--------------------------------------------------------------------------------
+8. CANONICAL FORM  (applies to both targets)
+--------------------------------------------------------------------------------
+
+    R = W^(1/3) · Z
+
+The dimensionless Z differs by target:
+
+══════════════════════════════════════════════════════════════════════════════
+  PRESSURE RADIUS  —  Buckingham Pi additive switch model
+══════════════════════════════════════════════════════════════════════════════
+
+    Z_P = C0  +  C1 · (s/W^(1/3))
+               +  C2 · rho · (s/W^(1/3) − a)
+               +  C3 · sqrt(rho) · (H/s) · (W^(1/3)/s − 1)
+
+    a = 1  for street detonation (det=1)
+    a = 2  for intersection detonation (det=2)
+
+TERM-BY-TERM PHYSICAL READING:
+
+  C0  — baseline scaled radius (free-field decay distance).
+    The convergence radius in the absence of all geometric effects.
+    C0(street)=7.8, C0(intersection)=10.1 — larger for det=2 because 4-canyon
+    feeding sustains the urban perturbation even at "neutral" geometry.
+    C0 ≈ A (see impulse formula): both represent the scaled distance where the
+    free-field wave weakens below the level that can sustain a geometry effect.
+
+  C1·(s/W^(1/3))  — venting term   [C1 < 0].
+    Wider street → more venting → wave relaxes to free-field sooner → Z drops.
+    Narrower street → more confinement → Z rises. This is Π₂ acting directly.
+    C1 is ≈ twice as large at intersections (−1.16 vs −0.58): two canyon axes
+    vent simultaneously, doubling the effective venting sensitivity.
+
+  C2·rho·(s/W^(1/3) − a)  — density switch term   [C2 > 0].
+    Bracket flips sign at s = a·W^(1/3):
+    • s > a·W^(1/3): density → more reflections → Z increases (reflective regime).
+    • s < a·W^(1/3): density → more frontal blocking → Z decreases (blocking).
+    The threshold a=1 (street) and a=2 (intersection) are NOT fitted — they
+    follow from geometry (1 vs 2 canyon directions at the detonation point).
+    Cross-validation independently confirmed these values beat all alternatives.
+
+  C3·sqrt(rho)·(H/s)·(W^(1/3)/s − 1)  — canyon law term   [C3 > 0].
+    Sign switch at s = W^(1/3), independent of a:
+    • s < W^(1/3) (large charge): bracket positive → tall canyon channels wave →
+      H INCREASES Z.
+    • s > W^(1/3) (small charge): bracket negative → tall buildings block/scatter
+      → H DECREASES Z slightly.
+    H enters only through H/s (canyon shape, not absolute height).
+    sqrt(rho) = b/(b+s) is 1-D wall continuity (waveguide leakage through gaps).
+    C3 ≈ 0.58–0.71 for both street and intersection: same physical mechanism,
+    layout-independent — strong evidence this term captures a real wave effect.
+
+══════════════════════════════════════════════════════════════════════════════
+  IMPULSE RADIUS  —  log-space confinement model
+══════════════════════════════════════════════════════════════════════════════
+
+    Z_I = A · Pi^( k · ln(W^(1/3)/s) )     where Pi = H/(s·rho)
+
+  Equivalent log-linear form (as a function of Pi groups):
+    ln(Z_I) = ln(A)  +  k · ln(Pi) · ln(W^(1/3)/s)
+    ln(Π₀)  = ln(A)  −  k · ln(Π_conf) · ln(Π₂)
+
+  This is a BILINEAR model in log-space: the effect of confinement (ln Pi)
+  is modulated by the regime (ln W^(1/3)/s), and vice versa.
+
+TERM READING:
+
+  A  — baseline scaled impulse radius (same role as C0 for pressure).
+    Numerically ≈ 12 m/kg^(1/3): the Hopkinson-scaled distance at which the
+    free-field impulse decays to ~9 kPa·ms — below this level the blast is too
+    weak for the urban geometry to sustain a measurable perturbation.
+    A is therefore PREDICTABLE from the free-field impulse curve, not a genuinely
+    free parameter. This is why A is nearly the same for street and intersection
+    (11.9 vs 12.8): both share the same free-field decay threshold.
+
+  k · ln(W^(1/3)/s) = −k · ln(Π₂)  — confinement exponent.
+    This is the exponent of Pi. Its sign is determined by the regime:
+    • Large charge (W^(1/3) > s): exponent positive → high Pi extends R
+      (confinement amplifies urban influence in channeling regime).
+    • Small charge (W^(1/3) < s): exponent negative → high Pi shortens R
+      (confinement absorbs the small wave in absorption regime).
+    • At s = W^(1/3): exponent = 0 → Z = A, geometry-independent.
+    The exponent magnitude grows logarithmically as the charge departs from the
+    crossover — deeper in each regime, geometry matters more.
+
+  Why log formula beats switch formula for IMPULSE:
+    Impulse integrates the full time-history of the positive phase, including
+    multiple reflections. This produces a smoother, more gradual geometry
+    dependence that is captured better by the continuous log model than by the
+    piecewise-linear switch model. The switch model handles pressure well because
+    peak overpressure is dominated by the primary shock, which has sharper
+    geometric transitions. Both choices were confirmed by head-to-head CV
+    comparison (500 identical train/test splits): log wins for I (80% of splits,
+    median MAPE 8.25% vs 9.20%), switch wins for P.
+
+
+--------------------------------------------------------------------------------
+9. FITTED COEFFICIENTS
+--------------------------------------------------------------------------------
+
+PRODUCTION FIT  (100% of 96 configurations — use for thesis)
+  File: final_production_convergence_coefficients.csv
+
+  Pressure radius:
+    Street (det=1):
+      Z = +7.778 − 0.576·(s/W^1/3) + 2.298·rho·(s/W^1/3 − 1)
+          + 0.576·sqrt(rho)·(H/s)·(W^1/3/s − 1)
+    Intersection (det=2):
+      Z = +10.060 − 1.157·(s/W^1/3) + 2.185·rho·(s/W^1/3 − 2)
+          + 0.710·sqrt(rho)·(H/s)·(W^1/3/s − 1)
+
+  Impulse radius:
+    Street (det=1):   Z = 11.934 · Pi^(+0.0943·ln(W^1/3/s))
+    Intersection (det=2): Z = 12.766 · Pi^(+0.0809·ln(W^1/3/s))
+
+BEST CROSS-VALIDATION ITERATION  (seed=42, 500 stratified 80/20 splits)
+  File: best_convergence_coefficients.csv
+
+  Pressure radius:
+    Street (det=1):
+      Z = +7.591 − 0.507·(s/W^1/3) + 2.120·rho·(s/W^1/3 − 1)
+          + 0.620·sqrt(rho)·(H/s)·(W^1/3/s − 1)
+    Intersection (det=2):
+      Z = +10.135 − 1.184·(s/W^1/3) + 2.213·rho·(s/W^1/3 − 2)
+          + 0.628·sqrt(rho)·(H/s)·(W^1/3/s − 1)
+
+  Impulse radius:
+    Street (det=1):   Z = 11.834 · Pi^(+0.1014·ln(W^1/3/s))
+    Intersection (det=2): Z = 12.611 · Pi^(+0.0822·ln(W^1/3/s))
+
+
+--------------------------------------------------------------------------------
+10. UNIFIED 2-PARAMETER VERSION  (emergent symmetry)
+--------------------------------------------------------------------------------
+
+Three observations allow further parameter reduction:
+
+(a) A ~ free-field decay threshold: physically predictable, not genuinely free.
+
+(b) For PRESSURE: k_intersection ≈ 2·k_street (empirical ratio ≈ 1.98).
+    Physical reading: d = number of independent canyon directions at detonation.
+    Street = d=1,  intersection = d=2. Same factor that gives a=1 vs a=2.
+
+(c) For IMPULSE: A is nearly shared; k ratio ≈ 0.79 (not 2). The doubling
+    rule does not apply to impulse — the time-integral character smooths out
+    the directional difference.
+
+Unified pressure formula (2 free parameters, both locations):
+    R_P = 7.592 · W^(1/3) · Pi^( 0.0665 · d · ln(W^(1/3)/s) )
+    d=1 (street), d=2 (intersection)
+    R²=0.935,  MAPE: street 8.5%,  intersection 12.4%
+
+Unified impulse formula (3 free parameters):
+    R_I = 12.343 · W^(1/3) · Pi^( k_d · ln(W^(1/3)/s) )
+    k_street=0.0980, k_intersection=0.0772
+    R²=0.947,  MAPE ≈ 8.4%
+
+Summary: 96 simulations, 2 locations, 2 targets — fully described by 5 numbers.
+Two of those five (the A-values) are predictable from the free-field curve.
+
+
+--------------------------------------------------------------------------------
+10b. Z_URBAN AND R_URBAN — LOAD-LEVEL MAPPING (max_radius_per_Z.csv)
+--------------------------------------------------------------------------------
+
+A second model family answers a different question: for a given free-field
+load level (the load at scaled distance Z_free), what is the maximum radius
+MaxR in the URBAN environment where that load level still occurs?
+Z_urban = MaxR/W^(1/3) is the urban-equivalent scaled distance.
+
+CANONICAL FORM (same as the convergence radius):  MaxR = W^(1/3) · Z_urban
+
+    Z_urban = C · Z_free^m · rho^p · (H/s)^q · (s/W^(1/3))^r
+
+    R_urban = W^(1/3) · Z_urban     (derived identically — NOT separately
+                                     fitted; its relative errors equal
+                                     Z_urban's row-for-row)
+
+DATA EXTRACTION (MaxR):
+  MaxR is the 95th percentile (over 91 one-degree angular bins) of the
+  outermost cells where the urban field still delivers AT LEAST the
+  free-field level (exceedance definition, parameter-free). This replaced
+  an earlier tolerance-band matching (±15%/±5% around the level), which
+  inflated MaxR by 3–12% near the convergence radius — where urban/ff ≈ 1
+  is within the band width — and left angular bins empty in the steep near
+  field. The exceedance data is lower by ~7% (P) / ~9–12% (I) on median.
+
+VALIDITY DOMAIN:
+  1. Z_free ≥ 2 (both targets): at Z_free = 1 the point lies within one
+     Hopkinson length of the charge — inside the first street, where the
+     discrete near-field geometry dominates any smooth formula.
+  2. Amplification regime only (Z_urban > Z_free): the formula describes how
+     the city EXTENDS the reach of each load level. The exceedance data
+     revealed a genuine attenuation regime — small charges at intersections
+     (W=50, det2, near field), where 4-way venting makes the urban impulse
+     WEAKER than free-field (Z_urban < Z_free). These 12 rows (of ~900) are
+     a different physics, excluded from fit and validation; for such cases
+     the practical estimate is Z_urban ≈ Z_free (urban ≈ free-field or less).
+
+PHYSICAL CLOSURE WITH THE CONVERGENCE RADIUS:
+  By definition the urban field equals free-field beyond R_conv, so MaxR can
+  never exceed the convergence radius, and never fall below the free-field
+  radius Z_free·W^(1/3). Predictions are therefore clipped to
+
+      Z_free  ≤  Z_urban  ≤  Z_conv
+
+  where Z_conv comes from the convergence-radius formulas (RadiusP additive,
+  RadiusI log) — the two formula systems form one self-consistent chain.
+  For Z_free ≥ Z_conv the mapping is the identity (urban = free-field).
+  The clip activates on ~2–5% of rows (those approaching convergence, where
+  the raw power law overshoots) and slightly improves the pressure MAPE; the
+  fit itself only ever uses rows with MaxR < R_conv (actual).
+
+BUCKINGHAM STATUS:
+  A pure power law in the Pi groups (rho, Π₃=H/s, Π₂=s/W^(1/3)) and the
+  dimensionless input level Z_free; log-linear, so the fit is a plain OLS in
+  log space — same family as the RadiusI convergence formula. W enters only
+  through W^(1/3); 5 dimensionless coefficients per (det × target).
+  This replaced an earlier model that used raw H in metres and a free W^n
+  exponent (which fitted to n≈0 — dead weight).
+
+  MODEL SELECTION (config-level 5-fold CV over candidate families):
+  additive Pi brackets, log brackets, geometry-modulated exponents, strict
+  transplants of the convergence switch/log shapes, confinement-group
+  variants, slenderness (b/H) corrections, and tail-targeted fitting norms
+  (L4, minimax/Chebyshev) were all tested out-of-sample. The strict
+  switch/log transplant was clearly worse (12.8–16.6% MAPE) — Z_urban is a
+  smooth load-level mapping, not a regime boundary, so sign-switching
+  brackets do not apply. Tail-targeted norms were strictly worse
+  out-of-sample (they overfit the in-sample tail). Slenderness terms
+  (rho exponent modulated by ln(b/H)) improved CV MAPE by ~0.3–0.7% but
+  were dropped in favour of the simpler 5-coefficient form.
+
+PHYSICAL READING:
+  • m ≈ 1.0 for pressure: the urban field shifts the free-field pressure
+    curve nearly proportionally — a roughly constant amplification factor.
+  • m ≈ 0.7 for impulse: sub-linear — the urban impulse amplification is
+    strongest at small Z_free (near field, reflections still strong) and
+    fades toward the convergence radius.
+  • C_impulse ≈ 3.5 vs C_pressure ≈ 1.7–2.1: impulse is amplified roughly
+    twice as strongly — it integrates all reflections.
+  • p > 0 always: density extends the reach of every load level
+    (reflective feeding), strongest for street detonations.
+  • q ≈ 0 for pressure but q > 0 for impulse: canyon depth barely moves the
+    peak-pressure mapping, but deep canyons hold the impulse up farther out
+    (channeled reflections keep feeding the time integral).
+  • r < 0 for pressure (wide scaled streets vent the peak), r > 0 weakly for
+    impulse.
+
+PRODUCTION COEFFICIENTS (100% of data; final_production_z_urban_coefficients.csv):
+
+  Pressure (Z_free ≥ 2, amplification regime):
+    Street (det=1):
+      Z_urban = 1.968 · Z_free^0.880 · rho^0.187 · (H/s)^−0.003 · (s/W^⅓)^−0.046
+    Intersection (det=2):
+      Z_urban = 1.582 · Z_free^1.063 · rho^0.106 · (H/s)^−0.005 · (s/W^⅓)^−0.084
+
+  Impulse (Z_free ≥ 2, amplification regime):
+    Street (det=1):
+      Z_urban = 2.744 · Z_free^0.788 · rho^0.223 · (H/s)^0.086 · (s/W^⅓)^0.053
+    Intersection (det=2):
+      Z_urban = 2.705 · Z_free^0.824 · rho^0.206 · (H/s)^0.112 · (s/W^⅓)^0.065
+
+QUALITY (CV, 100 stratified 80/20 splits, det-only strata, clipped chain):
+  Z_urban Pressure: median test MAPE ≈ 8.3%  (best iteration 6.5%, R² 0.91)
+  Z_urban Impulse:  median test MAPE ≈ 11.3% (best iteration 8.9%, R² 0.91)
+  Held-out test set (check_formulas.py): P 6.5%, I 8.9%.
+
+ERROR STRUCTURE (production fit on exceedance data, amplification domain):
+  Pressure street :  MAPE  8.5%, max 23%, p95 20%   (Zf ≥ 5: 9.2%)
+  Pressure inters.:  MAPE  7.6%, max 28%, p95 22%   (Zf ≥ 5: 9.3%)
+  Impulse  street :  MAPE 11.7%, max 46%, p95 29%   (Zf ≥ 5: 10.3%)
+  Impulse  inters.:  MAPE  9.6%, max 53%, p95 26%   (Zf ≥ 5: 9.1%)
+  The error is now nearly uniform across Z_free (no high-Z degradation —
+  the exceedance extraction removed the boundary-layer contamination that
+  previously biased the fit near the convergence radius). The remaining
+  max-error rows are the b=10 slender-tower configurations (outside the
+  original b∈{15,30} family) — the same structural limitation as the
+  convergence formulas.
+
+
+================================================================================
+  PART IV — BUCKINGHAM PI CONSISTENCY AND WHAT WAS REJECTED
+================================================================================
+
+--------------------------------------------------------------------------------
+11. BOTH FORMULAS ARE PHYSICALLY GROUNDED AND BUCKINGHAM-CONSISTENT
+--------------------------------------------------------------------------------
+
+What "derived from Buckingham" means in this context:
+  The theorem constrains ARGUMENTS (only Pi groups may appear) but not the shape
+  of f. A formula is Buckingham-consistent if:
+  (1) it depends only on Pi groups identified from dimensional analysis,
+  (2) the W^(1/3) Hopkinson scaling is imposed rather than fitted,
+  (3) the shape of f is motivated by physical reasoning and confirmed by data.
+  Both formulas satisfy all three conditions.
+
+PRESSURE FORMULA — Buckingham audit:
+  • C0: dimensionless constant. ✓
+  • C1·(s/W^(1/3)): pure Π₂. ✓
+  • C2·rho·(s/W^(1/3) − a): rho = f(Π₁,Π₄), multiplied by Π₂, minus a fixed
+    geometric number. The bracket is Π₂ − a; "a" is a geometric constant fixed
+    by the number of canyon axes (1 or 2). ✓
+  • C3·sqrt(rho)·(H/s)·(W^(1/3)/s − 1): sqrt(rho) = f(Π₄), H/s = Π₃,
+    (W^(1/3)/s − 1) = (1/Π₂ − 1). All dimensionless. ✓
+  • W enters ONLY through W^(1/3). Super-Hopkinson scaling (exponent ~0.39)
+    emerges from the canyon term, not a fitted exponent. ✓
+
+IMPULSE FORMULA — Buckingham audit:
+  • A: dimensionless. ✓
+  • Pi_conf = H/(s·rho) = Π₃·(1 + 1/Π₄)²: valid Pi group. ✓
+  • The exponent k·ln(W^(1/3)/s) = −k·ln(Π₂): logarithm of a dimensionless
+    argument — dimensionless. ✓
+  • W enters only through W^(1/3). ✓
+  • Sign flip at Π₂=1 is a dimensionless condition. ✓
+
+ONE HONEST CAVEAT:
+  The threshold s = W^(1/3) implicitly equates metres with kg^(1/3). In fully
+  rigorous form the boundary is s = (E/p₀)^(1/3). Since all simulations share
+  one atmospheric pressure and one explosive type, this prefactor is constant
+  and absorbed into the coefficients. For the thesis: the regime boundary is
+  s ≈ (E/p₀)^(1/3); the numerical constants express this in TNT-at-sea-level
+  units. Generalization to other conditions requires the full (E/p₀)^(1/3) form.
+
+
+--------------------------------------------------------------------------------
+12. WHAT WAS TESTED AND REJECTED
+--------------------------------------------------------------------------------
+
+• Two separate height terms H/s and H·W^(1/3)/s² → replaced by the single
+  factored term (H/s)·(W^(1/3)/s − 1); one parameter saved, same physics.
+
+• Plain rho term alongside the switch term → algebraically collapses to
+  rho·(s/W^(1/3) − a); fitting a directly gives a≈1 (street), a≈2 (intersection),
+  so a was frozen at those geometric values.
+
+• rho·H/W^(1/3) interaction → rejected (worst-group MAPE 11.3% vs 10.0%;
+  high collinearity).
+
+• Hard gate max(0, H/W^(1/3) − 3) on the density term → rejected (unstable;
+  only ~20 configs activate it; worst-group MAPE 11.4–11.7% vs 10.1%).
+
+• Free W exponent → unnecessary; fixed 1/3 plus canyon term reproduces the
+  observed effective exponent ~0.39 without an extra parameter.
+
+• Log-space power-law Z = C·rho^a·(H/s)^b·(s/W^(1/3))^c for RadiusP → cannot
+  represent sign-switching effects (monotonic in each argument). The additive
+  form is required by the data.
+
+• Channeling/blocking stratification in CV (4 strata) → replaced by det-only
+  stratification (2 strata). Regime is encoded inside the formula terms.
+
+• Switch formula for RadiusI vs log formula: log wins in 80% of 500 CV splits,
+  median MAPE 8.25% (log) vs 9.20% (switch). Decision: log for impulse.
+
+• Log formula for RadiusP vs switch formula: switch wins. Decision: switch for P.
+
+• a=√2 and a=1 for intersection → both beaten by a=2 (9.2% vs 10.0% / 10.8%
+  worst-group MAPE). Geometric argument (2 canyon axes) confirmed by data.
+
+
+================================================================================
+  PART V — VALIDATION, LIMITATIONS, AND FILES
+================================================================================
+
+--------------------------------------------------------------------------------
+13. MODEL QUALITY AND VALIDATION
+--------------------------------------------------------------------------------
+
+CROSS-VALIDATION  (500 stratified 80/20 splits, det-only strata, seed=42)
+  Pressure radius : median MAPE 8.41%,  R² = 0.946
+  Impulse radius  : median MAPE 8.20%,  R² = 0.949
+
+HELD-OUT TEST SET  (best CV iteration, check_formulas.py)
+  Pressure radius : R² ≈ 0.918,  MAPE ≈ 8.1%
+  Impulse radius  : R² ≈ 0.925,  MAPE ≈ 6.2%
+
+LEAVE-GEOMETRY-OUT CV  (strongest test: entire (det,b,s,H) group held out)
+  Average MAPE ≈ 10.5%,  worst group ≈ 22.2%
+  (Full 6-coefficient model: 10.8% average, 31.0% worst — extra parameters
+   overfit noise; the hybrid formula generalises better.)
+
+WEIGHT EXTRAPOLATION:
+  Train on W≤1000, predict W=1500 :  ~5.1%   (excellent)
+  Train on W≥250,  predict W=50   :  ~19.1%  (weak — W=50 is regime A
+                                              where the formula is imprecise)
+
+DATA/PARAMETER RATIO: 24:1 per location group.
+In-sample/out-of-sample gap: ~2%. No evidence of overfitting.
+
+
+--------------------------------------------------------------------------------
+14. LIMITATIONS
+--------------------------------------------------------------------------------
+
+• W=50 kg: ~19% average error. At small charges the radius is governed by the
+  discrete geometry of the first building row (wave absorbed behind one row);
+  the smooth formula cannot capture this. Formula is reliable for W ≥ 250 kg.
+
+• Largest residuals: W=50 at intersection (up to 3.2 Z-units, e.g.,
+  det2_b30_s20_h4_w50) and b=10 groups at W=250.
+
+• All data come from idealized periodic geometry simulations (uniform grids of
+  identical rectangular buildings). Validity for realistic irregular urban
+  layouts has not been tested.
+
+• The constants C0, a, and A implicitly assume TNT at standard atmospheric
+  pressure. Generalization: replace W^(1/3) with (E/p₀)^(1/3) throughout.
+
+• The formula captures CONVERGENCE RADIUS — not the peak pressure or impulse
+  at a given point, only the distance at which the urban and free-field fields
+  become indistinguishable. Inside the convergence radius the actual urban
+  amplification (channeling peaks, shadow regions) is not modelled.
+
+
+--------------------------------------------------------------------------------
+15. PIPELINE FILES
+--------------------------------------------------------------------------------
+
+  regression.py                              — CV fitting + coefficient output
+  check_formulas.py                          — validation on held-out test set
+  plot_pi_effects.py                         — raw-data Pi diagnostic plots
+  formulas_printer.py                        — pretty-print formula coefficients
+
+  best_convergence_coefficients.csv          — CV-best iteration coefficients
+  final_production_convergence_coefficients.csv — 100%-data fit (use for thesis)
+  best_z_urban_coefficients.csv              — Z_urban Pi-bracket coefficients
+  final_production_z_urban_coefficients.csv  — Z_urban 100%-data fit (thesis)
+  (R_urban has no coefficient file: R_urban = W^(1/3) · Z_urban identically)
+
+  principle_figure.png                       — slope-flip + collapse to one line
+  regime_diagram.png                         — 2D iso-Z regime diagram
+  regime_diagram_3d.png                      — 3D saddle surface Z(ln Π₂, ln Π_conf)
+  Figures_Pi_Effects/                        — per-Pi raw-data diagnostic figures
+
+================================================================================

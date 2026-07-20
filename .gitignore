@@ -1,0 +1,23 @@
+# Raw simulation data (~25 GB) — far exceeds GitHub limits.
+# Individual VTK/MAT files reach ~246 MB; GitHub's hard cap is 100 MB per file.
+# These live in the OneDrive-synced folder and are regenerable from the pipeline.
+all_vtks/
+MAT_files/
+OBS_MAT_files/
+1ds/
+
+# Thesis writeup — kept out of the repo deliberately.
+finidings.docx
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS / editor cruft
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/

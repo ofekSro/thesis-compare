@@ -1,0 +1,164 @@
+"""Create Figure 2: pressure and impulse ratio plots with convergence circle.
+Equivalent to REFERENCES/compare/plot_ratio.m
+"""
+
+import os
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+
+from draw_cuboids_gray import draw_cuboids_gray
+
+
+def _bluewhitered():
+    """Blue-white-red diverging colormap. Equivalent to MATLAB's bluewhitered."""
+    return mcolors.LinearSegmentedColormap.from_list(
+        'bluewhitered', [(0, 'blue'), (0.5, 'white'), (1, 'red')]
+    )
+
+
+def _plot_layer(ax, X, Z, data, cmap, norm):
+    """Plot one grid layer; NaN cells are transparent.
+    Equivalent to local function plot_layer in plot_ratio.m
+    """
+    masked = np.ma.masked_invalid(data)
+    ax.pcolormesh(X, Z, masked, shading='nearest', cmap=cmap, norm=norm)
+
+
+def _draw_convergence_circle(ax, r):
+    """Draw dashed black quarter-circle at the equivalent area radius."""
+    if np.isnan(r) or r <= 0:
+        return
+    theta = np.linspace(0, np.pi / 2, 100)
+    ax.plot(r * np.cos(theta), r * np.sin(theta), 'k--', linewidth=2)
+
+
+def _draw_convergence_polyline(ax, theta_centers, radii):
+    """Draw solid black polyline connecting per-theta convergence radii."""
+    valid = ~np.isnan(radii)
+    if not np.any(valid):
+        return
+    th = theta_centers[valid]
+    r = radii[valid]
+    x = r * np.cos(th)
+    z = r * np.sin(th)
+    ax.plot(x, z, 'k-', linewidth=1.5)
+
+
+def _calculate_scale(data, cfg, params):
+    """Calculate colour scale limits, excluding the near-blast zone.
+    Equivalent to local function calculate_scale in plot_ratio.m
+    """
+    ratioP1 = data['ratioP1'].copy()
+    ratioP2 = data['ratioP2'].copy()
+    ratioP3 = data['ratioP3'].copy()
+    ratioI1 = data['ratioI1'].copy()
+    ratioI2 = data['ratioI2'].copy()
+    ratioI3 = data['ratioI3'].copy()
+
+    if cfg['det'] == 1:
+        ex_x = cfg['bsize'] / 2
+        ex_z = cfg['swidth'] / 2
+        for rP, rI, X, Z in (
+            (ratioP1, ratioI1, data['X1'], data['Z1']),
+            (ratioP2, ratioI2, data['X2'], data['Z2']),
+            (ratioP3, ratioI3, data['X3'], data['Z3']),
+        ):
+            mask = (X <= ex_x) & (Z <= ex_z)
+            rP[mask] = np.nan
+            rI[mask] = np.nan
+    else:
+        ex_r = cfg['swidth'] / 2
+        for rP, rI, X, Z in (
+            (ratioP1, ratioI1, data['X1'], data['Z1']),
+            (ratioP2, ratioI2, data['X2'], data['Z2']),
+            (ratioP3, ratioI3, data['X3'], data['Z3']),
+        ):
+            dist = np.sqrt(X ** 2 + Z ** 2)
+            rP[dist <= ex_r] = np.nan
+            rI[dist <= ex_r] = np.nan
+
+    if params.get('useManualScale', False):
+        scale_P = params['scaleP']
+        scale_I = params['scaleI']
+    else:
+        all_rP = np.concatenate([ratioP1.ravel(), ratioP2.ravel(), ratioP3.ravel()])
+        all_rI = np.concatenate([ratioI1.ravel(), ratioI2.ravel(), ratioI3.ravel()])
+
+        max_rP = float(np.nanpercentile(np.abs(all_rP - 1), 95))
+        max_rI = float(np.nanpercentile(np.abs(all_rI - 1), 95))
+
+        if np.isnan(max_rP) or max_rP < 0.05:
+            max_rP = 0.5
+        if np.isnan(max_rI) or max_rI < 0.05:
+            max_rI = 0.5
+
+        scale_P = [1 - max_rP, 1 + max_rP]
+        scale_I = [1 - max_rI, 1 + max_rI]
+
+    return scale_P, scale_I
+
+
+def plot_ratio(data, cfg, params, config_name, fig_folder, radius):
+    """Save Figure 2 with pressure and impulse ratio plots.
+
+    Parameters
+    ----------
+    data        : dict returned by process_grids
+    cfg         : dict from config_parser
+    params      : dict with thresholdP_kPa, minPressure_kPa, useManualScale, ...
+    config_name : str
+    fig_folder  : output directory
+    radius      : dict from find_convergence_radius
+    """
+    axis_limit = max(radius['pressure'], radius['impulse']) + 15
+    scale_P, scale_I = _calculate_scale(data, cfg, params)
+
+    cmap = _bluewhitered()
+    norm_P = mcolors.Normalize(vmin=scale_P[0], vmax=scale_P[1])
+    norm_I = mcolors.Normalize(vmin=scale_I[0], vmax=scale_I[1])
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    fig.suptitle(config_name, fontsize=14)
+
+    # ---- Pressure ratio ----
+    ax1.set_facecolor('white')
+    _plot_layer(ax1, data['X3'], data['Z3'], data['ratioP3'], cmap, norm_P)
+    _plot_layer(ax1, data['X2'], data['Z2'], data['ratioP2'], cmap, norm_P)
+    _plot_layer(ax1, data['X1'], data['Z1'], data['ratioP1'], cmap, norm_P)
+
+    ax1.set_xlim(0, axis_limit)
+    ax1.set_ylim(0, axis_limit)
+    ax1.set_aspect('equal')
+    sm_P = plt.cm.ScalarMappable(cmap=cmap, norm=norm_P)
+    sm_P.set_array([])
+    fig.colorbar(sm_P, ax=ax1)
+    ax1.set_title(f'P / P_ref  (Req = {radius["pressure"]:.1f} m)')
+    ax1.set_xlabel('X [m]')
+    ax1.set_ylabel('Z [m]')
+    draw_cuboids_gray(ax1, config_name)
+    _draw_convergence_circle(ax1, radius['pressure'])
+
+    # ---- Impulse ratio ----
+    ax2.set_facecolor('white')
+    _plot_layer(ax2, data['X3'], data['Z3'], data['ratioI3'], cmap, norm_I)
+    _plot_layer(ax2, data['X2'], data['Z2'], data['ratioI2'], cmap, norm_I)
+    _plot_layer(ax2, data['X1'], data['Z1'], data['ratioI1'], cmap, norm_I)
+
+    ax2.set_xlim(0, axis_limit)
+    ax2.set_ylim(0, axis_limit)
+    ax2.set_aspect('equal')
+    sm_I = plt.cm.ScalarMappable(cmap=cmap, norm=norm_I)
+    sm_I.set_array([])
+    fig.colorbar(sm_I, ax=ax2)
+    ax2.set_title(f'I / I_ref  (Req = {radius["impulse"]:.1f} m)')
+    ax2.set_xlabel('X [m]')
+    ax2.set_ylabel('Z [m]')
+    draw_cuboids_gray(ax2, config_name)
+    _draw_convergence_circle(ax2, radius['impulse'])
+
+    out_path = os.path.join(fig_folder, f'{config_name}_ratio.png')
+    fig.savefig(out_path, dpi=100, bbox_inches='tight')
+    plt.close(fig)

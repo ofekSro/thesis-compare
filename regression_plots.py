@@ -1,0 +1,178 @@
+"""Validation plots for the best CV iteration (convergence radius + Z_urban)."""
+
+import os
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+from convergence_models import _predict_pi, _predict_impulse
+from z_urban_model import (
+    Z_URBAN_ZF_MIN, _predict_z_urban, _clip_z_urban_pred,
+)
+
+
+def _plot_best_validation(conv_df, maxR_df,
+                          conv_P_coeffs, conv_I_coeffs,
+                          z_coeffs,
+                          train_idx, test_idx,
+                          config_names, best_mapes, output_folder):
+    """Plot actual vs predicted for the best CV iteration."""
+    W   = conv_df['ChargeWeight'].values.astype(float)
+    H   = conv_df['Height'].values.astype(float)
+    S   = conv_df['StreetWidth'].values.astype(float)
+    B   = conv_df['BuildingSize'].values.astype(float)
+    rho = conv_df['AreaDensity'].values.astype(float)
+    det = conv_df['Det'].values.astype(int)
+
+    pred_P = _predict_pi(W, rho, H, det, S, B, conv_P_coeffs)
+    pred_I = _predict_impulse(W, rho, H, det, S, B, conv_I_coeffs)
+
+    actual_P = conv_df['RadiusP'].values
+    actual_I = conv_df['RadiusI'].values
+
+    # Color: blue=train, red=test
+    colors = np.full(len(conv_df), 'C0')
+    colors[test_idx] = 'C3'
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig.patch.set_facecolor('white')
+    fig.suptitle('Best CV Iteration: Convergence Radius (Train=blue, Test=red)',
+                 fontsize=13, fontweight='bold')
+
+    for ax, actual, pred, title, mape_key in [
+        (axes[0], actual_P, pred_P, 'Pressure', 'conv_P'),
+        (axes[1], actual_I, pred_I, 'Impulse', 'conv_I'),
+    ]:
+        for idx_set, c, label in [(train_idx, 'C0', 'Train'), (test_idx, 'C3', 'Test')]:
+            ax.scatter(actual[idx_set], pred[idx_set], s=50, c=c,
+                       edgecolors='k', linewidths=0.5, label=label, alpha=0.7)
+        lim = [0, max(actual.max(), np.nanmax(pred)) * 1.1]
+        ax.plot(lim, lim, 'k--', linewidth=1.5)
+        ax.plot(lim, [v * 1.1 for v in lim], color='gray', linestyle='--', alpha=0.5, label='+/- 10% Error')
+        ax.plot(lim, [v * 0.9 for v in lim], color='gray', linestyle='--', alpha=0.5)
+        ax.set_xlim(lim); ax.set_ylim(lim)
+        ax.set_xlabel('Actual [m]'); ax.set_ylabel('Predicted [m]')
+        test_mape = best_mapes[mape_key]
+        ax.set_title(f'{title}\nTest MAPE = {test_mape:.1f}%')
+        ax.set_aspect('equal'); ax.grid(True, alpha=0.3)
+        ax.legend(loc='upper left')
+
+    fig.savefig(os.path.join(output_folder, 'cv_best_convergence.png'),
+                dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print('Saved: cv_best_convergence.png')
+
+    # ---- Z_urban plot (R_urban = W^(1/3)*Z_urban — same relative errors) ----
+    if z_coeffs is not None:
+        _plot_nonlinear_validation(maxR_df, z_coeffs,
+                                   conv_P_coeffs, conv_I_coeffs,
+                                   config_names, train_idx, test_idx,
+                                   best_mapes, output_folder)
+
+
+def _plot_nonlinear_validation(maxR_df, z_coeffs,
+                                conv_P_coeffs, conv_I_coeffs,
+                                config_names, train_idx, test_idx,
+                                best_mapes, output_folder):
+    """Plot Z_urban actual vs predicted (clipped to [Z_free, Z_conv])."""
+    train_configs = set(config_names[train_idx])
+    test_configs  = set(config_names[test_idx])
+
+    for model_name, coeffs, target_cols, mape_keys in [
+        ('Z_urban', z_coeffs,
+         [('Z_urban_P', 'Pressure', 'RadiusP'), ('Z_urban_I', 'Impulse', 'RadiusI')],
+         ('z_P', 'z_I')),
+    ]:
+        if coeffs is None:
+            continue
+
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        fig.patch.set_facecolor('white')
+        fig.suptitle(f'Best CV: {model_name} (Train=blue, Test=red)',
+                     fontsize=13, fontweight='bold')
+
+        for ax_idx, (target_col, target_name, radius_col) in enumerate(target_cols):
+            ax = axes[ax_idx]
+            maxR_col = 'MaxR_P' if target_name == 'Pressure' else 'MaxR_I'
+
+            all_actual_train, all_pred_train = [], []
+            all_actual_test, all_pred_test = [], []
+
+            for det_val in [1, 2]:
+                popt = coeffs.get((det_val, target_name))
+                if popt is None:
+                    continue
+
+                mask = (maxR_df['det'] == det_val)
+
+                sub = maxR_df[mask].dropna(subset=[target_col, radius_col])
+                if len(sub) == 0:
+                    continue
+
+                valid_mask = ((sub[maxR_col] < sub[radius_col]) &
+                              (sub['Z_free'] >= Z_URBAN_ZF_MIN[target_name]) &
+                              (sub[target_col] > sub['Z_free']))
+                sub_valid = sub[valid_mask]
+                if len(sub_valid) == 0:
+                    continue
+
+                y_actual = sub_valid[target_col].values
+
+                W13 = sub_valid['weight'].values ** (1 / 3)
+                y_pred = _predict_z_urban(
+                    sub_valid['Z_free'].values, sub_valid['rho'].values,
+                    sub_valid['height'].values, sub_valid['swidth'].values,
+                    W13, target_name, popt)
+                y_pred = _clip_z_urban_pred(y_pred, sub_valid, det_val,
+                                            target_name, conv_P_coeffs,
+                                            conv_I_coeffs)
+
+                is_train = sub_valid['Config'].isin(train_configs)
+                is_test  = sub_valid['Config'].isin(test_configs)
+
+                if is_train.any():
+                    all_actual_train.append(y_actual[is_train.values])
+                    all_pred_train.append(y_pred[is_train.values])
+                if is_test.any():
+                    all_actual_test.append(y_actual[is_test.values])
+                    all_pred_test.append(y_pred[is_test.values])
+
+            # Plot
+            if all_actual_train:
+                at = np.concatenate(all_actual_train)
+                pt = np.concatenate(all_pred_train)
+                ax.scatter(at, pt, s=30, c='C0', alpha=0.5, edgecolors='k',
+                           linewidths=0.3, label='Train')
+            if all_actual_test:
+                at = np.concatenate(all_actual_test)
+                pt = np.concatenate(all_pred_test)
+                ax.scatter(at, pt, s=50, c='C3', alpha=0.8, edgecolors='k',
+                           linewidths=0.5, label='Test')
+
+            all_vals = []
+            for lst in [all_actual_train, all_pred_train, all_actual_test, all_pred_test]:
+                if lst:
+                    all_vals.append(np.concatenate(lst))
+            if all_vals:
+                combined = np.concatenate(all_vals)
+                lim = [0, np.nanmax(combined) * 1.1]
+            else:
+                lim = [0, 1]
+
+            ax.plot(lim, lim, 'k--', linewidth=1.5)
+            ax.plot(lim, [v * 1.1 for v in lim], color='gray', linestyle='--', alpha=0.5, label='+/- 10% Error')
+            ax.plot(lim, [v * 0.9 for v in lim], color='gray', linestyle='--', alpha=0.5)
+            ax.set_xlim(lim); ax.set_ylim(lim)
+            mape_key = mape_keys[ax_idx]
+            test_mape = best_mapes.get(mape_key, np.nan)
+            unit = 'm/kg^(1/3)' if model_name == 'Z_urban' else 'm'
+            ax.set_xlabel(f'Actual [{unit}]'); ax.set_ylabel(f'Predicted [{unit}]')
+            ax.set_title(f'{target_name}\nTest MAPE = {test_mape:.1f}%')
+            ax.set_aspect('equal'); ax.grid(True, alpha=0.3)
+            ax.legend(loc='upper left')
+
+        fname = f'cv_best_{model_name.lower()}.png'
+        fig.savefig(os.path.join(output_folder, fname), dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        print(f'Saved: {fname}')
