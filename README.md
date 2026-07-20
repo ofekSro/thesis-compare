@@ -52,7 +52,39 @@ would mask a Phase-1 regression:
 
 ---
 
-## 2. Running the analysis
+## 2. Running the GUI launcher
+
+```
+python run_gui.py
+```
+
+A tkinter window (standard library only — no extra dependencies) with one tab
+per tool. The **Analysis** tab is the default. Every tab has a Run button, a
+Cancel button, a status indicator, and its own scrollable log.
+
+Every option available on the command line is exposed. Settings that would break
+comparability with the validated baseline (`test_fraction`, `target_mape`, and
+the validation tolerances) sit in a collapsed **Advanced** section, pre-filled
+with their validated defaults and marked with a warning.
+
+Notes:
+
+- Leaving a folder/file field blank uses the default from `blastlib/paths.py`.
+- Required inputs are checked *before* a run starts; if something is missing you
+  get a message naming the file and how to obtain it, not a crash.
+- **Cancel** takes effect at the next progress line (within one config). A
+  cancelled run may have written only part of its output — the log says so.
+- **Z Surface 3D** and **3D Viewer** run on the main thread because their
+  plotting toolkits require it, so the window is unresponsive while their own
+  window is open. They cannot be cancelled mid-run.
+- The **3D Viewer** tab disables itself with an explanation if `pyvista` is not
+  installed.
+
+The GUI is a thin launcher: it only calls the same `main()` functions the CLI
+calls, passing `progress=` to stream output into the log. No analysis logic
+lives in `gui/`.
+
+## 3. Running the analysis from the command line
 
 ```
 python run_analysis.py                          # asks the familiar questions
@@ -78,7 +110,7 @@ python run_preprocess_obs.py        # data/vtk/OBS/   → data/obs_npz/
 
 ---
 
-## 3. Validating the migration
+## 4. Validating the migration
 
 The pipeline is deterministic (the only randomness is `random_state=42`), so the
 new code must reproduce the old numbers exactly. After copying the **required**
@@ -108,7 +140,7 @@ then compare against that instead.
 
 ---
 
-## 4. Tools
+## 5. Tools
 
 Each is independent and takes `--help`. All write under `outputs/`.
 
@@ -132,7 +164,7 @@ Each is independent and takes `--help`. All write under `outputs/`.
 
 ---
 
-## 5. Layout
+## 6. Layout
 
 ```
 blastlib/          shared core (importable package)
@@ -147,6 +179,12 @@ blastlib/          shared core (importable package)
 run_analysis.py    Phase 1 + Phase 2 entry point
 run_preprocess.py  VTK → NPZ
 run_preprocess_obs.py
+run_gui.py         GUI entry point
+gui/               tkinter launcher
+  runner.py        background execution, cancellation, preflight (no tkinter)
+  specs.py         declarative tab/parameter definitions (no tkinter, no logic)
+  widgets.py       reusable presentation pieces
+  app.py           builds the window from specs, binds widgets to the runner
 tools/             standalone tools, one folder each
 data/              inputs (you copy these)
 outputs/           everything generated (safe to delete and regenerate)
@@ -156,8 +194,12 @@ outputs/           everything generated (safe to delete and regenerate)
 
 - Every entry point exposes `main(...)` with keyword arguments and never prompts;
   prompting lives only in `cli()` and only when stdin is an interactive terminal.
-  A GUI launcher can call `main()` directly and pass `progress=<callback>` to
-  receive log lines.
+  The GUI calls `main()` directly and passes `progress=<callback>` to receive
+  log lines.
+- The GUI layers are split so a visual restyle never touches logic: `runner.py`
+  and `specs.py` import no tkinter, so restyling means editing only
+  `widgets.py` / `app.py`. Exposing another parameter means editing `specs.py`
+  alone.
 - All output directories are parameters defaulting to `blastlib/paths.py`, so
   nothing depends on the current working directory.
 - The `.npz` files no longer store the six `logRatio*` arrays (nothing ever read
