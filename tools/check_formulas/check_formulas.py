@@ -103,10 +103,21 @@ def load_nonlinear_coefficients(csv_path):
         target = row['Target']
         formula = row['Formula'] if 'Formula' in df.columns else 'power'
         if formula == 'range_switch':
+            A = float(row['A_switch'])
+            if A < 0:
+                # The fit bounds force A_switch >= 0, so a negative value can
+                # only come from a CSV written under the pre-fix convention
+                # (ln Lambda used (Pi2 + A) with A stored negative). Scoring
+                # it against the (Pi2 - A) formula silently flips the switch
+                # term, so refuse rather than report garbage.
+                raise ValueError(
+                    f'{csv_path}: A_switch={A:g} is negative — stale '
+                    f'sign convention. Re-run run_analysis.py --phase 2 to '
+                    f'regenerate the coefficient CSVs.')
             coeffs[(det, target)] = {
                 'formula': 'range_switch',
                 'C0': float(row['C0']), 'C1': float(row['C1_amp']),
-                'A': float(row['A_switch']), 'B': float(row['B_open']),
+                'A': A, 'B': float(row['B_open']),
                 'zf_min': float(row['Zf_min']),
             }
         elif formula == 'canyon_trap':
