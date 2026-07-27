@@ -46,6 +46,12 @@ would mask a Phase-1 regression:
 | `cv_summary.csv`, `best_*.csv`, `final_production_*.csv` | `outputs\tables\` |
 | `ALGORITHM_DESCRIPTION.txt` and the other `*.txt` notes | `docs\` |
 
+> **Filename suffixes.** compare_v7 writes every table and figure with the
+> radius estimator that produced it — `convergence_table_req.csv`,
+> `convergence_table_p95.csv`, and so on — so runs with different estimators do
+> not overwrite each other. The `compare_v6` files above are unsuffixed; the
+> validation tool accounts for this automatically.
+
 > **OneDrive tip:** the NPZ files are cloud placeholders. Before the first run,
 > right-click `data\processed_npz\` → *Always keep on this device*, and consider
 > pausing sync while the pipeline writes its ~600 figures.
@@ -91,15 +97,39 @@ python run_analysis.py                          # asks the familiar questions
 python run_analysis.py --phase all --n-iter 500 # fully non-interactive
 python run_analysis.py --phase 1                # Phase 1 only (NPZ → tables)
 python run_analysis.py --phase 2 --n-iter 500   # Phase 2 only (regression)
+python run_analysis.py --phase 1 --radius-method p95
 ```
 
 Phase 1 reads `data/processed_npz/*.npz` + `data/free_field_data.csv`, writes the
-CSV tables to `outputs/tables/` and figures to `outputs/figures/`.
+CSV tables to `outputs/tables/` and figures to `outputs/figures/<method>/`.
 Phase 2 runs the cross-validated regression over those tables.
 
 > **Important:** `--n-iter` is passed to `StratifiedShuffleSplit(n_splits=...)`,
 > so changing it changes the *entire* sequence of train/test splits — results are
 > only comparable between runs that used the same value.
+
+### The radius estimator
+
+Both the convergence radius and the MaxR / Z_urban radius reduce the same
+object — 91 per-angle radii covering 0–90° — to a single number.
+`--radius-method {req,max,p95}` (plus `--percentile N`) chooses how, and it
+drives **both**; there is deliberately no way to set them separately, because
+comparing an area average (`req`) against a near-maximum (`p95`) is what made
+`MaxR ≥ R_conv` in a large share of rows. The default lives in
+`blastlib/constants.py::RADIUS_ESTIMATOR` and the maths in
+`blastlib/processing/radius_estimator.py`.
+
+Every output is suffixed with the method (`convergence_table_req.csv`,
+`convergence_table_p95.csv`, …) and Phase-1 figures go to
+`outputs/figures/<method>/`, so runs stay side by side. Tools that read these
+tables (`check_formulas`, `formulas_printer`, `pi_effects`, `regime_graphs`)
+take a matching `--radius-method`.
+
+`max_radius_per_Z_*.csv` records every `(config, Z)` row, with boolean
+`beyond_P` / `beyond_I` marking rows at or outside the convergence radius. Those
+rows carry no urban information and are excluded when the Z_urban model is
+fitted (`blastlib/regression/z_urban.py::z_urban_valid_mask`) — but they stay in
+the CSV rather than being dropped, so how often it happens is visible.
 
 ### Regenerating the NPZ files from raw VTKs
 
@@ -159,8 +189,8 @@ Each is independent and takes `--help`. All write under `outputs/`.
 
 > `tools/z_surface_3d` uses **hardcoded** production-fit coefficients. If you
 > re-run the regression, compare them against
-> `outputs/tables/final_production_convergence_coefficients.csv` and update the
-> `COEF` dict by hand — it will not update itself.
+> `outputs/tables/final_production_convergence_coefficients_<method>.csv` (e.g.
+> `..._req.csv`) and update the `COEF` dict by hand — it will not update itself.
 
 ---
 
