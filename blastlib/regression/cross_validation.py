@@ -7,7 +7,7 @@ R_urban is not fitted separately: R_urban = W^(1/3) * Z_urban identically.
 
 This module is the orchestrator only. The pieces live in:
     stats.py               — OLS / R² / MAPE helpers
-    convergence_models.py  — RadiusP additive Pi model, RadiusI log model
+    convergence_models.py  — RadiusP additive Pi model, RadiusI Pi power law
     z_urban.py             — Z_urban power law (fit/predict/clip/evaluate)
     output.py              — coefficient CSVs and formula printers
     plots.py               — best-iteration validation plots
@@ -17,6 +17,8 @@ import os
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit
+
+from blastlib import paths
 
 from blastlib.regression.convergence_models import (
     fit_pi_all_groups, predict_pi,
@@ -35,7 +37,7 @@ from blastlib.regression.plots import plot_best_validation
 
 def run_cross_validation(conv_csv, maxR_csv, output_folder,
                          n_iterations=500, test_fraction=0.2,
-                         target_mape=10.0, progress=print):
+                         target_mape=10.0, method=None, progress=print):
     """Run repeated 80/20 train/test splits and find best formula coefficients.
 
     Parameters
@@ -54,10 +56,18 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         Fraction of configs in test set (default 0.2).
     target_mape : float
         Target maximum MAPE (%) across all models.
+    method : str or None
+        Radius-estimator token ('req', 'p95', ...) used to suffix every output
+        filename so runs with different estimators do not overwrite each other.
+        Affects naming only — no fitting formula depends on it.
     progress : callable
         Progress sink (default print). A GUI can pass its own logger.
     """
     output_folder = str(output_folder)
+
+    def out(name):
+        """Output path for *name*, suffixed with the radius estimator."""
+        return os.path.join(output_folder, paths.suffixed(name, method))
 
     # ---- Load data ----
     conv_df = pd.read_csv(conv_csv)
@@ -94,7 +104,7 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
     best_worst_mape = np.inf
     best_iteration = -1
     best_conv_P_coeffs = None      # additive Pi model
-    best_conv_I_coeffs = None      # log-space Pi model
+    best_conv_I_coeffs = None      # Pi power law
     best_z_coeffs = None
     best_mapes = None
     best_train_idx = None
@@ -117,7 +127,7 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         train_maxR = maxR_prepared[maxR_prepared['Config'].isin(train_configs)].copy()
         test_maxR  = maxR_prepared[maxR_prepared['Config'].isin(test_configs)].copy()
 
-        # ---- Fit convergence radius: P additive Pi, I log-space Pi ----
+        # ---- Fit convergence radius: P additive Pi, I Pi power law ----
         conv_P_coeffs = fit_pi_all_groups(train_conv, 'RadiusP')
         conv_I_coeffs = fit_impulse_all_groups(train_conv, 'RadiusI')
 
@@ -146,9 +156,11 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         # ---- Fit Z_urban ----
         # (R_urban = W^(1/3) * Z_urban identically, so no separate fit —
         #  its relative errors equal Z_urban's row-for-row.)
-        # Evaluation clips predictions to [Z_free, Z_conv] using the
+        # Evaluation clips predictions from above at Z_conv using the
         # same-iteration convergence fits — the deployed prediction chain.
-        z_coeffs = fit_z_urban_all_groups(train_maxR)
+        # Those same fits also supply xi to the pressure regime classifier,
+        # so nothing leaks from the measured convergence radius.
+        z_coeffs = fit_z_urban_all_groups(train_maxR, conv_P_coeffs)
         z_mape_P, z_mape_I = evaluate_z_urban(test_maxR, z_coeffs,
                                               conv_P_coeffs, conv_I_coeffs)
 
@@ -207,7 +219,7 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
 
     # ---- Save CV summary ----
     cv_df = pd.DataFrame(cv_rows)
-    cv_csv = os.path.join(output_folder, 'cv_summary.csv')
+    cv_csv = out('cv_summary.csv')
     cv_df.to_csv(cv_csv, index=False)
     progress(f'\nSaved: {cv_csv}')
 
@@ -222,7 +234,7 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
     progress('  RadiusP: Z = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)')
     progress('                + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1)')
     progress('           a = 1 (street) / 2 (intersection)')
-    progress('  RadiusI: Z = A * Pi^(k*ln(W^1/3/s)),  Pi = H/(s*rho)')
+    progress('  RadiusI: Z = A * rho^p * (H/s)^q * (s/W^1/3)^r')
     progress(f'{"="*60}')
     progress(f'  Median conv_P MAPE: {med_conv_P:.2f}%  |  R² = {med_r2_P:.3f}')
     progress(f'  Median conv_I MAPE: {med_conv_I:.2f}%  |  R² = {med_r2_I:.3f}')
@@ -231,18 +243,21 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
     if best_test_idx is not None:
         test_config_names = config_names[best_test_idx]
         split_df = pd.DataFrame({'ConfigName': test_config_names})
-        split_path = os.path.join(output_folder, 'best_test_configs.csv')
+        split_path = out('best_test_configs.csv')
         split_df.to_csv(split_path, index=False)
         progress(f'Saved: {split_path}')
 
     # ---- Save best CV-iteration coefficients ----
     if best_conv_P_coeffs is not None:
-        save_best_convergence_coefficients(best_conv_P_coeffs,
-                                           best_conv_I_coeffs, output_folder)
+        save_best_convergence_coefficients(
+            best_conv_P_coeffs, best_conv_I_coeffs, output_folder,
+            filename=paths.suffixed('best_convergence_coefficients.csv', method))
 
     if best_z_coeffs is not None:
         save_best_nonlinear_coefficients(
-            best_z_coeffs, 'best_z_urban_coefficients.csv', output_folder)
+            best_z_coeffs,
+            paths.suffixed('best_z_urban_coefficients.csv', method),
+            output_folder)
 
     # ---- Validation plot ----
     if best_conv_P_coeffs is not None:
@@ -250,7 +265,8 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
                              best_conv_P_coeffs, best_conv_I_coeffs,
                              best_z_coeffs,
                              best_train_idx, best_test_idx,
-                             config_names, best_mapes, output_folder)
+                             config_names, best_mapes, output_folder,
+                             method=method)
 
     # ---- Print formulas for the best CV iteration ----
     if best_conv_P_coeffs is not None:
@@ -260,15 +276,17 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
     # ---- Production fit: refit on 100% of data ----
     prod_P_coeffs = fit_pi_all_groups(conv_df, 'RadiusP')
     prod_I_coeffs = fit_impulse_all_groups(conv_df, 'RadiusI')
-    prod_z_coeffs = fit_z_urban_all_groups(maxR_prepared)
+    prod_z_coeffs = fit_z_urban_all_groups(maxR_prepared, prod_P_coeffs)
     progress(f'\n{"="*60}')
     progress(f'  PRODUCTION FIT  (100% of data)')
     progress(f'{"="*60}')
     save_best_convergence_coefficients(
         prod_P_coeffs, prod_I_coeffs, output_folder,
-        filename='final_production_convergence_coefficients.csv')
+        filename=paths.suffixed('final_production_convergence_coefficients.csv',
+                                method))
     save_best_nonlinear_coefficients(
-        prod_z_coeffs, 'final_production_z_urban_coefficients.csv',
+        prod_z_coeffs,
+        paths.suffixed('final_production_z_urban_coefficients.csv', method),
         output_folder)
     progress('  ^ Use these files for thesis formulas (all configs used for fitting).')
 

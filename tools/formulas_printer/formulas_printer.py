@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # project root
 import pandas as pd
 
 from blastlib import paths
+from blastlib.processing.radius_estimator import resolve_estimator, VALID_METHODS
 
 
 def format_convergence_formulas(csv_path):
@@ -27,15 +28,18 @@ def format_convergence_formulas(csv_path):
         ' BEST CONVERGENCE RADIUS FORMULAS    R = W^(1/3) * Z',
         ' RadiusP: Z = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)',
         '                + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1)',
-        ' RadiusI: Z = A * Pi^(k*ln(W^1/3/s)),  Pi = H/(s*rho)',
+        ' RadiusI: Z = A * rho^p * (H/s)^q * (s/W^1/3)^r',
         '=' * 70,
     ]
     for target in ['RadiusP', 'RadiusI']:
         lines.append(f'\n--- {target} ---')
         for _, row in df[df['Target'] == target].iterrows():
             lines.append(f"  {row['Location']}:")
-            if row['Formula'] == 'log':
-                lines.append(f"    Z = {row['A']:.4f} * Pi^({row['k']:+.4f}*ln(W^1/3/s))")
+            if row['Formula'] == 'power':
+                lines.append(
+                    f"    Z = {row['A']:.4f} * rho^({row['p_rho']:+.4f})"
+                    f" * (H/s)^({row['q_HoverS']:+.4f})"
+                    f" * (s/W^1/3)^({row['r_sW13']:+.4f})")
             else:
                 lines.append(
                     f"    Z = {row['C0']:+.4f} {row['C1_sW13']:+.4f}*(s/W^1/3)"
@@ -56,30 +60,53 @@ def format_z_urban_formulas(csv_path):
     lines = [
         '\n' + '=' * 70,
         ' BEST Z_URBAN FORMULAS    MaxR = W^(1/3) * Z_urban',
-        ' Z_urban = C * Z_free^m * rho^p * (H/s)^q * (s/W^(1/3))^r',
+        ' Impulse  (power):           Z_urban = C * Z_free^m * rho^p'
+        ' * (H/s)^q * (s/W^(1/3))^r',
+        ' Pressure (lambda_regime, one set per regime):'
+        ' Lambda = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)',
+        '                                      + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1)'
+        ' + C4*ln(Z_free)',
+        '                             Z_urban = Lambda * Z_free',
         ' R_urban = W^(1/3) * Z_urban  (canonical -- not separately fitted)',
         ' Validity: Z_free >= Zf_min',
-        ' Physical closure: clip predictions to Z_free <= Z_urban <= Z_conv',
+        ' Physical closure: clip predictions from ABOVE at Z_conv only'
+        ' (no lower bound: Z_urban < Z_free is the attenuation regime),',
         ' (Z_conv from the convergence formulas); identity beyond Z_conv.',
         ' Groups: by det only (2 formulas per target)',
         '=' * 70,
     ]
     for _, row in df.iterrows():
         lines.append(f"\n  {det_map.get(int(row['Det']), str(row['Det']))} / {row['Target']}:")
-        lines.append(
-            f"    Z_urban = {row['C']:.4f} * Z_free^{row['m']:.4f}"
-            f" * rho^{row['p_rho']:+.4f} * (H/s)^{row['q_HoverS']:+.4f}"
-            f" * (s/W^1/3)^{row['r_sW13']:+.4f}")
+        if row.get('Formula', 'power') == 'lambda_regime':
+            lines.append(f"    [regime: {row.get('Regime', 'pooled')}]")
+            lines.append(
+                f"    Lambda = {row['C0']:+.4f} {row['C1_sW13']:+.4f}*(s/W^1/3)"
+                f" {row['C2_switch']:+.4f}*rho*(s/W^1/3 - {row['a_thresh']:g})")
+            lines.append(
+                f"             {row['C3_canyon']:+.4f}*sqrt(rho)*(H/s)*(W^1/3/s - 1)"
+                f" {row['C4_lnZf']:+.4f}*ln(Z_free)")
+            lines.append('    Z_urban = Lambda * Z_free')
+        else:
+            lines.append(
+                f"    Z_urban = {row['C']:.4f} * Z_free^{row['m']:.4f}"
+                f" * rho^{row['p_rho']:+.4f} * (H/s)^{row['q_HoverS']:+.4f}"
+                f" * (s/W^1/3)^{row['r_sW13']:+.4f}")
         lines.append(f"    MaxR = W^(1/3) * Z_urban    [Z_free >= {row['Zf_min']:g}]")
     return '\n'.join(lines)
 
 
-def main(*, tables_dir=None, progress=print):
-    """Print (and return) the formatted formula text."""
-    tables_dir = paths.resolve(tables_dir, paths.TABLES_DIR)
+def main(*, tables_dir=None, radius_method=None, progress=print):
+    """Print (and return) the formatted formula text.
 
-    text = format_convergence_formulas(tables_dir / 'best_convergence_coefficients.csv')
-    text += format_z_urban_formulas(tables_dir / 'best_z_urban_coefficients.csv')
+    *radius_method* selects which estimator's coefficient CSVs to read.
+    """
+    tables_dir = paths.resolve(tables_dir, paths.TABLES_DIR)
+    method = resolve_estimator(radius_method)['method']
+
+    text = format_convergence_formulas(
+        tables_dir / paths.suffixed('best_convergence_coefficients.csv', method))
+    text += format_z_urban_formulas(
+        tables_dir / paths.suffixed('best_z_urban_coefficients.csv', method))
 
     if not text.strip():
         progress(f'No coefficient CSVs found in {tables_dir}. Run run_analysis.py first.')
@@ -91,8 +118,11 @@ def main(*, tables_dir=None, progress=print):
 def cli(argv=None):
     p = argparse.ArgumentParser(description='Print the best fitted formulas.')
     p.add_argument('--tables-dir', default=None, help='Folder with the coefficient CSVs.')
+    p.add_argument('--radius-method', choices=list(VALID_METHODS), default=None,
+                   dest='radius_method',
+                   help='Which radius-estimator run to print formulas for.')
     args = p.parse_args(argv)
-    return main(tables_dir=args.tables_dir)
+    return main(tables_dir=args.tables_dir, radius_method=args.radius_method)
 
 
 if __name__ == '__main__':

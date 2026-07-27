@@ -6,9 +6,11 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+from blastlib import paths
 from blastlib.regression.convergence_models import predict_pi, predict_impulse
 from blastlib.regression.z_urban import (
-    Z_URBAN_ZF_MIN, predict_z_urban, clip_z_urban_pred,
+    Z_URBAN_ZF_MIN, Z_URBAN_FORM, z_urban_valid_mask, predicted_Zconv_P,
+    predict_z_urban, clip_z_urban_pred,
 )
 
 
@@ -33,8 +35,12 @@ def plot_best_validation(conv_df, maxR_df,
                          conv_P_coeffs, conv_I_coeffs,
                          z_coeffs,
                          train_idx, test_idx,
-                         config_names, best_mapes, output_folder):
-    """Plot actual vs predicted for the best CV iteration."""
+                         config_names, best_mapes, output_folder, method=None):
+    """Plot actual vs predicted for the best CV iteration.
+
+    *method* suffixes the figure names with the radius estimator, matching the
+    CSV outputs, so runs with different estimators stay side by side.
+    """
     W   = conv_df['ChargeWeight'].values.astype(float)
     H   = conv_df['Height'].values.astype(float)
     S   = conv_df['StreetWidth'].values.astype(float)
@@ -65,24 +71,25 @@ def plot_best_validation(conv_df, maxR_df,
         style_validation_axes(ax, lim, 'Actual [m]', 'Predicted [m]',
                               f'{title}\nTest MAPE = {test_mape:.1f}%')
 
-    fig.savefig(os.path.join(str(output_folder), 'cv_best_convergence.png'),
+    conv_fname = paths.suffixed('cv_best_convergence.png', method)
+    fig.savefig(os.path.join(str(output_folder), conv_fname),
                 dpi=150, bbox_inches='tight')
     plt.close(fig)
-    print('Saved: cv_best_convergence.png')
+    print(f'Saved: {conv_fname}')
 
     # ---- Z_urban plot (R_urban = W^(1/3)*Z_urban — same relative errors) ----
     if z_coeffs is not None:
         _plot_nonlinear_validation(maxR_df, z_coeffs,
                                    conv_P_coeffs, conv_I_coeffs,
                                    config_names, train_idx, test_idx,
-                                   best_mapes, output_folder)
+                                   best_mapes, output_folder, method)
 
 
 def _plot_nonlinear_validation(maxR_df, z_coeffs,
                                conv_P_coeffs, conv_I_coeffs,
                                config_names, train_idx, test_idx,
-                               best_mapes, output_folder):
-    """Plot Z_urban actual vs predicted (clipped to [Z_free, Z_conv])."""
+                               best_mapes, output_folder, method=None):
+    """Plot Z_urban actual vs predicted (clipped from above at Z_conv)."""
     train_configs = set(config_names[train_idx])
     test_configs  = set(config_names[test_idx])
 
@@ -117,20 +124,22 @@ def _plot_nonlinear_validation(maxR_df, z_coeffs,
                 if len(sub) == 0:
                     continue
 
-                valid_mask = ((sub[maxR_col] < sub[radius_col]) &
-                              (sub['Z_free'] >= Z_URBAN_ZF_MIN[target_name]) &
-                              (sub[target_col] > sub['Z_free']))
-                sub_valid = sub[valid_mask]
+                sub_valid = sub[z_urban_valid_mask(sub, target_col, maxR_col,
+                                                   radius_col, target_name)]
                 if len(sub_valid) == 0:
                     continue
 
                 y_actual = sub_valid[target_col].values
 
                 W13 = sub_valid['weight'].values ** (1 / 3)
+                xi = None
+                if Z_URBAN_FORM.get(target_name) == 'lambda_regime':
+                    xi = (sub_valid['Z_free'].values.astype(float)
+                          / predicted_Zconv_P(sub_valid, conv_P_coeffs))
                 y_pred = predict_z_urban(
                     sub_valid['Z_free'].values, sub_valid['rho'].values,
                     sub_valid['height'].values, sub_valid['swidth'].values,
-                    W13, target_name, popt)
+                    W13, target_name, popt, xi=xi)
                 y_pred = clip_z_urban_pred(y_pred, sub_valid, det_val,
                                            target_name, conv_P_coeffs,
                                            conv_I_coeffs)
@@ -173,7 +182,7 @@ def _plot_nonlinear_validation(maxR_df, z_coeffs,
             style_validation_axes(ax, lim, f'Actual [{unit}]', f'Predicted [{unit}]',
                                   f'{target_name}\nTest MAPE = {test_mape:.1f}%')
 
-        fname = f'cv_best_{model_name.lower()}.png'
+        fname = paths.suffixed(f'cv_best_{model_name.lower()}.png', method)
         fig.savefig(os.path.join(str(output_folder), fname), dpi=150, bbox_inches='tight')
         plt.close(fig)
         print(f'Saved: {fname}')
