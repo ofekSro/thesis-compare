@@ -15,18 +15,54 @@ from blastlib.regression.convergence_models import predict_pi, predict_impulse
 # Canonical form:  MaxR = W^(1/3) * Z_urban   (Hopkinson scaling imposed)
 # R_urban is NOT a separate model: R_urban = W^(1/3) * Z_urban identically.
 #
-# The two targets use different forms:
+# Four forms exist, selected per target by Z_URBAN_FORM. All of them model
+# the AMPLIFICATION FACTOR Lambda = Z_urban / Z_free in some way, and all are
+# built from dimensionless Pi groups (rho, Pi_3 = H/s, Pi_2 = s/W^(1/3));
+# W enters ONLY through W^(1/3).
 #
-#   Impulse  — Buckingham Pi power law, both regimes together:
+# CURRENT DEFAULTS — closed forms found by symbolic regression (PySR) over the
+# raw Pi groups and validated under leave-one-geometry-out CV, where they beat
+# both the previous models and every polynomial ln(Lambda) expansion tried,
+# with 4 fitted parameters per det group each:
+#
+#   Pressure — 'range_switch':
+#       ln Lambda = C0 + C1 * [ (Pi_2 - A)/Z_free - ln(Pi_2) ]
+#                            / ( Pi_2/Pi_3 + B )
+#     A is stored POSITIVE: it is the switch threshold itself (sign flip at
+#     Pi_2 = A), the only convention that survives being read off a CSV.
+#     -ln(Pi_2)          baseline street-width power law;
+#     (Pi_2 - A)/Z_free  near-field switch DECAYING WITH RANGE: narrow streets
+#                        (Pi_2 < A) amplify up close, wide streets attenuate,
+#                        both fade as 1/Z_free toward the free field;
+#     Pi_2/Pi_3 + B      open-canyon damping — wide, low canyons suppress the
+#                        whole urban effect.
+#
+#   Impulse — 'canyon_trap':
+#       ln Lambda = C0 + C1 * rho*(sqrt(Pi_3) - C2*rho)
+#                            / ( Pi_3 + C3*sqrt(Pi_2) )
+#     rho*sqrt(Pi_3)     trapping: wall continuity x canyon aspect;
+#     -C2*rho^2          density self-limiting — over-dense blocks choke the
+#                        very streets that carry the reflections;
+#     Pi_3 + C3*sqrt(..) canyon saturation plus scaled-street-width dilution.
+#     NO Z_free term: impulse amplification is geometry-set and range-flat.
+#
+# The pair encodes a physics finding, not just a fit: peak pressure
+# amplification is RANGE-DRIVEN (wavefront interference decaying toward free
+# field) while impulse amplification is GEOMETRY-DRIVEN (the integrated
+# positive phase sees only the canyon). Cross-applying either structure to the
+# other target degrades LOGO MAPE by 3-4 pp, in both dets — the split is real.
+#
+# LEGACY FORMS — kept selectable for A/B comparison, do not delete until the
+# A/B on a full pipeline run confirms the new defaults:
+#
+#   Impulse  — 'power': Buckingham Pi power law, both regimes together:
 #       Z_urban = C * Z_free^m * rho^p * (H/s)^q * (s/W^(1/3))^r
 #     a 5-coefficient OLS in log space per det group.
 #
-#   Pressure — additive Pi on the AMPLIFICATION FACTOR Lambda = Z_urban/Z_free,
-#     fitted separately per regime and multiplied back up. See
-#     ATTENUATION_CRITERION for the regime split.
-#
-# All factors are dimensionless Pi groups (rho, Pi_3 = H/s, Pi_2 = s/W^(1/3));
-# W enters ONLY through W^(1/3).
+#   Pressure — 'lambda_regime': additive Pi on Lambda, fitted separately per
+#     attenuation/amplification regime and multiplied back up. See
+#     ATTENUATION_CRITERION for the regime split. The new forms need no
+#     regime machinery at all: ln Lambda crosses zero continuously.
 #
 # Validity domain: Z_free >= 2 (at Z_free = 1 the point lies within one
 # Hopkinson length of the charge — inside the first street — where the
@@ -57,11 +93,17 @@ Z_URBAN_ZF_MIN = {'Pressure': 2.0, 'Impulse': 2.0}
 # geometric constant (street / intersection), never fitted.
 LAMBDA_A_THRESH = {1: 1.0, 2: 2.0}
 
-# Which functional form each target uses.
-#   Pressure — additive Pi on the AMPLIFICATION FACTOR Lambda = Z_urban/Z_free,
-#              fitted separately per regime (see attenuation_regime)
-#   Impulse  — power law on Z_urban directly, both regimes together
-Z_URBAN_FORM = {'Pressure': 'lambda_regime', 'Impulse': 'power'}
+# Which functional form each target uses — THE A/B SWITCH.
+#   'range_switch'  — pressure closed form (PySR), 4 params/det, no classifier
+#   'canyon_trap'   — impulse closed form (PySR), 4 params/det, no Z_free term
+#   'lambda_regime' — legacy pressure: per-regime additive Lambda + classifier
+#   'power'         — legacy impulse: Pi power law
+# To A/B against the legacy models, set this back to
+#   {'Pressure': 'lambda_regime', 'Impulse': 'power'}
+# and re-run; every fit, prediction, CSV row and printed formula follows this
+# dict. LOGO CV (18 geometries/det): range_switch 8.4% vs 9.9% legacy,
+# canyon_trap 9.9% vs 12.3% legacy.
+Z_URBAN_FORM = {'Pressure': 'range_switch', 'Impulse': 'canyon_trap'}
 
 # Pi-expressible criterion for the sign of (Lambda - 1), pressure.
 #
@@ -332,15 +374,123 @@ def _fit_z_urban_group(Z_free, Z_urban, rho, H, s, W13, target_name):
             'zf_min': Z_URBAN_ZF_MIN[target_name]}
 
 
-def predict_z_urban(Z_free, rho, H, s, W13, target_name, coef, xi=None):
-    """Predict Z_urban with whichever form this target uses.
+# Starting points and bounds for the two closed forms, mirroring the LOGO
+# validation runs (zero curve_fit failures across all folds there; the
+# validation fitted (Pi_2 + A) with A <= 0 — same model, A sign flipped).
+# Bounds keep each fit on the physically readable branch: C1 >= 0 preserves
+# the sign story of every term, A >= 0 puts the (Pi_2 - A) sign flip at a
+# physical street width, and the denominators stay positive over the data.
+RANGE_SWITCH_P0     = (0.11, 1.34, 2.4, 1.95)
+RANGE_SWITCH_BOUNDS = ((-2.0, 0.0, 0.0, 0.2), (2.0, 6.0, 6.0, 8.0))
+CANYON_TRAP_P0      = (0.0, 2.6, 1.0, 1.0)
+CANYON_TRAP_BOUNDS  = ((-2.0, 0.0, 0.0, 0.0), (2.0, 12.0, 4.0, 6.0))
 
-    Pressure: classify the regime, then Z_urban = Lambda * Z_free with that
-              regime's Lambda coefficients. Requires *xi* (from the PREDICTED
-              convergence radius — see predicted_Zconv_P).
-    Impulse:  Z_urban = C * Zf^m * rho^p * (H/s)^q * (s/W^(1/3))^r.
+
+def _range_switch_ln_lambda(X, C0, C1, A, B):
+    """ln(Lambda) for the pressure closed form. X = (Z_free, H/s, s/W13).
+
+    A is the positive switch threshold: the (Pi_2 - A) term flips sign at
+    Pi_2 = A. Stored in the CSV as A_switch with this same sign convention.
     """
-    if Z_URBAN_FORM.get(target_name) == 'lambda_regime':
+    Zf, Hs, pi2 = X
+    return C0 + C1 * ((pi2 - A) / Zf - np.log(pi2)) / (pi2 / Hs + B)
+
+
+def _canyon_trap_ln_lambda(X, C0, C1, C2, C3):
+    """ln(Lambda) for the impulse closed form. X = (rho, H/s, s/W13)."""
+    rho, Hs, pi2 = X
+    return C0 + C1 * rho * (np.sqrt(Hs) - C2 * rho) / (Hs + C3 * np.sqrt(pi2))
+
+
+def _fit_range_switch_group(Z_free, Z_urban, H, s, W13, target_name):
+    """Fit the pressure range-switch form for one det group (4 parameters).
+
+    Nonlinear least squares on ln(Lambda); rho does not enter this form.
+    Returns {'C0','C1','A','B','zf_min'} or None on failure.
+    """
+    from scipy.optimize import curve_fit
+
+    Z_free  = np.asarray(Z_free,  dtype=float)
+    Z_urban = np.asarray(Z_urban, dtype=float)
+    if not (np.all(Z_free > 0) and np.all(Z_urban > 0)):
+        return None
+    X = (Z_free, np.asarray(H, float) / np.asarray(s, float),
+         np.asarray(s, float) / np.asarray(W13, float))
+    try:
+        popt, _ = curve_fit(_range_switch_ln_lambda, X,
+                            np.log(Z_urban / Z_free),
+                            p0=RANGE_SWITCH_P0, bounds=RANGE_SWITCH_BOUNDS,
+                            maxfev=20000)
+    except (RuntimeError, ValueError):
+        return None
+    C0, C1, A, B = popt
+    return {'C0': C0, 'C1': C1, 'A': A, 'B': B,
+            'zf_min': Z_URBAN_ZF_MIN[target_name]}
+
+
+def _fit_canyon_trap_group(Z_free, Z_urban, rho, H, s, W13, target_name):
+    """Fit the impulse canyon-trap form for one det group (4 parameters).
+
+    Nonlinear least squares on ln(Lambda); Z_free enters only through the
+    Lambda target itself — the fitted amplification is range-flat.
+    Returns {'C0','C1','C2','C3','zf_min'} or None on failure.
+    """
+    from scipy.optimize import curve_fit
+
+    Z_free  = np.asarray(Z_free,  dtype=float)
+    Z_urban = np.asarray(Z_urban, dtype=float)
+    if not (np.all(Z_free > 0) and np.all(Z_urban > 0)):
+        return None
+    X = (np.asarray(rho, float),
+         np.asarray(H, float) / np.asarray(s, float),
+         np.asarray(s, float) / np.asarray(W13, float))
+    try:
+        popt, _ = curve_fit(_canyon_trap_ln_lambda, X,
+                            np.log(Z_urban / Z_free),
+                            p0=CANYON_TRAP_P0, bounds=CANYON_TRAP_BOUNDS,
+                            maxfev=20000)
+    except (RuntimeError, ValueError):
+        return None
+    C0, C1, C2, C3 = popt
+    return {'C0': C0, 'C1': C1, 'C2': C2, 'C3': C3,
+            'zf_min': Z_URBAN_ZF_MIN[target_name]}
+
+
+def _predict_range_switch(Z_free, H, s, W13, coef):
+    """Z_urban = exp(ln Lambda) * Z_free for the pressure closed form."""
+    Z_free = np.asarray(Z_free, dtype=float)
+    X = (Z_free, np.asarray(H, float) / np.asarray(s, float),
+         np.asarray(s, float) / np.asarray(W13, float))
+    return np.exp(_range_switch_ln_lambda(
+        X, coef['C0'], coef['C1'], coef['A'], coef['B'])) * Z_free
+
+
+def _predict_canyon_trap(Z_free, rho, H, s, W13, coef):
+    """Z_urban = exp(ln Lambda) * Z_free for the impulse closed form."""
+    Z_free = np.asarray(Z_free, dtype=float)
+    X = (np.asarray(rho, float),
+         np.asarray(H, float) / np.asarray(s, float),
+         np.asarray(s, float) / np.asarray(W13, float))
+    return np.exp(_canyon_trap_ln_lambda(
+        X, coef['C0'], coef['C1'], coef['C2'], coef['C3'])) * Z_free
+
+
+def predict_z_urban(Z_free, rho, H, s, W13, target_name, coef, xi=None):
+    """Predict Z_urban with whichever form this target uses (Z_URBAN_FORM).
+
+    range_switch:  pressure closed form — no regime machinery, xi unused.
+    canyon_trap:   impulse closed form — no regime machinery, xi unused.
+    lambda_regime: classify the regime, then Z_urban = Lambda * Z_free with
+                   that regime's coefficients. Requires *xi* (from the
+                   PREDICTED convergence radius — see predicted_Zconv_P).
+    power:         Z_urban = C * Zf^m * rho^p * (H/s)^q * (s/W^(1/3))^r.
+    """
+    form = Z_URBAN_FORM.get(target_name)
+    if form == 'range_switch':
+        return _predict_range_switch(Z_free, H, s, W13, coef)
+    if form == 'canyon_trap':
+        return _predict_canyon_trap(Z_free, rho, H, s, W13, coef)
+    if form == 'lambda_regime':
         if xi is None:
             raise ValueError('xi is required for the pressure regime model; '
                              'compute it with predicted_Zconv_P so the '
@@ -458,11 +608,13 @@ def prepare_maxR_data(maxR_df, conv_df):
 
 
 def fit_z_urban_all_groups(train_df, conv_P_coeffs=None):
-    """Fit Z_urban models per det group × 2 targets.
+    """Fit Z_urban models per det group × 2 targets (forms per Z_URBAN_FORM).
 
-    conv_P_coeffs is required for pressure: the regime classifier needs xi,
-    and xi must be built from the PREDICTED convergence radius so nothing
-    leaks from the measured one.
+    conv_P_coeffs is required only when pressure uses the legacy
+    'lambda_regime' form: its regime classifier needs xi, and xi must be
+    built from the PREDICTED convergence radius so nothing leaks from the
+    measured one. The closed forms need no xi at fit time (the convergence
+    coefficients still supply the Z_conv clip at prediction time).
 
     Returns dict {(det, target_name): coef_dict or None}.
     """
@@ -491,7 +643,18 @@ def fit_z_urban_all_groups(train_df, conv_P_coeffs=None):
 
             W13 = sub_valid['weight'].values ** (1 / 3)
 
-            if Z_URBAN_FORM.get(target_name) == 'lambda_regime':
+            form = Z_URBAN_FORM.get(target_name)
+            if form == 'range_switch':
+                coef = _fit_range_switch_group(
+                    sub_valid['Z_free'].values, sub_valid[target_col].values,
+                    sub_valid['height'].values, sub_valid['swidth'].values,
+                    W13, target_name)
+            elif form == 'canyon_trap':
+                coef = _fit_canyon_trap_group(
+                    sub_valid['Z_free'].values, sub_valid[target_col].values,
+                    sub_valid['rho'].values, sub_valid['height'].values,
+                    sub_valid['swidth'].values, W13, target_name)
+            elif form == 'lambda_regime':
                 if conv_P_coeffs is None:
                     raise ValueError(
                         'conv_P_coeffs is required to fit the pressure '

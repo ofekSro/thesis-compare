@@ -72,27 +72,37 @@ def save_best_convergence_coefficients(conv_P_coeffs, conv_I_coeffs, output_fold
 
 
 def save_best_nonlinear_coefficients(coeffs_dict, filename, output_folder):
-    """Save Z_urban coefficients to CSV (superset schema, both formulas).
+    """Save Z_urban coefficients to CSV (superset schema, all four formulas).
 
     Schema (one row per det × target × regime):
       Det, Location, Target, Formula, Regime,
-      C, m, p_rho, q_HoverS, r_sW13,                   (power, Impulse)
+      C0, C1_amp, A_switch, B_open,                    (range_switch, P)
+      C0, C1_amp, C2_self, C3_dilute,                  (canyon_trap, I)
+      C, m, p_rho, q_HoverS, r_sW13,                   (power, legacy I)
       C0, C1_sW13, C2_switch, C3_canyon, C4_lnZf, a_thresh,
-                                                       (lambda_regime, P)
+                                                       (lambda_regime, legacy P)
       Zf_min
     Unused cells are left empty. Zf_min is the lower validity bound on Z_free.
 
-    Impulse (Formula='power', Regime=''):
+    Pressure (Formula='range_switch') — closed form, one row per det:
+      ln Lambda = C0 + C1_amp * [ (Pi2 - A_switch)/Z_free - ln(Pi2) ]
+                               / ( Pi2/(H/s) + B_open )
+      A_switch is stored POSITIVE: it is the sign-flip threshold itself.
+    Impulse (Formula='canyon_trap') — closed form, one row per det:
+      ln Lambda = C0 + C1_amp * rho*(sqrt(H/s) - C2_self*rho)
+                               / ( H/s + C3_dilute*sqrt(Pi2) )
+    with Pi2 = s/W^(1/3) and Z_urban = Lambda * Z_free for both.
+
+    Legacy impulse (Formula='power', Regime=''):
       Z_urban = C * Z_free^m * rho^p * (H/s)^q * (s/W^(1/3))^r
-    Pressure (Formula='lambda_regime') — fitted on the amplification factor,
-    separately per regime, then multiplied back up:
+    Legacy pressure (Formula='lambda_regime') — fitted on the amplification
+    factor, separately per regime, then multiplied back up:
       Lambda  = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)
                    + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1) + C4*ln(Z_free)
       Z_urban = Lambda * Z_free
-    Three pressure rows per det: Regime='amplification', 'attenuation', and
-    'pooled' (the fallback when a regime is too thin to fit). Which one
+    Three legacy pressure rows per det plus a 'criterion' row: which regime
     applies is decided by z_urban.ATTENUATION_CRITERION, whose xi term needs
-    the PREDICTED convergence radius.
+    the PREDICTED convergence radius. The closed forms need none of that.
 
     R_urban needs no CSV of its own: R_urban = W^(1/3) * Z_urban.
     """
@@ -102,6 +112,8 @@ def save_best_nonlinear_coefficients(coeffs_dict, filename, output_folder):
     blank_lambda = {'C0': np.nan, 'C1_sW13': np.nan, 'C2_switch': np.nan,
                     'C3_canyon': np.nan, 'C4_lnZf': np.nan, 'a_thresh': np.nan}
     blank_crit = {f'K_{k}': np.nan for k in ATTENUATION_KEYS}
+    blank_closed = {'C1_amp': np.nan, 'A_switch': np.nan, 'B_open': np.nan,
+                    'C2_self': np.nan, 'C3_dilute': np.nan}
 
     rows = []
     for (det_val, target_name), coef in coeffs_dict.items():
@@ -113,9 +125,22 @@ def save_best_nonlinear_coefficients(coeffs_dict, filename, output_folder):
             return {'Det': det_val,
                     'Location': loc_names.get(det_val, str(det_val)),
                     'Target': target_name, 'Formula': form, 'Regime': regime,
-                    **blank_power, **blank_lambda, **blank_crit}
+                    **blank_power, **blank_lambda, **blank_crit,
+                    **blank_closed}
 
-        if form == 'lambda_regime':
+        if form == 'range_switch':
+            row = base('')
+            row.update({'C0': coef['C0'], 'C1_amp': coef['C1'],
+                        'A_switch': coef['A'], 'B_open': coef['B'],
+                        'Zf_min': coef['zf_min']})
+            rows.append(row)
+        elif form == 'canyon_trap':
+            row = base('')
+            row.update({'C0': coef['C0'], 'C1_amp': coef['C1'],
+                        'C2_self': coef['C2'], 'C3_dilute': coef['C3'],
+                        'Zf_min': coef['zf_min']})
+            rows.append(row)
+        elif form == 'lambda_regime':
             # One row per regime; the classifier picks between them at
             # inference (see z_urban.ATTENUATION_CRITERION).
             for key, name in (('amp', 'amplification'),
@@ -216,13 +241,29 @@ def print_z_urban_formulas(z_coeffs):
     print(f'{"="*70}')
     print('  BEST Z_URBAN FORMULAS    MaxR = W^(1/3) * Z_urban')
     print(f'{"="*70}')
-    print('  Impulse  — power law:')
-    print('    Z_urban = C * Z_free^m * rho^p * (H/s)^q * (s/W^(1/3))^r')
-    print('  Pressure — additive Pi on the amplification factor, per regime:')
-    print('    Lambda  = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)')
-    print('                 + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1) + C4*ln(Z_free)')
-    print('    Z_urban = Lambda * Z_free      (a = 1 street / 2 intersection)')
-    print('    regime from ATTENUATION_CRITERION (needs the PREDICTED Z_conv)')
+    form_P = Z_URBAN_FORM.get('Pressure')
+    form_I = Z_URBAN_FORM.get('Impulse')
+    if form_P == 'range_switch':
+        print('  Pressure — range-switch closed form (Lambda = Z_urban/Z_free):')
+        print('    ln Lambda = C0 + C1*[ (Pi2 - A)/Z_free - ln(Pi2) ]')
+        print('                     / ( Pi2/(H/s) + B )        Pi2 = s/W^(1/3)')
+        print('    amplification is RANGE-DRIVEN: the street-width switch')
+        print('    (sign flips at Pi2 = A) decays as 1/Z_free to free field')
+    else:
+        print('  Pressure — additive Pi on the amplification factor, per regime:')
+        print('    Lambda  = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)')
+        print('                 + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1) + C4*ln(Z_free)')
+        print('    Z_urban = Lambda * Z_free      (a = 1 street / 2 intersection)')
+        print('    regime from ATTENUATION_CRITERION (needs the PREDICTED Z_conv)')
+    if form_I == 'canyon_trap':
+        print('  Impulse  — canyon-trap closed form (Lambda = Z_urban/Z_free):')
+        print('    ln Lambda = C0 + C1*rho*(sqrt(H/s) - C2*rho)')
+        print('                     / ( H/s + C3*sqrt(Pi2) )')
+        print('    amplification is GEOMETRY-DRIVEN: no Z_free term at all —')
+        print('    the canyon sets one amplification factor for every range')
+    else:
+        print('  Impulse  — power law:')
+        print('    Z_urban = C * Z_free^m * rho^p * (H/s)^q * (s/W^(1/3))^r')
     print('  All factors are Pi groups; W enters only through W^(1/3).')
     print('  R_urban = W^(1/3) * Z_urban  (canonical — not separately fitted)')
     print('  Validity: Z_free >= Zf_min (at Z_free=1 the point is inside the')
@@ -240,7 +281,31 @@ def print_z_urban_formulas(z_coeffs):
                 continue
             loc = loc_names.get(det_val, f'det={det_val}')
             print(f'  {loc}:')
-            if Z_URBAN_FORM.get(target_name) == 'lambda_regime':
+            form = Z_URBAN_FORM.get(target_name)
+            if form == 'range_switch':
+                print(f'    ln Lambda = {coef["C0"]:+.4f} '
+                      f'+ {coef["C1"]:.4f}*[ (Pi2 - {coef["A"]:.4f})/Z_free'
+                      f' - ln(Pi2) ] / ( Pi2/(H/s) + {coef["B"]:.4f} )')
+                print(f'      -ln(Pi2):              baseline street-width power law')
+                print(f'      (Pi2 - {coef["A"]:.2f})/Z_free:   near-field switch,'
+                      f' decays with range')
+                print(f'      /(Pi2/(H/s) + {coef["B"]:.2f}):  open-canyon damping'
+                      f' (wide+low canyons suppress)')
+                print(f'    Z_urban = exp(ln Lambda) * Z_free')
+            elif form == 'canyon_trap':
+                print(f'    ln Lambda = {coef["C0"]:+.4f} '
+                      f'+ {coef["C1"]:.4f}*rho*(sqrt(H/s) - {coef["C2"]:.4f}*rho)'
+                      f' / ( H/s + {coef["C3"]:.4f}*sqrt(Pi2) )')
+                print(f'      rho*sqrt(H/s):         trapping — wall continuity'
+                      f' x canyon aspect')
+                print(f'      -{coef["C2"]:.2f}*rho^2:          density'
+                      f' self-limiting (dense blocks choke streets)')
+                print(f'      /(H/s + {coef["C3"]:.2f}*sqrt(Pi2)): canyon'
+                      f' saturation + street-width dilution')
+                print(f'      no Z_free term:        geometry-set, range-flat'
+                      f' amplification')
+                print(f'    Z_urban = exp(ln Lambda) * Z_free')
+            elif form == 'lambda_regime':
                 for key, name in (('amp', 'amplification'),
                                   ('att', 'attenuation'), ('pooled', 'pooled')):
                     c = coef.get(key)
