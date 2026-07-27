@@ -5,7 +5,8 @@ import tkinter as tk
 from tkinter import ttk
 
 from gui import runner, specs
-from gui.widgets import Disclosure, LogPane, ParamField, ScaleField
+from gui.widgets import (Disclosure, LogPane, ParamField,
+                         RadiusEstimatorField, ScaleField)
 
 POLL_MS = 100          # how often the main thread drains the log queue
 
@@ -62,8 +63,11 @@ class ToolTab(ttk.Frame):
                 self.fields[p['key']] = self._make_field(body, p, i)
 
     def _make_field(self, master, param, row):
-        if param.get('kind') == 'scale':
+        kind = param.get('kind')
+        if kind == 'scale':
             return ScaleField(master, param, row)
+        if kind == 'estimator':
+            return RadiusEstimatorField(master, param, row)
         return ParamField(master, param, row)
 
     def _build_controls(self, row):

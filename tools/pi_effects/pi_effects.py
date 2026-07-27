@@ -22,6 +22,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from blastlib import paths
+from blastlib.processing.radius_estimator import resolve_estimator, VALID_METHODS
 
 # Charge weights excluded from these diagnostics (sparse geometry coverage)
 EXCLUDED_WEIGHTS = [250, 1000]
@@ -249,10 +250,16 @@ def plot_weight_loglog(df, out_dir, progress=print):
             progress(f'Saved: {path}')
 
 
-def main(*, conv_csv=None, out_dir=None, progress=print):
-    """Generate the full Pi-effects figure set. Returns the output folder."""
-    conv_csv = paths.resolve(conv_csv, paths.CONV_CSV)
-    out_dir = paths.ensure_dir(paths.resolve(out_dir, paths.FIGURES_DIR / 'pi_effects'))
+def main(*, conv_csv=None, out_dir=None, radius_method=None, progress=print):
+    """Generate the full Pi-effects figure set. Returns the output folder.
+
+    *radius_method* picks which estimator's convergence table to read when
+    *conv_csv* is not given explicitly.
+    """
+    method = resolve_estimator(radius_method)['method']
+    conv_csv = paths.resolve(conv_csv, paths.conv_csv(method))
+    out_dir = paths.ensure_dir(paths.resolve(
+        out_dir, paths.FIGURES_DIR / 'pi_effects' / method))
 
     if not Path(conv_csv).exists():
         progress(f'ERROR: {conv_csv} not found. Run run_analysis.py first.')
@@ -283,8 +290,13 @@ def cli(argv=None):
     p = argparse.ArgumentParser(description='Pi-group diagnostic plots.')
     p.add_argument('--conv-csv', default=None, help='convergence_table.csv path.')
     p.add_argument('--out-dir', default=None, help='Output folder for the figures.')
+    p.add_argument('--radius-method', choices=list(VALID_METHODS), default=None,
+                   dest='radius_method',
+                   help='Which radius-estimator table to read (ignored if '
+                        '--conv-csv is given).')
     args = p.parse_args(argv)
-    return main(conv_csv=args.conv_csv, out_dir=args.out_dir)
+    return main(conv_csv=args.conv_csv, out_dir=args.out_dir,
+                radius_method=args.radius_method)
 
 
 if __name__ == '__main__':

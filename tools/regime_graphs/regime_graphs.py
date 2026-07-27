@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 from blastlib import paths
+from blastlib.processing.radius_estimator import resolve_estimator, VALID_METHODS
 
 STREET_COLORS = {5: '#c1121f', 8: '#e07a00', 12: '#0353a4', 20: '#2a9d8f'}
 DET_MARKERS = {1: 'o', 2: 's'}  # det1 = street, det2 = intersection
@@ -143,10 +144,16 @@ def _plot_sign_flip(df, out_path):
     plt.close()
 
 
-def main(*, conv_csv=None, out_dir=None, progress=print):
-    """Generate both regime figures. Returns dict of written paths."""
-    conv_csv = paths.resolve(conv_csv, paths.CONV_CSV)
-    out_dir = paths.ensure_dir(paths.resolve(out_dir, paths.FIGURES_DIR / 'regime_graphs'))
+def main(*, conv_csv=None, out_dir=None, radius_method=None, progress=print):
+    """Generate both regime figures. Returns dict of written paths.
+
+    *radius_method* picks which estimator's convergence table to read when
+    *conv_csv* is not given explicitly.
+    """
+    method = resolve_estimator(radius_method)['method']
+    conv_csv = paths.resolve(conv_csv, paths.conv_csv(method))
+    out_dir = paths.ensure_dir(paths.resolve(
+        out_dir, paths.FIGURES_DIR / 'regime_graphs' / method))
 
     if not Path(conv_csv).exists():
         progress(f'ERROR: {conv_csv} not found. Run run_analysis.py first.')
@@ -168,8 +175,13 @@ def cli(argv=None):
     p = argparse.ArgumentParser(description='Regime-boundary thesis figures.')
     p.add_argument('--conv-csv', default=None, help='convergence_table.csv path.')
     p.add_argument('--out-dir', default=None, help='Output folder for the figures.')
+    p.add_argument('--radius-method', choices=list(VALID_METHODS), default=None,
+                   dest='radius_method',
+                   help='Which radius-estimator table to read (ignored if '
+                        '--conv-csv is given).')
     args = p.parse_args(argv)
-    return main(conv_csv=args.conv_csv, out_dir=args.out_dir)
+    return main(conv_csv=args.conv_csv, out_dir=args.out_dir,
+                radius_method=args.radius_method)
 
 
 if __name__ == '__main__':

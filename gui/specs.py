@@ -11,7 +11,8 @@ Parameter kinds understood by widgets.py:
     choice  combobox over ``options``
     path    text entry + Browse button (``browse`` = 'dir' | 'file')
     combo   editable combobox filled at runtime by ``options_fn``
-    scale   the auto/manual colour-scale group (4 limit fields)
+    scale     the auto/manual colour-scale group (4 limit fields)
+    estimator the radius-estimator radio group + percentile spinbox
 
 ``advanced=True`` puts a parameter in the collapsed Advanced section.
 """
@@ -31,7 +32,9 @@ for _sub in ('check_formulas', 'formulas_printer', 'pi_effects', 'radius_methods
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from blastlib import paths  # noqa: E402
+from blastlib import constants, paths  # noqa: E402
+from blastlib.processing.radius_estimator import (  # noqa: E402
+    VALID_METHODS, resolve_estimator)
 
 
 # --------------------------------------------------------------------------
@@ -49,11 +52,38 @@ def _ff_required():
             'hint': 'Copy free_field_data.csv into data/ (see README).'}
 
 
-def _table_required(name, hint='Run the Analysis tab (phase 1) first.'):
-    return {'path': paths.TABLES_DIR / name, 'kind': 'file', 'label': name, 'hint': hint}
+def _table_required(name, hint='Run the Analysis tab (phase 1) first.', method=None):
+    """Require a table, honouring the radius-estimator filename suffix."""
+    fname = paths.suffixed(name, method)
+    return {'path': paths.TABLES_DIR / fname, 'kind': 'file', 'label': fname,
+            'hint': hint}
+
+
+def _values_method(values):
+    """Radius-estimator token implied by a tab's current widget values."""
+    return resolve_estimator(values.get('radius_estimator')
+                             or values.get('radius_method'))['method']
 
 
 _COEF_HINT = 'Run the Analysis tab (phase 2) first.'
+
+# Reusable spec entry for tools that read the estimator-suffixed tables.
+_RADIUS_METHOD_PARAM = {
+    'key': 'radius_method', 'label': 'Radius estimator', 'kind': 'choice',
+    'options': list(VALID_METHODS),
+    'default': constants.RADIUS_ESTIMATOR['method'],
+    'help': 'Which Analysis run to read (output files are suffixed with it).',
+}
+
+
+def _coef_requirements(values):
+    m = _values_method(values)
+    return [_table_required('best_convergence_coefficients.csv', _COEF_HINT, m),
+            _table_required('best_z_urban_coefficients.csv', _COEF_HINT, m)]
+
+
+def _conv_table_requirements(values):
+    return [_table_required(paths.CONV_CSV.name, method=_values_method(values))]
 
 
 # --------------------------------------------------------------------------
@@ -87,11 +117,12 @@ def radius_method_configs():
 
 
 def analysis_requirements(values):
-    """Analysis inputs depend on the chosen phase."""
+    """Analysis inputs depend on the chosen phase (and estimator, for phase 2)."""
     phase = values.get('phase', 'all')
     if phase == '2':
-        return [_table_required('convergence_table.csv'),
-                _table_required('max_radius_per_Z.csv')]
+        m = _values_method(values)
+        return [_table_required(paths.CONV_CSV.name, method=m),
+                _table_required(paths.MAXR_CSV.name, method=m)]
     return [_ff_required(), _npz_required()]
 
 
@@ -116,6 +147,11 @@ TABS = [
                      'so runs are only comparable at equal values.'},
             {'key': 'scale_limits', 'label': 'Ratio colour scale', 'kind': 'scale',
              'default': None},
+            {'key': 'radius_estimator', 'label': 'Radius estimator',
+             'kind': 'estimator', 'default': constants.RADIUS_ESTIMATOR,
+             'help': 'Collapses the 91 per-angle radii to one scalar. Drives '
+                     'BOTH the convergence radius and MaxR; outputs are '
+                     'suffixed with it.'},
             {'key': 'npz_dir', 'label': 'NPZ folder', 'kind': 'path', 'browse': 'dir',
              'default': '', 'help': 'blank = data/processed_npz/'},
             {'key': 'ff_csv', 'label': 'Free-field CSV', 'kind': 'path', 'browse': 'file',
@@ -162,14 +198,14 @@ TABS = [
         'name': 'Check Formulas',
         'blurb': 'Validate the saved coefficients against the best CV test split.',
         'target': _call('check_formulas'),
-        'requirements': [
-            _table_required('best_convergence_coefficients.csv', _COEF_HINT),
-            _table_required('best_z_urban_coefficients.csv', _COEF_HINT),
-            _table_required('best_test_configs.csv', _COEF_HINT),
-            _table_required('convergence_table.csv'),
-            _table_required('max_radius_per_Z.csv'),
+        'requirements_fn': lambda values: _coef_requirements(values) + [
+            _table_required('best_test_configs.csv', _COEF_HINT,
+                            _values_method(values)),
+            _table_required(paths.CONV_CSV.name, method=_values_method(values)),
+            _table_required(paths.MAXR_CSV.name, method=_values_method(values)),
         ],
         'params': [
+            dict(_RADIUS_METHOD_PARAM),
             {'key': 'tables_dir', 'label': 'Tables folder', 'kind': 'path', 'browse': 'dir',
              'default': '', 'help': 'blank = outputs/tables/'},
             {'key': 'out_dir', 'label': 'Output folder', 'kind': 'path', 'browse': 'dir',
@@ -180,11 +216,9 @@ TABS = [
         'name': 'Formulas',
         'blurb': 'Print the fitted convergence and Z_urban formulas.',
         'target': _call('formulas_printer'),
-        'requirements': [
-            _table_required('best_convergence_coefficients.csv', _COEF_HINT),
-            _table_required('best_z_urban_coefficients.csv', _COEF_HINT),
-        ],
+        'requirements_fn': _coef_requirements,
         'params': [
+            dict(_RADIUS_METHOD_PARAM),
             {'key': 'tables_dir', 'label': 'Tables folder', 'kind': 'path', 'browse': 'dir',
              'default': '', 'help': 'blank = outputs/tables/'},
         ],
@@ -193,24 +227,28 @@ TABS = [
         'name': 'Pi Effects',
         'blurb': 'Diagnostic plots of R and Z against each Pi group.',
         'target': _call('pi_effects'),
-        'requirements': [_table_required('convergence_table.csv')],
+        'requirements_fn': _conv_table_requirements,
         'params': [
+            dict(_RADIUS_METHOD_PARAM),
             {'key': 'conv_csv', 'label': 'Convergence CSV', 'kind': 'path', 'browse': 'file',
-             'default': '', 'help': 'blank = outputs/tables/convergence_table.csv'},
+             'default': '',
+             'help': 'blank = the convergence table for the estimator above'},
             {'key': 'out_dir', 'label': 'Output folder', 'kind': 'path', 'browse': 'dir',
-             'default': '', 'help': 'blank = outputs/figures/pi_effects/'},
+             'default': '', 'help': 'blank = outputs/figures/pi_effects/<method>/'},
         ],
     },
     {
         'name': 'Regime Graphs',
         'blurb': 'The two thesis figures on the height-effect sign flip.',
         'target': _call('regime_graphs'),
-        'requirements': [_table_required('convergence_table.csv')],
+        'requirements_fn': _conv_table_requirements,
         'params': [
+            dict(_RADIUS_METHOD_PARAM),
             {'key': 'conv_csv', 'label': 'Convergence CSV', 'kind': 'path', 'browse': 'file',
-             'default': '', 'help': 'blank = outputs/tables/convergence_table.csv'},
+             'default': '',
+             'help': 'blank = the convergence table for the estimator above'},
             {'key': 'out_dir', 'label': 'Output folder', 'kind': 'path', 'browse': 'dir',
-             'default': '', 'help': 'blank = outputs/figures/regime_graphs/'},
+             'default': '', 'help': 'blank = outputs/figures/regime_graphs/<method>/'},
         ],
     },
     {

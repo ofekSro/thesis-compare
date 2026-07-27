@@ -166,6 +166,64 @@ class ParamField:
                              f'{"integer" if cast is int else "number"}.')
 
 
+class RadiusEstimatorField:
+    """Radio group choosing how per-angle radii collapse to one radius.
+
+    Produces the {'method', 'percentile'} dict that
+    processing.radius_estimator.resolve_estimator consumes — the same shape the
+    CLI builds and the same default lives in constants.RADIUS_ESTIMATOR, so
+    there is exactly one implementation of the setting.
+
+    The percentile spinbox only applies to the percentile method, so it is
+    disabled otherwise (same idiom as ScaleField's manual limits).
+    """
+
+    METHODS = [('Req (equivalent area)', 'req'),
+               ('Max',                   'max'),
+               ('Percentile',            'p95')]
+
+    def __init__(self, master, spec, row):
+        self.spec = spec
+        self.key = spec['key']
+
+        default = spec.get('default') or {}
+        self.method = tk.StringVar(value=default.get('method', 'req'))
+        self.percentile = tk.StringVar(value=str(default.get('percentile', 95)))
+
+        ttk.Label(master, text=spec['label'] + ':').grid(
+            row=row, column=0, sticky='w', padx=(0, 8), pady=2)
+
+        frame = ttk.Frame(master)
+        frame.grid(row=row, column=1, columnspan=3, sticky='w', pady=2)
+
+        for label, value in self.METHODS:
+            ttk.Radiobutton(frame, text=label, variable=self.method,
+                            value=value, command=self._sync).pack(side='left',
+                                                                  padx=(0, 10))
+
+        self._spin = ttk.Spinbox(frame, textvariable=self.percentile,
+                                 from_=1, to=100, width=5)
+        self._spin.pack(side='left')
+
+        self._sync()
+
+    def _sync(self):
+        self._spin.configure(
+            state='normal' if self.method.get().startswith('p') else 'disabled')
+
+    def value(self):
+        method = self.method.get()
+        if not method.startswith('p'):
+            return {'method': method}
+        try:
+            p = float(self.percentile.get().strip())
+        except ValueError:
+            raise ValueError('Percentile must be a number.')
+        if not 0 <= p <= 100:
+            raise ValueError('Percentile must be between 0 and 100.')
+        return {'method': 'percentile', 'percentile': p}
+
+
 class ScaleField:
     """The auto/manual colour-scale group used by the Analysis tab.
 

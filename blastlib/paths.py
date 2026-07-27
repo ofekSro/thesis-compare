@@ -25,9 +25,39 @@ TABLES_DIR        = OUTPUTS_DIR / 'tables'
 FIGURES_DIR       = OUTPUTS_DIR / 'figures'
 CHECK_RESULTS_DIR = OUTPUTS_DIR / 'check_results'
 
-# Well-known table files
+# Well-known table files (unsuffixed base names — see suffixed() below)
 CONV_CSV = TABLES_DIR / 'convergence_table.csv'
 MAXR_CSV = TABLES_DIR / 'max_radius_per_Z.csv'
+
+
+def suffixed(name, method):
+    """Append a radius-estimator token to a filename's stem.
+
+    ('convergence_table.csv', 'p95') -> 'convergence_table_p95.csv'
+
+    Runs using different radius estimators produce genuinely different numbers,
+    so their outputs must not overwrite each other. *method* of None returns
+    the name unchanged (for callers that predate the estimator setting).
+    """
+    if not method:
+        return name
+    p = Path(name)
+    return str(p.with_name(f'{p.stem}_{method}{p.suffix}'))
+
+
+def table(name, method=None, tables_dir=None):
+    """Full path to a suffixed table file inside *tables_dir* (or the default)."""
+    return resolve(tables_dir, TABLES_DIR) / suffixed(name, method)
+
+
+def conv_csv(method=None, tables_dir=None):
+    """Path to convergence_table[_<method>].csv."""
+    return table(CONV_CSV.name, method, tables_dir)
+
+
+def maxr_csv(method=None, tables_dir=None):
+    """Path to max_radius_per_Z[_<method>].csv."""
+    return table(MAXR_CSV.name, method, tables_dir)
 
 
 def fig_dir(name):

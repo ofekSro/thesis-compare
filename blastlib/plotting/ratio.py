@@ -9,6 +9,7 @@ import matplotlib.colors as mcolors
 
 from blastlib.plotting.common import bluewhitered, plot_layer, draw_quarter_circle
 from blastlib.plotting.cuboids import draw_cuboids_gray
+from blastlib.processing.radius_estimator import radius_label
 
 
 def calculate_scale(data, cfg, scale_limits=None):
@@ -69,7 +70,8 @@ def calculate_scale(data, cfg, scale_limits=None):
     return scale_P, scale_I
 
 
-def plot_ratio(data, cfg, config_name, fig_folder, radius, scale_limits=None):
+def plot_ratio(data, cfg, config_name, fig_folder, radius, scale_limits=None,
+               method='req'):
     """Save Figure 2 with pressure and impulse ratio plots.
 
     Parameters
@@ -80,7 +82,9 @@ def plot_ratio(data, cfg, config_name, fig_folder, radius, scale_limits=None):
     fig_folder   : output directory
     radius       : dict from find_convergence_radius
     scale_limits : None (auto) or {'P': (lo, hi), 'I': (lo, hi)} (manual)
+    method       : str — radius-estimator token, used in the panel titles
     """
+    label = radius_label(method)
     axis_limit = max(radius['pressure'], radius['impulse']) + 15
     scale_P, scale_I = calculate_scale(data, cfg, scale_limits)
 
@@ -103,7 +107,7 @@ def plot_ratio(data, cfg, config_name, fig_folder, radius, scale_limits=None):
     sm_P = plt.cm.ScalarMappable(cmap=cmap, norm=norm_P)
     sm_P.set_array([])
     fig.colorbar(sm_P, ax=ax1)
-    ax1.set_title(f'P / P_ref  (Req = {radius["pressure"]:.1f} m)')
+    ax1.set_title(f'P / P_ref  ({label} = {radius["pressure"]:.1f} m)')
     ax1.set_xlabel('X [m]')
     ax1.set_ylabel('Z [m]')
     draw_cuboids_gray(ax1, config_name)
@@ -121,7 +125,7 @@ def plot_ratio(data, cfg, config_name, fig_folder, radius, scale_limits=None):
     sm_I = plt.cm.ScalarMappable(cmap=cmap, norm=norm_I)
     sm_I.set_array([])
     fig.colorbar(sm_I, ax=ax2)
-    ax2.set_title(f'I / I_ref  (Req = {radius["impulse"]:.1f} m)')
+    ax2.set_title(f'I / I_ref  ({label} = {radius["impulse"]:.1f} m)')
     ax2.set_xlabel('X [m]')
     ax2.set_ylabel('Z [m]')
     draw_cuboids_gray(ax2, config_name)

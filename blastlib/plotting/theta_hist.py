@@ -10,11 +10,13 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+from blastlib.processing.radius_estimator import radius_label
+
 THETA_DEG = np.arange(0, 91, dtype=float)  # 0, 1, ..., 90
 
 
 def plot_theta_histogram(config_name, r_theta_P, r_theta_I, req_P, req_I,
-                         theta_centers_deg, fig_folder):
+                         theta_centers_deg, fig_folder, method='req'):
     """Bar charts of per-theta convergence radius — pressure (left) and impulse (right).
 
     Parameters
@@ -22,11 +24,13 @@ def plot_theta_histogram(config_name, r_theta_P, r_theta_I, req_P, req_I,
     config_name       : str
     r_theta_P         : array(91,) — per-theta convergence radius, pressure [m]
     r_theta_I         : array(91,) — per-theta convergence radius, impulse [m]
-    req_P             : float — equivalent area radius, pressure [m]
-    req_I             : float — equivalent area radius, impulse [m]
+    req_P             : float — collapsed radius, pressure [m]
+    req_I             : float — collapsed radius, impulse [m]
     theta_centers_deg : array(91,) — theta bin centres in degrees (0..90)
     fig_folder        : str — output directory (must already exist)
+    method            : str — radius-estimator token, used to label the line
     """
+    label = radius_label(method)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     fig.suptitle(config_name, fontsize=13)
 
@@ -39,7 +43,7 @@ def plot_theta_histogram(config_name, r_theta_P, r_theta_I, req_P, req_I,
 
         if not np.isnan(req):
             ax.axhline(req, color='red', linestyle='--', linewidth=1.5,
-                       label=f'Req = {req:.1f} m')
+                       label=f'{label} = {req:.1f} m')
             ax.legend(fontsize=9)
 
         ax.set_xlabel('θ [deg]')

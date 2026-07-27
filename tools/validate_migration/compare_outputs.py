@@ -27,7 +27,14 @@ import pandas as pd
 
 from blastlib import paths
 
-# old relative path (under compare_v6)  ->  new relative path (under compare_v7)
+# compare_v6 predates the configurable radius estimator: it always used Req for
+# the convergence radius and p95 for MaxR, and wrote unsuffixed filenames. Only
+# the NEW side carries the estimator suffix, so the baseline files are found
+# unchanged. The comparison is meaningful for the estimator that reproduces the
+# old behaviour ('req'); other methods will differ by design.
+BASELINE_METHOD = 'req'
+
+# old relative name (under compare_v6)  ->  new relative name (under compare_v7)
 CSV_MAP = {
     'convergence_table.csv':                          'outputs/tables/convergence_table.csv',
     'max_radius_per_Z.csv':                           'outputs/tables/max_radius_per_Z.csv',
@@ -42,14 +49,19 @@ CSV_MAP = {
     'check_results/validation_comparison.csv':        'outputs/check_results/validation_comparison.csv',
 }
 
-# old figure folder -> new figure folder (compared by PNG count only)
+# Columns added after the compare_v6 baseline was captured. Dropped from the new
+# side before comparing so the numeric comparison stays like-for-like.
+NEW_ONLY_COLUMNS = ('RadiusEstimator', 'beyond_P', 'beyond_I')
+
+# old figure folder -> new figure folder (compared by PNG count only).
+# Phase-1 figures now live under a per-estimator subfolder.
 FIG_MAP = {
-    'Figures':                'outputs/figures/absolute',
-    'Figures_Ratio':          'outputs/figures/ratio',
-    'Figures_MaxR':           'outputs/figures/max_radius',
-    'Figures_MaxR_Theta_P':   'outputs/figures/theta_P',
-    'Figures_MaxR_Theta_I':   'outputs/figures/theta_I',
-    'Figures_Conv_Theta':     'outputs/figures/conv_theta',
+    'Figures':                'outputs/figures/{method}/absolute',
+    'Figures_Ratio':          'outputs/figures/{method}/ratio',
+    'Figures_MaxR':           'outputs/figures/{method}/max_radius',
+    'Figures_MaxR_Theta_P':   'outputs/figures/{method}/theta_P',
+    'Figures_MaxR_Theta_I':   'outputs/figures/{method}/theta_I',
+    'Figures_Conv_Theta':     'outputs/figures/{method}/conv_theta',
 }
 
 
@@ -70,6 +82,11 @@ def compare_csv(old_path, new_path, rtol=1e-9, atol=1e-12):
 
     old_df = pd.read_csv(old_path)
     new_df = pd.read_csv(new_path)
+
+    # Columns that did not exist when the baseline was captured are provenance
+    # and bookkeeping, not results — drop them rather than fail on shape.
+    new_df = new_df.drop(columns=[c for c in NEW_ONLY_COLUMNS
+                                  if c in new_df.columns and c not in old_df.columns])
 
     if old_df.shape != new_df.shape:
         return 'FAIL', f'shape {old_df.shape} vs {new_df.shape}'
@@ -136,10 +153,17 @@ def compare_figures(old_dir, new_dir):
     return 'PASS', f'{len(new_pngs)} PNGs, names match, all non-empty'
 
 
-def main(old_root, new_root=None, *, rtol=1e-9, atol=1e-12, progress=print):
-    """Compare old vs new outputs. Returns True if everything passed."""
+def main(old_root, new_root=None, *, rtol=1e-9, atol=1e-12,
+         radius_method=BASELINE_METHOD, progress=print):
+    """Compare old vs new outputs. Returns True if everything passed.
+
+    *radius_method* selects which estimator's outputs to compare on the new
+    side; the baseline side is always unsuffixed. Only BASELINE_METHOD is
+    expected to match — other estimators change the numbers by design.
+    """
     old_root = Path(old_root)
     new_root = Path(new_root) if new_root is not None else paths.PROJECT_ROOT
+    method = radius_method or BASELINE_METHOD
 
     progress('=' * 78)
     progress('  MIGRATION VALIDATION — compare_v6 (baseline) vs compare_v7 (new)')
@@ -147,6 +171,10 @@ def main(old_root, new_root=None, *, rtol=1e-9, atol=1e-12, progress=print):
     progress(f'  old: {old_root}')
     progress(f'  new: {new_root}')
     progress(f'  tolerance: rtol={rtol:g}, atol={atol:g}')
+    progress(f'  radius estimator (new side): {method}')
+    if method != BASELINE_METHOD:
+        progress(f'  NOTE: the baseline used {BASELINE_METHOD}; numeric '
+                 'differences below are expected, not regressions.')
     progress('')
 
     if not old_root.is_dir():
@@ -159,7 +187,9 @@ def main(old_root, new_root=None, *, rtol=1e-9, atol=1e-12, progress=print):
     progress('  CSV TABLES')
     progress('-' * 78)
     for old_rel, new_rel in CSV_MAP.items():
-        status, detail = compare_csv(old_root / old_rel, new_root / new_rel,
+        new_p = Path(new_rel)
+        new_p = new_p.with_name(paths.suffixed(new_p.name, method))
+        status, detail = compare_csv(old_root / old_rel, new_root / new_p,
                                      rtol=rtol, atol=atol)
         progress(f'  [{status}] {old_rel:<48s} {detail}')
         n_pass += status == 'PASS'
@@ -171,7 +201,8 @@ def main(old_root, new_root=None, *, rtol=1e-9, atol=1e-12, progress=print):
     progress('  FIGURE FOLDERS (count + names only)')
     progress('-' * 78)
     for old_rel, new_rel in FIG_MAP.items():
-        status, detail = compare_figures(old_root / old_rel, new_root / new_rel)
+        status, detail = compare_figures(old_root / old_rel,
+                                         new_root / new_rel.format(method=method))
         progress(f'  [{status}] {old_rel:<48s} {detail}')
         n_pass += status == 'PASS'
         n_fail += status == 'FAIL'
@@ -199,9 +230,13 @@ def cli(argv=None):
                    help='Path to the new project root (default: this project).')
     p.add_argument('--rtol', type=float, default=1e-9, help='Relative tolerance.')
     p.add_argument('--atol', type=float, default=1e-12, help='Absolute tolerance.')
+    p.add_argument('--radius-method', default=BASELINE_METHOD, dest='radius_method',
+                   help=f'Radius estimator to compare on the new side '
+                        f'(default {BASELINE_METHOD}, which reproduces the baseline).')
     args = p.parse_args(argv)
 
-    ok = main(args.old_root, args.new_root, rtol=args.rtol, atol=args.atol)
+    ok = main(args.old_root, args.new_root, rtol=args.rtol, atol=args.atol,
+              radius_method=args.radius_method)
     return 0 if ok else 1
 
 
