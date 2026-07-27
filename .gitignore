@@ -7,8 +7,20 @@
 data/*
 !data/free_field_data.csv
 
-# Generated results — reproducible by re-running the pipeline
-outputs/
+# Generated results.
+# The numeric tables and coefficient CSVs ARE versioned: without them an old
+# commit cannot be reproduced, since the fitted coefficients are the result.
+# Figures are not — 1700+ PNGs, ~150 MB, fully regenerable, and once in git
+# history they can never be removed without a rewrite.
+# Note the two-step form (same reason as data/ above): a bare `outputs/` would
+# stop git descending into the directory, making the negations unreachable.
+outputs/*
+!outputs/tables/
+outputs/tables/*
+!outputs/tables/*.csv
+!outputs/check_results/
+outputs/check_results/*
+!outputs/check_results/*.csv
 
 # Python
 __pycache__/
