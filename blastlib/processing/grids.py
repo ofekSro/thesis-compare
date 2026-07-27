@@ -3,6 +3,9 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
+from blastlib import constants
+from blastlib.processing.ff_reference import impulse_converged
+
 
 def _interp2_linear(X2, Z2, V2, X1, Z1, fill_value=None):
     """Bilinear resampling of grid (X2, Z2, V2) onto points (X1, Z1)."""
@@ -28,17 +31,26 @@ def _interp2_nearest(X2, Z2, V2, X1, Z1, fill_value=1.0):
     return rgi(pts).reshape(Z1.shape)
 
 
-def process_grids(data, params):
+def process_grids(data, params, weight=None):
     """Merge 3 grids, apply threshold masks, compute urban/free-field ratios.
 
     params keys:
         thresholdP_kPa  — mask threshold (cells below this → NaN)
-        minPressure_kPa — convergence threshold (ratio forced to 1 below this)
+        minPressure_kPa — pressure convergence band (kPa, absolute)
+        thr_I_scaled    — impulse convergence band (Pa.s/kg^(1/3)), optional;
+                          defaults to constants.IMPULSE_CRITERION
+
+    weight : charge weight [kg], required for the impulse criterion. Passing
+        None falls back to the legacy pressure-gated impulse rule, which is
+        retained only so old callers keep working — it is not admissible under
+        Hopkinson-Cranz (see constants.IMPULSE_CRITERION).
 
     Returns dict (out) with processed grids, ratios, and scale limits.
     """
     threshold_p  = params['thresholdP_kPa']
     min_pressure = params['minPressure_kPa']
+    thr_I_scaled = params.get('thr_I_scaled',
+                              constants.IMPULSE_CRITERION['thr_I_scaled'])
 
     out = {}
     for k in ('X1', 'Z1', 'X2', 'Z2', 'X3', 'Z3'):
@@ -144,9 +156,18 @@ def process_grids(data, params):
     out['ratioP3'][cut_mask3]       = np.nan
     out['ratioI3'][cut_mask3]       = np.nan
 
-    # Force ratio = 1 where:
-    #   1. pressure below minPressure threshold, OR
-    #   2. |urban - freefield| difference < minPressure (converged)
+    # ---- Force ratio = 1 where the field counts as converged ----
+    #
+    # PRESSURE: unchanged — below minPressure, or within minPressure of the
+    # reference. Free-field pressure is a function of scaled distance alone
+    # (cross-weight spread 4.7%), so an absolute kPa band picks one contour
+    # for every charge weight and is admissible.
+    #
+    # IMPULSE: |I_urban - I_ref| / W^(1/3) < thr_I_scaled, and NOT gated on
+    # pressure. The previous rule OR-ed in the low-pressure floor (which made
+    # 94.5% of the decisions and pinned RadiusI to the 10 kPa contour) and
+    # used an absolute Pa.s band, whose strictness varies as W^(1/3) — see
+    # constants.IMPULSE_CRITERION.
     lowP1 = peakP1_raw < min_pressure
     lowP2 = peakP2_raw < min_pressure
     lowP3 = peakP3_raw < min_pressure
@@ -154,16 +175,21 @@ def process_grids(data, params):
     small_diff_P1 = np.abs(peakP1_raw  - data['refP1']) < min_pressure
     small_diff_P2 = np.abs(peakP2_raw  - data['refP2']) < min_pressure
     small_diff_P3 = np.abs(peakP3_raw  - data['refP3']) < min_pressure
-    small_diff_I1 = np.abs(data['impulse1'] - data['refI1']) < min_pressure
-    small_diff_I2 = np.abs(data['impulse2'] - data['refI2']) < min_pressure
-    small_diff_I3 = np.abs(data['impulse3'] - data['refI3']) < min_pressure
 
     conv_P1 = lowP1 | small_diff_P1
     conv_P2 = lowP2 | small_diff_P2
     conv_P3 = lowP3 | small_diff_P3
-    conv_I1 = lowP1 | small_diff_I1
-    conv_I2 = lowP2 | small_diff_I2
-    conv_I3 = lowP3 | small_diff_I3
+
+    if weight is None:
+        # Legacy pressure-gated rule; kept only for backward compatibility.
+        conv_I1 = lowP1 | (np.abs(data['impulse1'] - data['refI1']) < min_pressure)
+        conv_I2 = lowP2 | (np.abs(data['impulse2'] - data['refI2']) < min_pressure)
+        conv_I3 = lowP3 | (np.abs(data['impulse3'] - data['refI3']) < min_pressure)
+    else:
+        W13 = float(weight) ** (1 / 3)
+        conv_I1 = impulse_converged(data['impulse1'], data['refI1'], W13, thr_I_scaled)
+        conv_I2 = impulse_converged(data['impulse2'], data['refI2'], W13, thr_I_scaled)
+        conv_I3 = impulse_converged(data['impulse3'], data['refI3'], W13, thr_I_scaled)
 
     for arr_name, conv_mask in (
         ('ratioP1', conv_P1), ('ratioP2', conv_P2), ('ratioP3', conv_P3),

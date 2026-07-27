@@ -1,4 +1,4 @@
-"""Convergence-radius models (RadiusP additive Pi, RadiusI log-space Pi)."""
+"""Convergence-radius models (RadiusP additive Pi, RadiusI Pi power law)."""
 
 import numpy as np
 
@@ -16,12 +16,11 @@ from blastlib.regression.stats import lstsq
 #       Z = C0 + C1*(s/W^(1/3)) + C2*rho*(s/W^(1/3) - a)
 #              + C3*sqrt(rho)*(H/s)*(W^(1/3)/s - 1)
 #
-#   RadiusI — log-space Pi model (2 coefficients per det):
-#       Z = A * Pi^( k * ln(W^(1/3)/s) ),   Pi = H/(s*rho)
-#     A is the scaled distance where the free-field pressure decays to
-#     ~9 kPa — the blast is too weak beyond it for the city to matter.
-#     The exponent flips sign at s = W^(1/3): confinement (high Pi)
-#     extends R for large charges and shortens it for small ones.
+#   RadiusI — Pi power law (4 coefficients per det):
+#       Z = A * rho^p * (H/s)^q * (s/W^(1/3))^r
+#     Each Pi group carries its own exponent, so the geometry effects are
+#     separable rather than entangled in a single product Pi = H/(s*rho)
+#     with a charge-dependent exponent.
 #
 # ============================================================
 # RadiusP: Buckingham Pi additive model
@@ -184,23 +183,24 @@ def fit_pi_all_groups(conv_df, target_col):
 
 
 # ============================================================
-# RadiusI: log-space Pi model
+# RadiusI: Pi power law
 #
-#   Z = R / W^(1/3) = A * Pi^( k * ln(W^(1/3)/s) ),  Pi = H/(s*rho)
+#   Z = R / W^(1/3) = A * rho^p * (H/s)^q * (s/W^(1/3))^r
 #
-# Log-linear:  ln(Z) = ln(A) + k * ln(Pi) * ln(W^(1/3)/s)
-# so each det group is a 2-coefficient OLS in log space. The log form
-# cannot predict a negative radius and won the impulse head-to-head on
-# every out-of-sample test (leave-geometry-out CV, W-extrapolation).
+# Log-linear:
+#   ln(Z) = ln(A) + p*ln(rho) + q*ln(H/s) + r*ln(s/W^(1/3))
+# so each det group is a 4-coefficient OLS in log space. Every factor is a
+# dimensionless Pi group and W enters only through W^(1/3), so the form is
+# Hopkinson-consistent. The log form also cannot predict a negative radius.
 # ============================================================
 
 def _fit_impulse_group(W, rho, H, s, R_target):
-    """Fit the log-space Pi model for one det group via OLS.
+    """Fit the Pi power law for one det group via log-space OLS.
 
-    Formula: Z = A * Pi^(k*ln(W^(1/3)/s)),  Pi = H/(s*rho), Z = R/W^(1/3)
+    Formula: Z = A * rho^p * (H/s)^q * (s/W^(1/3))^r,  Z = R/W^(1/3)
 
-    Returns dict with keys: A, k.  Returns None if fewer than 6 samples
-    (or if H=0 anywhere — Pi requires H > 0).
+    Returns dict with keys: A, p, q, r.  Returns None if fewer than 6
+    samples (H > 0 and rho > 0 are required — both are logged).
     """
     MIN_SAMPLES = 6
     W        = np.asarray(W,        dtype=float)
@@ -216,16 +216,16 @@ def _fit_impulse_group(W, rho, H, s, R_target):
 
     W13 = W ** (1 / 3)
     lnZ = np.log(R_target / W13)
-    u = np.log(H / (s * rho)) * np.log(W13 / s)
-    X = np.column_stack([np.ones(len(W)), u])
-    c0, k = lstsq(X, lnZ)
-    return {'A': np.exp(c0), 'k': k}
+    X = np.column_stack([np.ones(len(W)), np.log(rho), np.log(H / s),
+                         np.log(s / W13)])
+    c0, p, q, r = lstsq(X, lnZ)
+    return {'A': np.exp(c0), 'p': p, 'q': q, 'r': r}
 
 
 def predict_impulse(W, rho, H, det, s, b, imp_coeffs):
-    """Predict convergence radius using the log-space Pi model.
+    """Predict convergence radius using the Pi power law.
 
-    Formula: R = W^(1/3) * A * Pi^(k*ln(W^(1/3)/s)),  Pi = H/(s*rho)
+    Formula: R = W^(1/3) * A * rho^p * (H/s)^q * (s/W^(1/3))^r
 
     imp_coeffs: dict {det_val: coef_dict} from _fit_impulse_group.
     Returns prediction array (NaN where group is missing).
@@ -244,13 +244,15 @@ def predict_impulse(W, rho, H, det, s, b, imp_coeffs):
         if not mask.any():
             continue
         W13m = W[mask] ** (1 / 3)
-        u = np.log(H[mask] / (s[mask] * rho[mask])) * np.log(W13m / s[mask])
-        pred[mask] = W13m * coef['A'] * np.exp(coef['k'] * u)
+        Z = (coef['A'] * rho[mask] ** coef['p']
+             * (H[mask] / s[mask]) ** coef['q']
+             * (s[mask] / W13m) ** coef['r'])
+        pred[mask] = W13m * Z
     return pred
 
 
 def fit_impulse_all_groups(conv_df, target_col='RadiusI'):
-    """Fit the log-space Pi model for det=1 and det=2 groups.
+    """Fit the Pi power law for det=1 and det=2 groups.
 
     Returns dict {det_val: coef_dict_or_None}.
     """

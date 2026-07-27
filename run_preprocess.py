@@ -50,7 +50,7 @@ def main(*, vtk_dir=None, npz_dir=None, progress=print):
             fail_count += 1
             continue
 
-        processed = process_grids(data, params)
+        processed = process_grids(data, params, weight=cfg['weight'])
         save_processed_data(npz_dir, config_name, processed)
         success_count += 1
 
