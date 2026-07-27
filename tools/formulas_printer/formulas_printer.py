@@ -60,9 +60,13 @@ def format_z_urban_formulas(csv_path):
     lines = [
         '\n' + '=' * 70,
         ' BEST Z_URBAN FORMULAS    MaxR = W^(1/3) * Z_urban',
-        ' Impulse  (power):           Z_urban = C * Z_free^m * rho^p'
+        ' Pressure (range_switch):  ln Lambda = C0 + C1*[(Pi2-A)/Zf - ln Pi2]'
+        ' / (Pi2/(H/s) + B)   [A_switch stored positive]',
+        ' Impulse  (canyon_trap):   ln Lambda = C0 + C1*rho*(sqrt(H/s)-C2*rho)'
+        ' / (H/s + C3*sqrt(Pi2))',
+        ' Legacy impulse (power):   Z_urban = C * Z_free^m * rho^p'
         ' * (H/s)^q * (s/W^(1/3))^r',
-        ' Pressure (lambda_regime, one set per regime):'
+        ' Legacy pressure (lambda_regime, one set per regime):'
         ' Lambda = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)',
         '                                      + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1)'
         ' + C4*ln(Z_free)',
@@ -77,7 +81,24 @@ def format_z_urban_formulas(csv_path):
     ]
     for _, row in df.iterrows():
         lines.append(f"\n  {det_map.get(int(row['Det']), str(row['Det']))} / {row['Target']}:")
-        if row.get('Formula', 'power') == 'lambda_regime':
+        formula = row.get('Formula', 'power')
+        if formula == 'range_switch':
+            lines.append(
+                f"    ln Lambda = {row['C0']:+.4f} + {row['C1_amp']:.4f}"
+                f"*[ (Pi2 - {row['A_switch']:.4f})/Z_free - ln(Pi2) ]"
+                f" / ( Pi2/(H/s) + {row['B_open']:.4f} )")
+            lines.append('    (range-driven: street-width switch decaying as'
+                         ' 1/Z_free; open canyons damp it)')
+            lines.append('    Z_urban = exp(ln Lambda) * Z_free')
+        elif formula == 'canyon_trap':
+            lines.append(
+                f"    ln Lambda = {row['C0']:+.4f} + {row['C1_amp']:.4f}"
+                f"*rho*(sqrt(H/s) - {row['C2_self']:.4f}*rho)"
+                f" / ( H/s + {row['C3_dilute']:.4f}*sqrt(Pi2) )")
+            lines.append('    (geometry-driven: no Z_free term — canyon'
+                         ' trapping, density self-limiting)')
+            lines.append('    Z_urban = exp(ln Lambda) * Z_free')
+        elif formula == 'lambda_regime':
             lines.append(f"    [regime: {row.get('Regime', 'pooled')}]")
             lines.append(
                 f"    Lambda = {row['C0']:+.4f} {row['C1_sW13']:+.4f}*(s/W^1/3)"

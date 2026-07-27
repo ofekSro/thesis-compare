@@ -78,9 +78,15 @@ def load_convergence_coefficients(csv_path):
 
 
 def load_nonlinear_coefficients(csv_path):
-    """Load Z_urban power-law coefficients.
+    """Load Z_urban coefficients (superset CSV, all four formulas).
 
-    Two forms, selected by the Formula column:
+    Selected by the Formula column:
+      'range_switch'    ln Lambda = C0 + C1*[(Pi2 - A)/Z_free - ln(Pi2)]
+                                       / (Pi2/(H/s) + B)       [pressure]
+                        A (= A_switch) is stored POSITIVE: the sign-flip
+                        threshold itself, sign flip at Pi2 = A.
+      'canyon_trap'     ln Lambda = C0 + C1*rho*(sqrt(H/s) - C2*rho)
+                                       / (H/s + C3*sqrt(Pi2))  [impulse]
       'power'           Z_urban = C * Z_free^m * rho^p * (H/s)^q * (s/W^1/3)^r
       'lambda_regime'   Lambda  = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)
                                      + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1)
@@ -88,7 +94,7 @@ def load_nonlinear_coefficients(csv_path):
                         Z_urban = Lambda * Z_free
                         One coefficient set per regime, keyed 'amp' / 'att' /
                         'pooled'; ATTENUATION_CRITERION selects between them.
-    Both valid for Z_free >= zf_min.
+    All valid for Z_free >= zf_min; Pi2 = s/W^(1/3).
     """
     df = pd.read_csv(csv_path)
     coeffs = {}
@@ -96,7 +102,21 @@ def load_nonlinear_coefficients(csv_path):
         det = int(row['Det'])
         target = row['Target']
         formula = row['Formula'] if 'Formula' in df.columns else 'power'
-        if formula == 'lambda_regime':
+        if formula == 'range_switch':
+            coeffs[(det, target)] = {
+                'formula': 'range_switch',
+                'C0': float(row['C0']), 'C1': float(row['C1_amp']),
+                'A': float(row['A_switch']), 'B': float(row['B_open']),
+                'zf_min': float(row['Zf_min']),
+            }
+        elif formula == 'canyon_trap':
+            coeffs[(det, target)] = {
+                'formula': 'canyon_trap',
+                'C0': float(row['C0']), 'C1': float(row['C1_amp']),
+                'C2': float(row['C2_self']), 'C3': float(row['C3_dilute']),
+                'zf_min': float(row['Zf_min']),
+            }
+        elif formula == 'lambda_regime':
             regime = str(row.get('Regime', 'pooled')) or 'pooled'
             entry = coeffs.setdefault((det, target),
                                       {'formula': 'lambda_regime',
@@ -180,6 +200,7 @@ def predict_z_urban_per_Z(z_free, weight, rho, height, swidth, det, z_coeffs,
     """
     W_third = weight ** (1 / 3)
     Hs = height / swidth
+    pi2_val = swidth / W_third
 
     preds = {}
     for target in ['Pressure', 'Impulse']:
@@ -191,7 +212,16 @@ def predict_z_urban_per_Z(z_free, weight, rho, height, swidth, det, z_coeffs,
         if z_free < c['zf_min']:
             preds[target] = np.nan
             continue
-        if c.get('formula') == 'lambda_regime':
+        if c.get('formula') == 'range_switch':
+            ln_lam = (c['C0'] + c['C1']
+                      * ((pi2_val - c['A']) / z_free - np.log(pi2_val))
+                      / (pi2_val / Hs + c['B']))
+            Z_urban = np.exp(ln_lam) * z_free
+        elif c.get('formula') == 'canyon_trap':
+            ln_lam = (c['C0'] + c['C1'] * rho * (np.sqrt(Hs) - c['C2'] * rho)
+                      / (Hs + c['C3'] * np.sqrt(pi2_val)))
+            Z_urban = np.exp(ln_lam) * z_free
+        elif c.get('formula') == 'lambda_regime':
             # xi uses the PREDICTED convergence radius, never the measured one.
             if not np.isfinite(pred_Rconv_P) or pred_Rconv_P <= 0:
                 preds[target] = np.nan
@@ -315,13 +345,18 @@ def _print_formulas(conv_coeffs, z_coeffs, progress=print):
 
     progress(f'\n{"="*70}')
     progress('  BEST Z_URBAN FORMULAS    MaxR = W^(1/3) * Z_urban')
-    progress('  Impulse  — power law:')
-    progress('    Z_urban = C * Z_free^m * rho^p * (H/s)^q * (s/W^(1/3))^r')
-    progress('  Pressure — additive Pi on the amplification factor:')
-    progress('    Lambda  = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)')
-    progress('                 + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1) + C4*ln(Z_free)')
-    progress('    Z_urban = Lambda * Z_free      (a = 1 street / 2 intersection)')
-    progress('  All factors are Pi groups; W enters only through W^(1/3).')
+    progress('  Forms are read from the Formula column of the coefficient CSV:')
+    progress('    range_switch (P): ln Lambda = C0 + C1*[(Pi2-A)/Zf - ln Pi2]')
+    progress('                                     / (Pi2/(H/s) + B)')
+    progress('      A stored positive: the sign-flip threshold (Pi2 = A)')
+    progress('      -> pressure amplification is RANGE-DRIVEN (decays as 1/Zf)')
+    progress('    canyon_trap  (I): ln Lambda = C0 + C1*rho*(sqrt(H/s)-C2*rho)')
+    progress('                                     / (H/s + C3*sqrt(Pi2))')
+    progress('      -> impulse amplification is GEOMETRY-DRIVEN (no Zf term)')
+    progress('    power        (legacy I): Z_urban = C*Zf^m*rho^p*(H/s)^q*Pi2^r')
+    progress('    lambda_regime(legacy P): per-regime additive Lambda + classifier')
+    progress('  All factors are Pi groups (Pi2 = s/W^(1/3)); W enters only')
+    progress('  through W^(1/3).')
     progress('  R_urban = W^(1/3) * Z_urban  (canonical — not separately fitted)')
     progress('  Validity: Z_free >= Zf_min')
     progress('  Physical closure: predictions clipped from ABOVE at Z_conv only')
@@ -336,7 +371,31 @@ def _print_formulas(conv_coeffs, z_coeffs, progress=print):
             if c is None:
                 continue
             progress(f'\n  {det_names[det]} / {target}:')
-            if c.get('formula') == 'lambda_regime':
+            if c.get('formula') == 'range_switch':
+                progress(f'    ln Lambda = {c["C0"]:+.4f} + {c["C1"]:.4f}'
+                         f'*[ (Pi2 - {c["A"]:.4f})/Z_free - ln(Pi2) ]'
+                         f' / ( Pi2/(H/s) + {c["B"]:.4f} )')
+                progress(f'      -ln(Pi2):             baseline street-width'
+                         f' power law')
+                progress(f'      (Pi2 - {c["A"]:.2f})/Z_free:  near-field'
+                         f' switch, decays with range')
+                progress(f'      /(Pi2/(H/s) + {c["B"]:.2f}): open-canyon'
+                         f' damping (wide+low canyons suppress)')
+                progress(f'    Z_urban = exp(ln Lambda) * Z_free')
+            elif c.get('formula') == 'canyon_trap':
+                progress(f'    ln Lambda = {c["C0"]:+.4f} + {c["C1"]:.4f}'
+                         f'*rho*(sqrt(H/s) - {c["C2"]:.4f}*rho)'
+                         f' / ( H/s + {c["C3"]:.4f}*sqrt(Pi2) )')
+                progress(f'      rho*sqrt(H/s):        trapping — wall'
+                         f' continuity x canyon aspect')
+                progress(f'      -{c["C2"]:.2f}*rho^2:         density'
+                         f' self-limiting (dense blocks choke streets)')
+                progress(f'      /(H/s + {c["C3"]:.2f}*sqrt(Pi2)): canyon'
+                         f' saturation + street-width dilution')
+                progress(f'      no Z_free term:       geometry-set,'
+                         f' range-flat amplification')
+                progress(f'    Z_urban = exp(ln Lambda) * Z_free')
+            elif c.get('formula') == 'lambda_regime':
                 for key, name in (('amp', 'amplification'),
                                   ('att', 'attenuation'), ('pooled', 'pooled')):
                     cc = c.get(key)
