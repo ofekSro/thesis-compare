@@ -326,13 +326,15 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
 
 def run_phase2(*, tables_dir=None, n_iterations=500, test_fraction=0.2,
                target_mape=10.0, radius_estimator=None,
-               model_p='legacy', model_i='legacy', progress=print):
+               model_p='relwls', model_i='quad', progress=print):
     """Phase 2: cross-validated regression over the Phase 1 CSVs.
 
     *radius_estimator* selects which Phase 1 tables to read and how the
     outputs are named; it does not affect any fitting formula.
-    *model_p* ('legacy'|'relwls') and *model_i* ('legacy'|'quad') select
-    the convergence-model fit variants — see run_cross_validation.
+    *model_p* ('relwls'|'legacy') and *model_i* ('quad'|'legacy') select
+    the convergence-model fit variants — see run_cross_validation. The
+    defaults are the Task B fixes (production since the 2026-08
+    acceptance gate); pass 'legacy' to reproduce older coefficient sets.
 
     Returns the summary dict from run_cross_validation.
     """
@@ -366,7 +368,7 @@ def main(*, phase='all', n_iterations=500, scale_limits=None,
          npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
          test_fraction=0.2, target_mape=10.0, radius_estimator=None,
          rebuild_impulse=False, make_figures=True,
-         model_p='legacy', model_i='legacy', progress=print):
+         model_p='relwls', model_i='quad', progress=print):
     """Run the analysis. Never prompts — this is the GUI/API entry point.
 
     phase : 'all' | '1' | '2'
@@ -437,14 +439,16 @@ def _build_parser():
                    help='Recompute ratioI under the scaled impulse criterion, '
                         'reconstructing the free-field reference. Needed while '
                         'the NPZs predate the criterion and the VTKs are absent.')
-    p.add_argument('--model-p', choices=['legacy', 'relwls'], default='legacy',
+    p.add_argument('--model-p', choices=['legacy', 'relwls'], default='relwls',
                    dest='model_p',
-                   help="RadiusP fit variant for Phase 2: 'legacy' plain OLS "
-                        "or 'relwls' relative-error weighted LS.")
-    p.add_argument('--model-i', choices=['legacy', 'quad'], default='legacy',
+                   help="RadiusP fit variant for Phase 2: 'relwls' relative-"
+                        "error weighted LS (production default) or 'legacy' "
+                        "plain OLS.")
+    p.add_argument('--model-i', choices=['legacy', 'quad'], default='quad',
                    dest='model_i',
-                   help="RadiusI fit variant for Phase 2: 'legacy' 4-coefficient "
-                        "power law or 'quad' with the (ln Pi2)^2 term.")
+                   help="RadiusI fit variant for Phase 2: 'quad' with the "
+                        "(ln Pi2)^2 term (production default) or 'legacy' "
+                        "4-coefficient power law.")
     return p
 
 
