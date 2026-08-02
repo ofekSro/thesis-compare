@@ -156,6 +156,22 @@ def process_grids(data, params, weight=None):
     out['ratioP3'][cut_mask3]       = np.nan
     out['ratioI3'][cut_mask3]       = np.nan
 
+    # ---- Raw fields (v2 superset keys, consumed by the soft criterion) ----
+    #
+    # The convergence band below operates on the PRE-fill raw urban peak and
+    # raw reference — not on the filled/masked fields the ratios are built
+    # from. A soft (tanh-projected) criterion must see those same operands to
+    # reduce to the hard band exactly, so they are persisted together with the
+    # unforced ratios (same masks, before the pinning to 1.0).
+    out['peakP1_raw'] = peakP1_raw
+    out['peakP2_raw'] = peakP2_raw
+    out['peakP3_raw'] = peakP3_raw
+    for g in ('1', '2', '3'):
+        out[f'refP{g}'] = data[f'refP{g}']
+        out[f'refI{g}'] = data[f'refI{g}']
+        out[f'ratioP{g}_raw'] = out[f'ratioP{g}'].copy()
+        out[f'ratioI{g}_raw'] = out[f'ratioI{g}'].copy()
+
     # ---- Force ratio = 1 where the field counts as converged ----
     #
     # PRESSURE: unchanged — below minPressure, or within minPressure of the
