@@ -47,8 +47,10 @@ def load_convergence_coefficients(csv_path):
     RadiusP ('additive'): keys C0, C1, C2, C3, a, has_H_term
         Z = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)
                + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1)
-    RadiusI ('power'): keys A, p, q, r
-        Z = A * rho^p * (H/s)^q * (s/W^(1/3))^r
+    RadiusI ('power'): keys A, p, q, r, r2
+        Z = A * rho^p * (H/s)^q * (s/W^(1/3))^r * exp(r2*ln(s/W^(1/3))^2)
+        (r2 comes from the r2_sW13sq column; CSVs written before the
+        quadratic term lack it and load as r2 = 0 — the legacy power law)
     """
     df = pd.read_csv(csv_path)
     coeffs = {}
@@ -63,6 +65,7 @@ def load_convergence_coefficients(csv_path):
                 'p': float(row['p_rho']),
                 'q': float(row['q_HoverS']),
                 'r': float(row['r_sW13']),
+                'r2': float(row['r2_sW13sq']) if 'r2_sW13sq' in df.columns else 0.0,
             }
         else:
             coeffs[(det, target)] = {
@@ -187,6 +190,9 @@ def predict_convergence_radius(cfg, conv_coeffs):
                 continue                          # both are logged in the fit
             Z = (c['A'] * rho ** c['p'] * (height / swidth) ** c['q']
                  * (swidth / W13) ** c['r'])
+            r2 = c.get('r2', 0.0)
+            if r2 != 0.0:
+                Z = Z * np.exp(r2 * np.log(swidth / W13) ** 2)
         else:
             switch = rho * (pi2 - c['a'])         # density switch term
             Z = c['C0'] + c['C1'] * pi2 + c['C2'] * switch + c['C3'] * canyon
@@ -341,9 +347,11 @@ def _print_formulas(conv_coeffs, z_coeffs, progress=print):
             loc = det_names.get(det, f'det={det}')
             progress(f'  {loc}:')
             if c['formula'] == 'power':
+                r2 = c.get('r2', 0.0)
+                quad = f' * exp({r2:+.4f}*ln(s/W^1/3)^2)' if r2 != 0.0 else ''
                 progress(f'    Z = {c["A"]:.4f} * rho^({c["p"]:+.4f})'
                          f' * (H/s)^({c["q"]:+.4f})'
-                         f' * (s/W^1/3)^({c["r"]:+.4f})')
+                         f' * (s/W^1/3)^({c["r"]:+.4f})' + quad)
             elif c['has_H_term']:
                 progress(f'    Z = {c["C0"]:+.4f} + {c["C1"]:+.4f}*(s/W^1/3)'
                          f' + {c["C2"]:+.4f}*rho*(s/W^1/3 - {c["a"]:g})'

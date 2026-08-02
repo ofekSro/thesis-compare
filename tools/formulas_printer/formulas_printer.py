@@ -36,10 +36,12 @@ def format_convergence_formulas(csv_path):
         for _, row in df[df['Target'] == target].iterrows():
             lines.append(f"  {row['Location']}:")
             if row['Formula'] == 'power':
+                r2 = float(row['r2_sW13sq']) if 'r2_sW13sq' in df.columns else 0.0
+                quad = f" * exp({r2:+.4f}*ln(s/W^1/3)^2)" if r2 != 0.0 else ''
                 lines.append(
                     f"    Z = {row['A']:.4f} * rho^({row['p_rho']:+.4f})"
                     f" * (H/s)^({row['q_HoverS']:+.4f})"
-                    f" * (s/W^1/3)^({row['r_sW13']:+.4f})")
+                    f" * (s/W^1/3)^({row['r_sW13']:+.4f})" + quad)
             else:
                 lines.append(
                     f"    Z = {row['C0']:+.4f} {row['C1_sW13']:+.4f}*(s/W^1/3)"

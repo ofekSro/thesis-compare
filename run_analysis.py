@@ -306,11 +306,14 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
 
 
 def run_phase2(*, tables_dir=None, n_iterations=500, test_fraction=0.2,
-               target_mape=10.0, radius_estimator=None, progress=print):
+               target_mape=10.0, radius_estimator=None,
+               model_p='legacy', model_i='legacy', progress=print):
     """Phase 2: cross-validated regression over the Phase 1 CSVs.
 
     *radius_estimator* selects which Phase 1 tables to read and how the
     outputs are named; it does not affect any fitting formula.
+    *model_p* ('legacy'|'relwls') and *model_i* ('legacy'|'quad') select
+    the convergence-model fit variants — see run_cross_validation.
 
     Returns the summary dict from run_cross_validation.
     """
@@ -336,13 +339,15 @@ def run_phase2(*, tables_dir=None, n_iterations=500, test_fraction=0.2,
                                 test_fraction=test_fraction,
                                 target_mape=target_mape,
                                 method=method,
+                                model_p=model_p, model_i=model_i,
                                 progress=progress)
 
 
 def main(*, phase='all', n_iterations=500, scale_limits=None,
          npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
          test_fraction=0.2, target_mape=10.0, radius_estimator=None,
-         rebuild_impulse=False, progress=print):
+         rebuild_impulse=False, model_p='legacy', model_i='legacy',
+         progress=print):
     """Run the analysis. Never prompts — this is the GUI/API entry point.
 
     phase : 'all' | '1' | '2'
@@ -350,6 +355,8 @@ def main(*, phase='all', n_iterations=500, scale_limits=None,
         {'method': 'req'|'max'|'p95', 'percentile': N}. None →
         constants.RADIUS_ESTIMATOR. Both phases get the same value, so
         Phase 2 always reads the tables Phase 1 just wrote.
+    model_p, model_i : str
+        Convergence-model fit variants for Phase 2 — see run_phase2.
     """
     result = {}
 
@@ -364,7 +371,8 @@ def main(*, phase='all', n_iterations=500, scale_limits=None,
         result['phase2'] = run_phase2(
             tables_dir=tables_dir, n_iterations=n_iterations,
             test_fraction=test_fraction, target_mape=target_mape,
-            radius_estimator=radius_estimator, progress=progress)
+            radius_estimator=radius_estimator,
+            model_p=model_p, model_i=model_i, progress=progress)
 
     progress('\n' + '=' * 40)
     progress('  ALL DONE')
@@ -399,6 +407,14 @@ def _build_parser():
                    help='Recompute ratioI under the scaled impulse criterion, '
                         'reconstructing the free-field reference. Needed while '
                         'the NPZs predate the criterion and the VTKs are absent.')
+    p.add_argument('--model-p', choices=['legacy', 'relwls'], default='legacy',
+                   dest='model_p',
+                   help="RadiusP fit variant for Phase 2: 'legacy' plain OLS "
+                        "or 'relwls' relative-error weighted LS.")
+    p.add_argument('--model-i', choices=['legacy', 'quad'], default='legacy',
+                   dest='model_i',
+                   help="RadiusI fit variant for Phase 2: 'legacy' 4-coefficient "
+                        "power law or 'quad' with the (ln Pi2)^2 term.")
     return p
 
 
@@ -481,7 +497,8 @@ def cli(argv=None):
                 npz_dir=args.npz_dir, ff_csv=args.ff_csv,
                 tables_dir=args.tables_dir, figures_dir=args.figures_dir,
                 radius_estimator=radius_estimator,
-                rebuild_impulse=args.rebuild_impulse)
+                rebuild_impulse=args.rebuild_impulse,
+                model_p=args.model_p, model_i=args.model_i)
 
 
 if __name__ == '__main__':

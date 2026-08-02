@@ -80,12 +80,19 @@ def _compute_pi_terms(W, H, s, rho, a):
     return pi2, switch, canyon
 
 
-def _fit_pi_group(W, rho, H, s, R_target, a_thresh):
-    """Fit additive Pi model for one det group via OLS.
+def _fit_pi_group(W, rho, H, s, R_target, a_thresh, weighting='ols'):
+    """Fit additive Pi model for one det group via least squares.
 
     Formula: Z = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)
                     + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1)
     where Z = R / W^(1/3) and a = a_thresh (1 street, 2 intersection).
+
+    weighting:
+      'ols'      — plain OLS on Z (minimizes squared absolute error).
+      'relative' — rows weighted 1/Z on both sides, i.e. minimizes squared
+                   RELATIVE error. Identical design matrix; MAPE is the
+                   selection metric everywhere downstream, so the loss and
+                   the metric agree.
 
     Returns dict with keys: C0, C1, C2, C3, a, has_H_term
     Returns None if fewer than 6 samples.
@@ -109,12 +116,19 @@ def _fit_pi_group(W, rho, H, s, R_target, a_thresh):
 
     if has_H:
         X = np.column_stack([np.ones(len(W)), pi2, switch, canyon])
-        coef = lstsq(X, Z)
-        C0, C1, C2, C3 = coef
     else:
         # H=0: canyon=0, so only C0, C1, C2 are identifiable
         X = np.column_stack([np.ones(len(W)), pi2, switch])
+
+    if weighting == 'relative':
+        # X/Z * c = 1  <=>  minimize sum(((Xc - Z)/Z)^2)
+        coef = lstsq(X / Z[:, None], np.ones_like(Z))
+    else:
         coef = lstsq(X, Z)
+
+    if has_H:
+        C0, C1, C2, C3 = coef
+    else:
         C0, C1, C2 = coef
         C3 = 0.0
 
@@ -155,9 +169,10 @@ def predict_pi(W, rho, H, det, s, b, pi_coeffs):
     return pred
 
 
-def fit_pi_all_groups(conv_df, target_col):
+def fit_pi_all_groups(conv_df, target_col, weighting='ols'):
     """Fit additive Pi model for det=1 and det=2 groups.
 
+    weighting: 'ols' (legacy) or 'relative' — see _fit_pi_group.
     Returns dict {det_val: coef_dict_or_None}.
     """
     W   = conv_df['ChargeWeight'].values.astype(float)
@@ -177,7 +192,7 @@ def fit_pi_all_groups(conv_df, target_col):
             coeffs[det_val] = None
             continue
         coef = _fit_pi_group(W[mask], rho[mask], H[mask], S[mask], R[mask],
-                             a_thresh=A_THRESH[det_val])
+                             a_thresh=A_THRESH[det_val], weighting=weighting)
         coeffs[det_val] = coef
     return coeffs
 
@@ -185,21 +200,27 @@ def fit_pi_all_groups(conv_df, target_col):
 # ============================================================
 # RadiusI: Pi power law
 #
-#   Z = R / W^(1/3) = A * rho^p * (H/s)^q * (s/W^(1/3))^r
+#   Z = R / W^(1/3) = A * rho^p * (H/s)^q * (s/W^(1/3))^r          (legacy)
+#   Z = ... * exp(r2 * ln(s/W^(1/3))^2)                            ('quad')
 #
 # Log-linear:
-#   ln(Z) = ln(A) + p*ln(rho) + q*ln(H/s) + r*ln(s/W^(1/3))
-# so each det group is a 4-coefficient OLS in log space. Every factor is a
-# dimensionless Pi group and W enters only through W^(1/3), so the form is
-# Hopkinson-consistent. The log form also cannot predict a negative radius.
+#   ln(Z) = ln(A) + p*ln(rho) + q*ln(H/s) + r*ln(Pi2) [+ r2*ln(Pi2)^2]
+# so each det group is a 4- (or 5-) coefficient OLS in log space with
+# Pi2 = s/W^(1/3). Every factor is a dimensionless Pi group and W enters
+# only through W^(1/3), so the form is Hopkinson-consistent. The log form
+# also cannot predict a negative radius.
 # ============================================================
 
-def _fit_impulse_group(W, rho, H, s, R_target):
+def _fit_impulse_group(W, rho, H, s, R_target, model='legacy'):
     """Fit the Pi power law for one det group via log-space OLS.
 
-    Formula: Z = A * rho^p * (H/s)^q * (s/W^(1/3))^r,  Z = R/W^(1/3)
+    Formula: Z = A * rho^p * (H/s)^q * Pi2^r * exp(r2*ln(Pi2)^2),
+    Z = R/W^(1/3), Pi2 = s/W^(1/3).
 
-    Returns dict with keys: A, p, q, r.  Returns None if fewer than 6
+    model: 'legacy' fixes r2 = 0 (the original 4-coefficient fit);
+    'quad' fits the quadratic log term as a 5th coefficient.
+
+    Returns dict with keys: A, p, q, r, r2.  Returns None if fewer than 6
     samples (H > 0 and rho > 0 are required — both are logged).
     """
     MIN_SAMPLES = 6
@@ -216,18 +237,27 @@ def _fit_impulse_group(W, rho, H, s, R_target):
 
     W13 = W ** (1 / 3)
     lnZ = np.log(R_target / W13)
-    X = np.column_stack([np.ones(len(W)), np.log(rho), np.log(H / s),
-                         np.log(s / W13)])
-    c0, p, q, r = lstsq(X, lnZ)
-    return {'A': np.exp(c0), 'p': p, 'q': q, 'r': r}
+    ln_pi2 = np.log(s / W13)
+    if model == 'quad':
+        X = np.column_stack([np.ones(len(W)), np.log(rho), np.log(H / s),
+                             ln_pi2, ln_pi2 ** 2])
+        c0, p, q, r, r2 = lstsq(X, lnZ)
+    else:
+        X = np.column_stack([np.ones(len(W)), np.log(rho), np.log(H / s),
+                             ln_pi2])
+        c0, p, q, r = lstsq(X, lnZ)
+        r2 = 0.0
+    return {'A': np.exp(c0), 'p': p, 'q': q, 'r': r, 'r2': r2}
 
 
 def predict_impulse(W, rho, H, det, s, b, imp_coeffs):
     """Predict convergence radius using the Pi power law.
 
-    Formula: R = W^(1/3) * A * rho^p * (H/s)^q * (s/W^(1/3))^r
+    Formula: R = W^(1/3) * A * rho^p * (H/s)^q * Pi2^r * exp(r2*ln(Pi2)^2)
 
-    imp_coeffs: dict {det_val: coef_dict} from _fit_impulse_group.
+    imp_coeffs: dict {det_val: coef_dict} from _fit_impulse_group. Dicts
+    without an 'r2' key (older saved coefficients) predict with r2 = 0,
+    i.e. the legacy 4-coefficient power law.
     Returns prediction array (NaN where group is missing).
     """
     W   = np.asarray(W,   dtype=float)
@@ -247,13 +277,17 @@ def predict_impulse(W, rho, H, det, s, b, imp_coeffs):
         Z = (coef['A'] * rho[mask] ** coef['p']
              * (H[mask] / s[mask]) ** coef['q']
              * (s[mask] / W13m) ** coef['r'])
+        r2 = coef.get('r2', 0.0)
+        if r2 != 0.0:
+            Z = Z * np.exp(r2 * np.log(s[mask] / W13m) ** 2)
         pred[mask] = W13m * Z
     return pred
 
 
-def fit_impulse_all_groups(conv_df, target_col='RadiusI'):
+def fit_impulse_all_groups(conv_df, target_col='RadiusI', model='legacy'):
     """Fit the Pi power law for det=1 and det=2 groups.
 
+    model: 'legacy' (4 coefficients) or 'quad' — see _fit_impulse_group.
     Returns dict {det_val: coef_dict_or_None}.
     """
     W   = conv_df['ChargeWeight'].values.astype(float)
@@ -270,5 +304,5 @@ def fit_impulse_all_groups(conv_df, target_col='RadiusI'):
             coeffs[det_val] = None
             continue
         coeffs[det_val] = _fit_impulse_group(W[mask], rho[mask], H[mask],
-                                             S[mask], R[mask])
+                                             S[mask], R[mask], model=model)
     return coeffs

@@ -14,7 +14,7 @@ def save_best_convergence_coefficients(conv_P_coeffs, conv_I_coeffs, output_fold
     Superset schema, one row per (det, target) — 4 rows total:
       Det, Location, Target, Formula,
       C0, C1_sW13, C2_switch, C3_canyon, a_thresh, has_H_term,   (additive, P)
-      A, p_rho, q_HoverS, r_sW13                                 (power, I)
+      A, p_rho, q_HoverS, r_sW13, r2_sW13sq                      (power, I)
     Unused cells are left empty.
 
     RadiusP (Formula='additive'):
@@ -22,6 +22,9 @@ def save_best_convergence_coefficients(conv_P_coeffs, conv_I_coeffs, output_fold
                         + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1))
     RadiusI (Formula='power'):
       R = W^(1/3) * A * rho^p * (H/s)^q * (s/W^(1/3))^r
+              * exp(r2 * ln(s/W^(1/3))^2)
+    r2_sW13sq is 0 for the legacy 4-coefficient fit; readers of older CSVs
+    without the column must default it to 0.
     """
     loc_names = {1: 'Street', 2: 'Intersection'}
 
@@ -44,6 +47,7 @@ def save_best_convergence_coefficients(conv_P_coeffs, conv_I_coeffs, output_fold
             'p_rho': np.nan,
             'q_HoverS': np.nan,
             'r_sW13': np.nan,
+            'r2_sW13sq': np.nan,
         })
     for det_val, coef in conv_I_coeffs.items():
         if coef is None:
@@ -63,6 +67,7 @@ def save_best_convergence_coefficients(conv_P_coeffs, conv_I_coeffs, output_fold
             'p_rho': coef['p'],
             'q_HoverS': coef['q'],
             'r_sW13': coef['r'],
+            'r2_sW13sq': coef.get('r2', 0.0),
         })
 
     df = pd.DataFrame(rows)
@@ -224,10 +229,12 @@ def print_final_formulas(conv_df, conv_P_coeffs, conv_I_coeffs):
         if coef is None:
             continue
         loc = loc_names.get(det_val, f'det={det_val}')
+        r2 = coef.get('r2', 0.0)
+        quad = f' * exp({r2:+.4f}*ln(s/W^1/3)^2)' if r2 != 0.0 else ''
         print(f'  {loc}:')
         print(f'    Z = {coef["A"]:.4f} * rho^({coef["p"]:+.4f})'
               f' * (H/s)^({coef["q"]:+.4f})'
-              f' * (s/W^1/3)^({coef["r"]:+.4f})')
+              f' * (s/W^1/3)^({coef["r"]:+.4f})' + quad)
         print(f'    R = W^(1/3) * Z')
     print()
 

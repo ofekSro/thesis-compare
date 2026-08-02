@@ -51,7 +51,7 @@ CSV_MAP = {
 
 # Columns added after the compare_v6 baseline was captured. Dropped from the new
 # side before comparing so the numeric comparison stays like-for-like.
-NEW_ONLY_COLUMNS = ('RadiusEstimator', 'beyond_P', 'beyond_I')
+NEW_ONLY_COLUMNS = ('RadiusEstimator', 'beyond_P', 'beyond_I', 'r2_sW13sq')
 
 # old figure folder -> new figure folder (compared by PNG count only).
 # Phase-1 figures now live under a per-estimator subfolder.

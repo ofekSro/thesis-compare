@@ -37,7 +37,8 @@ from blastlib.regression.plots import plot_best_validation
 
 def run_cross_validation(conv_csv, maxR_csv, output_folder,
                          n_iterations=500, test_fraction=0.2,
-                         target_mape=10.0, method=None, progress=print):
+                         target_mape=10.0, method=None,
+                         model_p='legacy', model_i='legacy', progress=print):
     """Run repeated 80/20 train/test splits and find best formula coefficients.
 
     Parameters
@@ -60,9 +61,17 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         Radius-estimator token ('req', 'p95', ...) used to suffix every output
         filename so runs with different estimators do not overwrite each other.
         Affects naming only — no fitting formula depends on it.
+    model_p : str
+        RadiusP fit variant: 'legacy' (plain OLS) or 'relwls' (rows weighted
+        1/Z — squared relative error). See convergence_models._fit_pi_group.
+    model_i : str
+        RadiusI fit variant: 'legacy' (4-coefficient power law) or 'quad'
+        (adds the r2*ln(Pi2)^2 term). See _fit_impulse_group.
     progress : callable
         Progress sink (default print). A GUI can pass its own logger.
     """
+    pi_weighting = 'relative' if model_p == 'relwls' else 'ols'
+    impulse_model = 'quad' if model_i == 'quad' else 'legacy'
     output_folder = str(output_folder)
 
     def out(name):
@@ -128,8 +137,10 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         test_maxR  = maxR_prepared[maxR_prepared['Config'].isin(test_configs)].copy()
 
         # ---- Fit convergence radius: P additive Pi, I Pi power law ----
-        conv_P_coeffs = fit_pi_all_groups(train_conv, 'RadiusP')
-        conv_I_coeffs = fit_impulse_all_groups(train_conv, 'RadiusI')
+        conv_P_coeffs = fit_pi_all_groups(train_conv, 'RadiusP',
+                                          weighting=pi_weighting)
+        conv_I_coeffs = fit_impulse_all_groups(train_conv, 'RadiusI',
+                                               model=impulse_model)
 
         # Skip iteration if any det group failed to fit
         if any(c is None for c in conv_P_coeffs.values()):
@@ -274,8 +285,10 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         print_z_urban_formulas(best_z_coeffs)
 
     # ---- Production fit: refit on 100% of data ----
-    prod_P_coeffs = fit_pi_all_groups(conv_df, 'RadiusP')
-    prod_I_coeffs = fit_impulse_all_groups(conv_df, 'RadiusI')
+    prod_P_coeffs = fit_pi_all_groups(conv_df, 'RadiusP',
+                                      weighting=pi_weighting)
+    prod_I_coeffs = fit_impulse_all_groups(conv_df, 'RadiusI',
+                                           model=impulse_model)
     prod_z_coeffs = fit_z_urban_all_groups(maxR_prepared, prod_P_coeffs)
     progress(f'\n{"="*60}')
     progress(f'  PRODUCTION FIT  (100% of data)')
