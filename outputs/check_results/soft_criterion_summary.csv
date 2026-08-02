@@ -1,0 +1,9 @@
+Tables,Models,Target,LOGO_mean,LOGO_median,LOGO_p90,LOGO_max
+hard,legacy,P,8.39,6.39,17.13,43.35
+hard,legacy,I,8.55,7.1,18.15,38.48
+hard,new,P,8.19,6.85,15.86,40.38
+hard,new,I,7.21,5.89,16.4,30.39
+soft_b4,legacy,P,8.36,5.72,18.76,32.8
+soft_b4,legacy,I,8.55,7.1,18.15,38.48
+soft_b4,new,P,8.21,5.93,19.21,31.62
+soft_b4,new,I,7.21,5.89,16.4,30.39
