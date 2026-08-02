@@ -735,10 +735,11 @@ def cli(argv=None):
     p = argparse.ArgumentParser(description='Validate saved formula coefficients.')
     p.add_argument('--tables-dir', default=None, help='Folder with the coefficient/table CSVs.')
     p.add_argument('--out-dir', default=None, help='Output folder for validation results.')
-    p.add_argument('--radius-method', choices=list(VALID_METHODS), default=None,
+    p.add_argument('--radius-method', default=None,
                    dest='radius_method',
-                   help='Which radius-estimator run to validate '
-                        '(default: constants.RADIUS_ESTIMATOR).')
+                   help='Which radius-estimator run to validate: '
+                        f'{"|".join(VALID_METHODS)}, pXX, or a soft token '
+                        "like 'req_soft6' (default: constants.RADIUS_ESTIMATOR).")
     args = p.parse_args(argv)
     return main(tables_dir=args.tables_dir, out_dir=args.out_dir,
                 radius_method=args.radius_method)

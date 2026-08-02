@@ -141,9 +141,11 @@ def main(*, tables_dir=None, radius_method=None, progress=print):
 def cli(argv=None):
     p = argparse.ArgumentParser(description='Print the best fitted formulas.')
     p.add_argument('--tables-dir', default=None, help='Folder with the coefficient CSVs.')
-    p.add_argument('--radius-method', choices=list(VALID_METHODS), default=None,
+    p.add_argument('--radius-method', default=None,
                    dest='radius_method',
-                   help='Which radius-estimator run to print formulas for.')
+                   help='Which radius-estimator run to print formulas for: '
+                        f'{"|".join(VALID_METHODS)}, pXX, or a soft token '
+                        "like 'req_soft6'.")
     args = p.parse_args(argv)
     return main(tables_dir=args.tables_dir, radius_method=args.radius_method)
 

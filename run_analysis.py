@@ -43,6 +43,8 @@ from blastlib.processing.convergence import find_convergence_radius
 from blastlib.processing.free_field import load_ff_lookup, find_percentile_radius
 from blastlib.processing.radius_estimator import resolve_estimator, VALID_METHODS
 from blastlib.processing.ff_reference import rebuild_impulse_ratio
+from blastlib.processing.soft_criterion import (soft_pressure_fields,
+                                                soft_pressure_weights)
 from blastlib.plotting.absolute import plot_absolute
 from blastlib.plotting.ratio import plot_ratio
 from blastlib.plotting.max_radius import plot_max_radius
@@ -56,7 +58,7 @@ FIG_SUBDIRS = ('absolute', 'ratio', 'max_radius',
 
 def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
                scale_limits=None, radius_estimator=None,
-               rebuild_impulse=False, progress=print):
+               rebuild_impulse=False, make_figures=True, progress=print):
     """Phase 1: load processed .npz files, compute convergence, save CSVs.
 
     Parameters
@@ -80,8 +82,16 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         because the shipped NPZs were written under the old pressure-gated
         rule and the VTKs are unavailable; once preprocessing can be re-run
         this should be False and the NPZs will already be correct.
+    make_figures : bool
+        False skips every per-config figure (the dominant runtime cost) —
+        tables come out identical. Meant for parameter sweeps.
     progress : callable
         Progress sink (default print).
+
+    A soft radius-estimator token ('req_soft', 'req_soft8', ...) switches
+    the PRESSURE sectors to the soft tanh criterion; it needs the v2 NPZ
+    superset (raw band fields), so point npz_dir at data/processed_npz_v2.
+    The impulse path is identical under hard and soft tokens.
 
     Returns dict with conv_csv, maxR_csv, method, n_configs.
     """
@@ -149,8 +159,8 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         if rebuild_impulse:
             processed = rebuild_impulse_ratio(processed, cfg['weight'], ff_csv)
 
-        # Plot absolute values
-        plot_absolute(processed, config_name, fig_dirs['absolute'])
+        if make_figures:
+            plot_absolute(processed, config_name, fig_dirs['absolute'])
 
         # Geometry parameters
         rho = area_density(cfg['bsize'], cfg['swidth'])
@@ -163,14 +173,20 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         all_X = concat3(processed, 'X{}')
         all_Z = concat3(processed, 'Z{}')
 
+        soft_w_P = None
+        if est['soft_beta'] is not None:
+            soft_w_P = soft_pressure_weights(
+                soft_pressure_fields(processed), est['soft_beta'])
+
         radius = find_convergence_radius(
             all_ratio_P, all_ratio_I,
             processed['peakP_all'], processed['peakI_all'],
-            all_X, all_Z, exclude_r, estimator=est
+            all_X, all_Z, exclude_r, estimator=est, soft_w_P=soft_w_P
         )
 
-        plot_ratio(processed, cfg, config_name, fig_dirs['ratio'], radius,
-                   scale_limits=scale_limits, method=method)
+        if make_figures:
+            plot_ratio(processed, cfg, config_name, fig_dirs['ratio'], radius,
+                       scale_limits=scale_limits, method=method)
 
         conv_rows.append({
             'ConfigName':    config_name,
@@ -196,16 +212,17 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         progress(f'  R_conv({method}) P: {radius["pressure"]:.1f} m  '
                  f'I: {radius["impulse"]:.1f} m')
 
-        plot_theta_histogram(
-            config_name,
-            radius['radius_per_theta_P'],
-            radius['radius_per_theta_I'],
-            radius['pressure'],
-            radius['impulse'],
-            np.degrees(radius['theta_centers']),
-            fig_dirs['conv_theta'],
-            method,
-        )
+        if make_figures:
+            plot_theta_histogram(
+                config_name,
+                radius['radius_per_theta_P'],
+                radius['radius_per_theta_I'],
+                radius['pressure'],
+                radius['impulse'],
+                np.degrees(radius['theta_centers']),
+                fig_dirs['conv_theta'],
+                method,
+            )
 
         # Max radius per scaled distance Z
         all_P_orig = concat3(processed, 'peakP{}_orig')
@@ -252,13 +269,15 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
                 'RadiusEstimator': method,
             })
 
-        plot_max_radius(processed, config_name, maxR_P_per_Z, maxR_I_per_Z,
-                        radius['pressure'], radius['impulse'], fig_dirs['max_radius'])
+        if make_figures:
+            plot_max_radius(processed, config_name, maxR_P_per_Z, maxR_I_per_Z,
+                            radius['pressure'], radius['impulse'],
+                            fig_dirs['max_radius'])
 
-        plot_theta_histogram_Z(config_name, theta_radii_P_per_Z, maxR_P_per_Z,
-                               'P', fig_dirs['theta_P'])
-        plot_theta_histogram_Z(config_name, theta_radii_I_per_Z, maxR_I_per_Z,
-                               'I', fig_dirs['theta_I'])
+            plot_theta_histogram_Z(config_name, theta_radii_P_per_Z, maxR_P_per_Z,
+                                   'P', fig_dirs['theta_P'])
+            plot_theta_histogram_Z(config_name, theta_radii_I_per_Z, maxR_I_per_Z,
+                                   'I', fig_dirs['theta_I'])
 
     # ---- Save convergence table ----
     cols = ['ConfigName', 'Det', 'Height', 'BuildingSize', 'StreetWidth',
@@ -346,8 +365,8 @@ def run_phase2(*, tables_dir=None, n_iterations=500, test_fraction=0.2,
 def main(*, phase='all', n_iterations=500, scale_limits=None,
          npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
          test_fraction=0.2, target_mape=10.0, radius_estimator=None,
-         rebuild_impulse=False, model_p='legacy', model_i='legacy',
-         progress=print):
+         rebuild_impulse=False, make_figures=True,
+         model_p='legacy', model_i='legacy', progress=print):
     """Run the analysis. Never prompts — this is the GUI/API entry point.
 
     phase : 'all' | '1' | '2'
@@ -365,7 +384,8 @@ def main(*, phase='all', n_iterations=500, scale_limits=None,
             npz_dir=npz_dir, ff_csv=ff_csv, tables_dir=tables_dir,
             figures_dir=figures_dir, scale_limits=scale_limits,
             radius_estimator=radius_estimator,
-            rebuild_impulse=rebuild_impulse, progress=progress)
+            rebuild_impulse=rebuild_impulse, make_figures=make_figures,
+            progress=progress)
 
     if phase in ('all', '2'):
         result['phase2'] = run_phase2(
@@ -396,13 +416,23 @@ def _build_parser():
     p.add_argument('--ff-csv', default=None, help='free_field_data.csv path.')
     p.add_argument('--tables-dir', default=None, help='Output folder for CSV tables.')
     p.add_argument('--figures-dir', default=None, help='Output folder for figures.')
-    p.add_argument('--radius-method', choices=list(VALID_METHODS), default=None,
+    p.add_argument('--radius-method', default=None,
                    dest='radius_method',
-                   help='How the 91 per-angle radii collapse to one radius. '
-                        'Drives BOTH the convergence radius and MaxR '
-                        f'(default: {constants.RADIUS_ESTIMATOR["method"]}).')
+                   help='How the 91 per-angle radii collapse to one radius: '
+                        f'{"|".join(VALID_METHODS)}, pXX, or a soft token '
+                        "'<base>_soft[beta]' (e.g. req_soft, req_soft8) that "
+                        'measures pressure sectors with the soft tanh '
+                        'criterion. Drives BOTH the convergence radius and '
+                        f'MaxR (default: {constants.RADIUS_ESTIMATOR["method"]}).')
     p.add_argument('--percentile', type=float, default=None,
                    help='Percentile for --radius-method p95 (default 95).')
+    p.add_argument('--soft-beta', type=float, default=None, dest='soft_beta',
+                   help='Beta override for a _soft radius method '
+                        f'(default: constants.PARAMS softBeta = '
+                        f'{constants.PARAMS["softBeta"]}).')
+    p.add_argument('--no-figures', action='store_true', dest='no_figures',
+                   help='Skip all per-config figures in Phase 1 (tables '
+                        'identical, much faster). For parameter sweeps.')
     p.add_argument('--rebuild-impulse', action='store_true', dest='rebuild_impulse',
                    help='Recompute ratioI under the scaled impulse criterion, '
                         'reconstructing the free-field reference. Needed while '
@@ -450,6 +480,13 @@ def cli(argv=None):
                 f'--percentile applies only to a percentile method, '
                 f'not --radius-method {method}.')
         radius_estimator['percentile'] = args.percentile
+    if args.soft_beta is not None:
+        method = args.radius_method or constants.RADIUS_ESTIMATOR['method']
+        if '_soft' not in str(method):
+            _build_parser().error(
+                f'--soft-beta applies only to a _soft radius method, '
+                f'not --radius-method {method}.')
+        radius_estimator['soft_beta'] = args.soft_beta
     radius_estimator = radius_estimator or None
 
     method = resolve_estimator(radius_estimator)['method']
@@ -498,6 +535,7 @@ def cli(argv=None):
                 tables_dir=args.tables_dir, figures_dir=args.figures_dir,
                 radius_estimator=radius_estimator,
                 rebuild_impulse=args.rebuild_impulse,
+                make_figures=not args.no_figures,
                 model_p=args.model_p, model_i=args.model_i)
 
 

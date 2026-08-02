@@ -16,6 +16,8 @@ The three collapse methods are carried over verbatim from the code they
 replace; 'req' and 'p95' reproduce the previous behaviour exactly.
 """
 
+import re
+
 import numpy as np
 
 from blastlib import constants
@@ -24,6 +26,11 @@ N_THETA = 91                # 0, 1, 2, ..., 90 degrees
 DEFAULT_DTHETA_DEG = 1.0    # angular bin width
 
 VALID_METHODS = ('req', 'max', 'p95')
+
+# A '<base>_soft[<beta>]' token (e.g. 'req_soft', 'req_soft8') selects the
+# soft pressure criterion (processing/soft_criterion.py) on top of the same
+# <base> collapse. A bare '_soft' takes beta from constants.PARAMS.
+_SOFT_RE = re.compile(r'^(?P<base>.+?)_soft(?P<beta>\d+(?:\.\d+)?)?$')
 
 # How each method is written on a figure, so plots stay honest when the
 # collapse is not the equivalent-area radius. Percentile tokens ('p95', 'p99')
@@ -59,11 +66,34 @@ def in_theta_bin(theta, bin_edges, i):
     return (theta >= bin_edges[i]) & (theta < bin_edges[i + 1])
 
 
+def _split_soft(method):
+    """Split a method token into (base_token, soft_beta_or_None).
+
+    'req'       -> ('req', None)
+    'req_soft'  -> ('req', constants.PARAMS['softBeta'])
+    'req_soft8' -> ('req', 8.0)
+    A beta of None or 0 (from PARAMS or the suffix) means the hard path.
+    """
+    m = str(method).strip().lower()
+    match = _SOFT_RE.match(m)
+    if not match:
+        return m, None
+    beta = match.group('beta')
+    beta = constants.PARAMS.get('softBeta') if beta is None else float(beta)
+    if not beta:
+        return match.group('base'), None
+    return match.group('base'), float(beta)
+
+
 def _parse_method(method, percentile):
-    """Normalise (method, percentile) into ('req'|'max'|'percentile', p)."""
+    """Normalise (method, percentile) into ('req'|'max'|'percentile', p).
+
+    Soft tokens ('req_soft6') parse as their base collapse — softness only
+    changes how per-sector radii are MEASURED, never how they collapse.
+    """
     if method is None:
         method = 'req'
-    m = str(method).strip().lower()
+    m, _ = _split_soft(method)
 
     if m == 'req':
         return 'req', percentile
@@ -77,7 +107,8 @@ def _parse_method(method, percentile):
 
     raise ValueError(
         f'Unknown radius estimator method {method!r}; '
-        f'expected one of {VALID_METHODS} (or pXX).')
+        f'expected one of {VALID_METHODS}, pXX, or a <base>_soft[beta] '
+        f"soft-criterion token (e.g. 'req_soft', 'req_soft8').")
 
 
 def reduce_theta_radii(r_per_theta, method='req', percentile=95,
@@ -119,12 +150,21 @@ def reduce_theta_radii(r_per_theta, method='req', percentile=95,
 
 
 def resolve_estimator(estimator=None):
-    """Return a validated {'method', 'percentile'} dict.
+    """Return a validated {'method', 'percentile', 'base_method',
+    'soft_beta'} dict.
 
     *estimator* may be None (use constants.RADIUS_ESTIMATOR), a dict with
-    either or both keys (missing keys fall back to the constant), or a bare
-    method string. Unspecified keys always come from the single shared default,
-    so callers can override one field without restating the other.
+    any of the keys (missing keys fall back to the constant), or a bare
+    method string. Unspecified keys always come from the single shared
+    default, so callers can override one field without restating the other.
+
+    Soft tokens canonicalise with their beta spelled out ('req_soft' with
+    PARAMS softBeta 6.0 -> method 'req_soft6'), so every table/figure
+    carries the beta it was measured with. A dict key 'soft_beta' overrides
+    the suffix beta (used by --soft-beta); it is ignored for hard tokens.
+    'base_method' is the collapse token and 'soft_beta' is None on the hard
+    path — existing callers that only read 'method'/'percentile' are
+    unaffected.
     """
     default = dict(constants.RADIUS_ESTIMATOR)
 
@@ -136,15 +176,26 @@ def resolve_estimator(estimator=None):
         settings = {**default, **{k: v for k, v in estimator.items()
                                   if v is not None}}
 
-    kind, p = _parse_method(settings.get('method'), settings.get('percentile', 95))
+    method = settings.get('method')
+    _, soft_beta = _split_soft(method if method is not None else 'req')
+    if soft_beta is not None and settings.get('soft_beta') is not None:
+        soft_beta = float(settings['soft_beta'])
+
+    kind, p = _parse_method(method, settings.get('percentile', 95))
 
     if kind == 'percentile':
         p = float(p)
         if not 0 <= p <= 100:
             raise ValueError(f'percentile must be in [0, 100], got {p}')
-        return {'method': f'p{p:g}', 'percentile': p}
+        base = f'p{p:g}'
+        percentile = p
+    else:
+        base = kind
+        percentile = settings.get('percentile', 95)
 
-    return {'method': kind, 'percentile': settings.get('percentile', 95)}
+    token = base if soft_beta is None else f'{base}_soft{soft_beta:g}'
+    return {'method': token, 'percentile': percentile,
+            'base_method': base, 'soft_beta': soft_beta}
 
 
 def method_label(estimator=None):

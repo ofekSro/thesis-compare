@@ -8,9 +8,21 @@ parameters used across convergence radius and max-radius analyses.
 MAX_HEIGHT = 24
 
 # Grid processing parameters
+#
+# softBeta / softCap_kPa drive the SOFT pressure convergence criterion
+# (processing/soft_criterion.py), used only when a '<method>_soft' radius
+# estimator token is requested. The hard 10 kPa band swallows real
+# amplification lobes wherever the free field itself is ~10 kPa (Z >~ 10),
+# so configs whose lobe peak grazes the threshold get discontinuous radius
+# jumps. The soft criterion replaces the band's hard indicator with a
+# Wang-Lazarov-Sigmund tanh projection: 0 at |dP|=0, 0.5 exactly at
+# |dP| = minPressure_kPa, 1 at |dP| >= softCap_kPa; beta -> inf reproduces
+# the hard band exactly. softBeta = None (or 0) disables the soft path.
 PARAMS = {
     'thresholdP_kPa':  1.01 / 1000,  # mask threshold [kPa]
     'minPressure_kPa': 10,            # convergence threshold [kPa]
+    'softBeta':        6.0,           # tanh projection sharpness
+    'softCap_kPa':     20.0,          # |dP| mapping to weight 1 [kPa]
 }
 
 # When the urban IMPULSE counts as converged to free-field.

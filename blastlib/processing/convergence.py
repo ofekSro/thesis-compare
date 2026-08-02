@@ -62,6 +62,61 @@ def _find_radius_for_slice(ratio_vec, peak_vec, dist_vec, exclude_r):
     return d_sorted[-1], p_sorted[-1]
 
 
+def _find_radius_for_slice_soft(w_vec, peak_vec, dist_vec, exclude_r):
+    """Soft counterpart of _find_radius_for_slice: expected outermost
+    exceedance under per-cell violation probabilities *w_vec*.
+
+    The hard scan is replayed as a Markov chain scanning far -> near:
+    state = current violation-streak length (0/1/2), absorbing when a
+    streak reaches K_CONSECUTIVE=3, where the absorbed outcome's radius is
+    the cell just outside the streak (d[i-3], or d[0] when the streak
+    starts at the outermost cell) — exactly the hard scan's bookkeeping.
+    The returned radius is the expectation over outcomes; mass never
+    absorbed contributes the innermost valid cell, matching the hard
+    no-violation fallback. With w in {0, 1} the chain is deterministic and
+    reproduces _find_radius_for_slice bit-exactly (the beta -> inf limit).
+
+    A lone high-w cell flanked by w ~ 0 contributes ~0 mass (absorption
+    needs three consecutive violations), which is what K_CONSECUTIVE was
+    for — no separate ring/percentile aggregation needed.
+    """
+    valid = ~np.isnan(w_vec) & (dist_vec > exclude_r)
+    w_slice = w_vec[valid]
+    p_slice = peak_vec[valid]
+    d_slice = dist_vec[valid]
+
+    if len(d_slice) == 0:
+        return np.nan, np.nan
+
+    order = np.argsort(d_slice)[::-1]
+    d_sorted = d_slice[order]
+    w_sorted = w_slice[order]
+    p_sorted = p_slice[order]
+
+    d = d_sorted.tolist()
+    w = w_sorted.tolist()
+
+    m0, m1, m2 = 1.0, 0.0, 0.0
+    r_exp = 0.0
+    for i in range(len(d)):
+        wi = w[i]
+        absorbed = m2 * wi
+        if absorbed > 0.0:
+            r_exp += absorbed * d[i - 3 if i >= 3 else 0]
+        total = m0 + m1 + m2
+        m2 = m1 * wi
+        m1 = m0 * wi
+        m0 = total * (1.0 - wi)
+        if m0 + m1 + m2 == 0.0:
+            break
+    leftover = m0 + m1 + m2
+    if leftover > 0.0:
+        r_exp += leftover * d[-1]
+
+    idx = int(np.argmin(np.abs(d_sorted - r_exp)))
+    return r_exp, p_sorted[idx]
+
+
 def equivalent_area_radius(radii, delta_theta):
     """Compute equivalent area radius from per-theta radii.
 
@@ -76,7 +131,7 @@ def equivalent_area_radius(radii, delta_theta):
 
 
 def find_convergence_radius(ratio_P, ratio_I, peak_P, peak_I, X, Z, exclude_r,
-                            estimator=None):
+                            estimator=None, soft_w_P=None):
     """Find convergence radius using angular binning + a scalar collapse.
 
     Samples the first quadrant at 91 angles (0-90 deg, 1 deg spacing) and
@@ -86,6 +141,12 @@ def find_convergence_radius(ratio_P, ratio_I, peak_P, peak_I, X, Z, exclude_r,
     estimator : dict, str or None
         None uses constants.RADIUS_ESTIMATOR — the same setting free_field.py
         uses for MaxR, so both radii are always the same kind of average.
+    soft_w_P : array or None
+        Per-cell soft exceedance weights aligned with ratio_P (from
+        soft_criterion.soft_pressure_weights). When given, the PRESSURE
+        sectors use the soft expected-radius scan instead of the hard K=3
+        scan; the impulse path is never affected. None -> legacy behavior,
+        bit-exact.
 
     Returns dict with keys:
         pressure, impulse, pressureAtRadius, impulseAtRadius,
@@ -113,8 +174,12 @@ def find_convergence_radius(ratio_P, ratio_I, peak_P, peak_I, X, Z, exclude_r,
         if not np.any(in_bin):
             continue
 
-        r_P[i], val_P[i] = _find_radius_for_slice(
-            ratio_P[in_bin], peak_P[in_bin], dist[in_bin], exclude_r)
+        if soft_w_P is None:
+            r_P[i], val_P[i] = _find_radius_for_slice(
+                ratio_P[in_bin], peak_P[in_bin], dist[in_bin], exclude_r)
+        else:
+            r_P[i], val_P[i] = _find_radius_for_slice_soft(
+                soft_w_P[in_bin], peak_P[in_bin], dist[in_bin], exclude_r)
         r_I[i], val_I[i] = _find_radius_for_slice(
             ratio_I[in_bin], peak_I[in_bin], dist[in_bin], exclude_r)
 
