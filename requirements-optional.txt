@@ -1,3 +1,6 @@
 # Optional — needed only by tools/view_3d (interactive 3D viewer).
 # tkinter ships with the python.org Windows installer; no pip package needed.
 pyvista>=0.43
+
+# Optional — needed only to run the test suite (tests/).
+pytest>=7
