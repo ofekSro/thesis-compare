@@ -24,15 +24,47 @@ Requires the v2 NPZ superset keys (peakP{g}_raw, refP{g}, ratioP{g}_raw)
 criterion is untouched by everything here.
 """
 
+from pathlib import Path
+
 import numpy as np
 
-from blastlib import constants
+from blastlib import constants, paths
 from blastlib.processing.convergence import TOLERANCE
 
 V2_KEYS = tuple(f'{stem}{g}{suffix}'
                 for stem, suffix in (('peakP', '_raw'), ('refP', ''),
                                      ('ratioP', '_raw'))
                 for g in '123')
+
+
+def raw_fields_available(npz_dir=None):
+    """(ok, reason) — can the soft criterion run against *npz_dir*?
+
+    Checks that the directory exists, holds config_*.npz, and that the
+    first file's key listing contains the v2 raw fields. Reading the npz
+    table of contents is cheap (no arrays are loaded). None -> the v2
+    default, paths.PROCESSED_NPZ_V2_DIR.
+
+    Made for preflight/GUI gating: callers show *reason* instead of
+    letting a soft run die on the missing keys mid-pipeline.
+    """
+    npz_dir = Path(paths.PROCESSED_NPZ_V2_DIR if npz_dir is None else npz_dir)
+    if not npz_dir.is_dir():
+        return False, (f'{npz_dir} does not exist — regenerate the v2 NPZ '
+                       f'set with run_preprocess.py (see README).')
+    sample = next(iter(sorted(npz_dir.glob('config_*.npz'))), None)
+    if sample is None:
+        return False, f'no config_*.npz in {npz_dir}.'
+    try:
+        with np.load(sample, allow_pickle=True) as npz:
+            missing = [k for k in V2_KEYS if k not in npz.files]
+    except Exception as exc:
+        return False, f'could not read {sample.name}: {exc}'
+    if missing:
+        return False, (f'{sample.name} lacks the raw fields {missing} — '
+                       f'these NPZs predate the v2 superset; regenerate with '
+                       f'run_preprocess.py.')
+    return True, ''
 
 
 def tanh_projection(x, beta, eta):

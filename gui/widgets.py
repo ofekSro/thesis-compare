@@ -166,21 +166,89 @@ class ParamField:
                              f'{"integer" if cast is int else "number"}.')
 
 
-class RadiusEstimatorField:
-    """Radio group choosing how per-angle radii collapse to one radius.
+class Tooltip:
+    """Hover text for a widget — used where a control is disabled and the
+    user needs to know why (plain help labels describe enabled controls)."""
 
-    Produces the {'method', 'percentile'} dict that
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self._tip = None
+        widget.bind('<Enter>', self._show, add='+')
+        widget.bind('<Leave>', self._hide, add='+')
+
+    def _show(self, _event=None):
+        if self._tip is not None or not self.text:
+            return
+        x = self.widget.winfo_rootx() + 12
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        self._tip = tk.Toplevel(self.widget)
+        self._tip.wm_overrideredirect(True)
+        self._tip.wm_geometry(f'+{x}+{y}')
+        tk.Label(self._tip, text=self.text, justify='left', wraplength=360,
+                 background='#ffffe0', relief='solid', borderwidth=1,
+                 padx=6, pady=4).pack()
+
+    def _hide(self, _event=None):
+        if self._tip is not None:
+            self._tip.destroy()
+            self._tip = None
+
+
+def estimator_value(method, percentile_raw, criterion, beta_raw):
+    """Compose the estimator dict from the widget state (pure, testable).
+
+    Hard returns exactly the dicts the field always produced, so a Hard
+    selection is bit-identical to the pre-criterion GUI. Soft appends the
+    '_soft' token suffix and the beta — the same {'method', 'soft_beta'}
+    shape resolve_estimator takes from the CLI's --soft-beta path.
+    """
+    if not method.startswith('p'):
+        base = {'method': method}
+    else:
+        try:
+            p = float(percentile_raw.strip())
+        except ValueError:
+            raise ValueError('Percentile must be a number.')
+        if not 0 <= p <= 100:
+            raise ValueError('Percentile must be between 0 and 100.')
+        base = {'method': 'percentile', 'percentile': p}
+
+    if criterion != 'soft':
+        return base
+
+    try:
+        beta = float(beta_raw.strip())
+    except ValueError:
+        raise ValueError('Soft-criterion beta must be a number.')
+    if not 1 <= beta <= 20:
+        raise ValueError('Soft-criterion beta must be between 1 and 20.')
+    return {**base, 'method': base['method'] + '_soft', 'soft_beta': beta}
+
+
+class RadiusEstimatorField:
+    """Radio group choosing how per-angle radii collapse to one radius,
+    plus the convergence-criterion row (hard 10 kPa band vs soft tanh).
+
+    Produces the {'method', 'percentile', 'soft_beta'} dict that
     processing.radius_estimator.resolve_estimator consumes — the same shape the
     CLI builds and the same default lives in constants.RADIUS_ESTIMATOR, so
-    there is exactly one implementation of the setting.
+    there is exactly one implementation of the setting. A Hard selection
+    produces exactly the pre-criterion dicts (bit-identical runs).
 
-    The percentile spinbox only applies to the percentile method, so it is
-    disabled otherwise (same idiom as ScaleField's manual limits).
+    The percentile spinbox only applies to the percentile method and the beta
+    spinbox only to the soft criterion, so each is disabled otherwise (same
+    idiom as ScaleField's manual limits). The Soft option itself is disabled —
+    with a tooltip saying why — when spec['soft_status_fn'] reports that the
+    v2 raw-field NPZs are unavailable, so a soft run can never start and then
+    die on the missing keys mid-pipeline.
     """
 
     METHODS = [('Req (equivalent area)', 'req'),
                ('Max',                   'max'),
                ('Percentile',            'p95')]
+
+    SOFT_BETA_DEFAULT = 4.0
 
     def __init__(self, master, spec, row):
         self.spec = spec
@@ -189,6 +257,8 @@ class RadiusEstimatorField:
         default = spec.get('default') or {}
         self.method = tk.StringVar(value=default.get('method', 'req'))
         self.percentile = tk.StringVar(value=str(default.get('percentile', 95)))
+        self.criterion = tk.StringVar(value='hard')
+        self.beta = tk.StringVar(value=str(self.SOFT_BETA_DEFAULT))
 
         ttk.Label(master, text=spec['label'] + ':').grid(
             row=row, column=0, sticky='w', padx=(0, 8), pady=2)
@@ -196,32 +266,65 @@ class RadiusEstimatorField:
         frame = ttk.Frame(master)
         frame.grid(row=row, column=1, columnspan=3, sticky='w', pady=2)
 
+        method_line = ttk.Frame(frame)
+        method_line.grid(row=0, column=0, sticky='w')
         for label, value in self.METHODS:
-            ttk.Radiobutton(frame, text=label, variable=self.method,
+            ttk.Radiobutton(method_line, text=label, variable=self.method,
                             value=value, command=self._sync).pack(side='left',
                                                                   padx=(0, 10))
 
-        self._spin = ttk.Spinbox(frame, textvariable=self.percentile,
+        self._spin = ttk.Spinbox(method_line, textvariable=self.percentile,
                                  from_=1, to=100, width=5)
         self._spin.pack(side='left')
+
+        # -- criterion line: hard band vs soft tanh projection
+        # The spec may inject its own availability probe; without one, fall
+        # back to probing the default v2 folder directly (lazy import — the
+        # only pipeline knowledge in this module, and only because a Soft
+        # option that cannot actually run must never be offered).
+        status_fn = spec.get('soft_status_fn')
+        if status_fn is None:
+            def status_fn():
+                from blastlib.processing.soft_criterion import (
+                    raw_fields_available)
+                return raw_fields_available()
+        try:
+            self._soft_ok, self._soft_reason = status_fn()
+        except Exception as exc:          # a broken probe must not kill the GUI
+            self._soft_ok, self._soft_reason = False, str(exc)
+
+        crit_line = ttk.Frame(frame)
+        crit_line.grid(row=1, column=0, sticky='w', pady=(4, 0))
+        ttk.Label(crit_line, text='Convergence criterion:').pack(
+            side='left', padx=(0, 8))
+        ttk.Radiobutton(crit_line, text='Hard (10 kPa)',
+                        variable=self.criterion, value='hard',
+                        command=self._sync).pack(side='left', padx=(0, 10))
+        self._soft_radio = ttk.Radiobutton(crit_line, text='Soft (tanh, β)',
+                                           variable=self.criterion, value='soft',
+                                           command=self._sync)
+        self._soft_radio.pack(side='left', padx=(0, 6))
+        self._beta_spin = ttk.Spinbox(crit_line, textvariable=self.beta,
+                                      from_=1, to=20, increment=0.5, width=5)
+        self._beta_spin.pack(side='left')
+
+        if not self._soft_ok:
+            self._soft_radio.configure(state='disabled')
+            Tooltip(self._soft_radio,
+                    'Soft criterion unavailable: ' + self._soft_reason)
 
         self._sync()
 
     def _sync(self):
         self._spin.configure(
             state='normal' if self.method.get().startswith('p') else 'disabled')
+        soft = self.criterion.get() == 'soft' and self._soft_ok
+        self._beta_spin.configure(state='normal' if soft else 'disabled')
 
     def value(self):
-        method = self.method.get()
-        if not method.startswith('p'):
-            return {'method': method}
-        try:
-            p = float(self.percentile.get().strip())
-        except ValueError:
-            raise ValueError('Percentile must be a number.')
-        if not 0 <= p <= 100:
-            raise ValueError('Percentile must be between 0 and 100.')
-        return {'method': 'percentile', 'percentile': p}
+        return estimator_value(self.method.get(), self.percentile.get(),
+                               self.criterion.get() if self._soft_ok else 'hard',
+                               self.beta.get())
 
 
 class ScaleField:

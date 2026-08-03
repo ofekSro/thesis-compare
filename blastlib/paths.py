@@ -13,6 +13,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 # ---- Inputs ----
 DATA_DIR          = PROJECT_ROOT / 'data'
 PROCESSED_NPZ_DIR = DATA_DIR / 'processed_npz'   # config_*.npz (was MAT_files/)
+# v2 superset: same files plus the raw convergence-band fields the soft
+# criterion needs (peakP*_raw, refP*, refI*, ratio*_raw). Regenerated from
+# the raw VTKs by run_preprocess.py; the soft pipeline defaults to it.
+PROCESSED_NPZ_V2_DIR = DATA_DIR / 'processed_npz_v2'
 OBS_NPZ_DIR       = DATA_DIR / 'obs_npz'         # OBS surface npz (was OBS_MAT_files/)
 VTK_DIR           = DATA_DIR / 'vtk'             # raw VTKs (was all_vtks/)
 OBS_VTK_DIR       = VTK_DIR / 'OBS'

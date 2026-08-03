@@ -36,15 +36,32 @@ def check_requirements(requirements):
     Each requirement is a dict:
         {'path': Path, 'kind': 'file'|'dir'|'glob', 'label': str,
          'pattern': str (glob only), 'hint': str}
+    or, for conditions a path test cannot express (e.g. keys inside a file):
+        {'kind': 'check', 'fn': callable, 'label': str, 'hint': str}
+    where ``fn()`` returns None/'' when satisfied or a problem string.
 
     Returns a list of human-readable problem strings (empty when all satisfied).
     """
     problems = []
     for req in requirements:
-        path = Path(req['path'])
         kind = req.get('kind', 'file')
-        label = req.get('label', str(path))
         hint = req.get('hint', '')
+
+        if kind == 'check':
+            label = req.get('label', 'requirement')
+            try:
+                failure = req['fn']()
+            except Exception as exc:      # a broken probe is itself a problem
+                failure = str(exc)
+            if failure:
+                msg = f'{label}: {failure}'
+                if hint:
+                    msg += f'\n    -> {hint}'
+                problems.append(msg)
+            continue
+
+        path = Path(req['path'])
+        label = req.get('label', str(path))
 
         if kind == 'file':
             ok = path.is_file()

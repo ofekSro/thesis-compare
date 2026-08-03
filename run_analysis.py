@@ -95,13 +95,17 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
 
     Returns dict with conv_csv, maxR_csv, method, n_configs.
     """
-    npz_dir     = paths.resolve(npz_dir, paths.PROCESSED_NPZ_DIR)
+    est = resolve_estimator(radius_estimator)
+    method = est['method']
+
+    # Soft tokens need the raw band fields, which only the v2 superset has —
+    # so a blank npz_dir defaults to it instead of the v1 folder.
+    default_npz = (paths.PROCESSED_NPZ_V2_DIR if est['soft_beta'] is not None
+                   else paths.PROCESSED_NPZ_DIR)
+    npz_dir     = paths.resolve(npz_dir, default_npz)
     ff_csv      = paths.resolve(ff_csv, paths.FF_CSV)
     tables_dir  = paths.ensure_dir(paths.resolve(tables_dir, paths.TABLES_DIR))
     figures_dir = paths.ensure_dir(paths.resolve(figures_dir, paths.FIGURES_DIR))
-
-    est = resolve_estimator(radius_estimator)
-    method = est['method']
 
     conv_csv = tables_dir / paths.suffixed(paths.CONV_CSV.name, method)
     maxR_csv = tables_dir / paths.suffixed(paths.MAXR_CSV.name, method)
