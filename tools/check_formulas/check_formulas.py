@@ -285,17 +285,29 @@ def _get_group_color(det):
     return GROUP_COLORS[det]
 
 
+# Line styles cycled over the ± error bands so several stay tellable apart.
+BAND_STYLES = ('--', '-.', ':')
+TRAIN_FACE = [0.82, 0.82, 0.82]
+
+
 def plot_validation_scatter(actual_P, pred_P, colors_P,
                             actual_I, pred_I, colors_I,
-                            title, xlabel, ylabel, out_path):
-    """1x2 actual-vs-predicted scatter plot."""
+                            title, xlabel, ylabel, out_path,
+                            train_P=None, train_I=None, error_bands=(10,)):
+    """1x2 actual-vs-predicted scatter plot.
+
+    train_P / train_I: optional (actual, predicted) pairs drawn in gray
+    BEHIND the test points — context only; the R²/MAPE in each panel title
+    stay test-only. error_bands: percentages of the ± reference lines
+    around the diagonal (empty tuple = diagonal only).
+    """
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     fig.patch.set_facecolor('white')
     fig.suptitle(title, fontsize=14, fontweight='bold')
 
-    for ax, act, prd, cols, panel_title in [
-        (axes[0], actual_P, pred_P, colors_P, 'Pressure'),
-        (axes[1], actual_I, pred_I, colors_I, 'Impulse'),
+    for ax, act, prd, cols, train, panel_title in [
+        (axes[0], actual_P, pred_P, colors_P, train_P, 'Pressure'),
+        (axes[1], actual_I, pred_I, colors_I, train_I, 'Impulse'),
     ]:
         valid = ~np.isnan(act) & ~np.isnan(prd)
         if valid.any():
@@ -303,21 +315,40 @@ def plot_validation_scatter(actual_P, pred_P, colors_P,
         else:
             R2, MAPE = np.nan, np.nan
 
-        ax.scatter(act, prd, s=60, c=cols, edgecolors='k', linewidths=0.5)
-        lim_max = max(np.nanmax(act), np.nanmax(prd)) * 1.1 if valid.any() else 1
+        handles = list(LEGEND_PATCHES)
+        lim_candidates = ([np.nanmax(act), np.nanmax(prd)]
+                          if valid.any() else [])
+
+        has_train = train is not None and len(train[0])
+        if has_train:
+            t_act = np.asarray(train[0], dtype=float)
+            t_prd = np.asarray(train[1], dtype=float)
+            ax.scatter(t_act, t_prd, s=36, c=[TRAIN_FACE],
+                       edgecolors='0.6', linewidths=0.4, zorder=1)
+            lim_candidates += [np.nanmax(t_act), np.nanmax(t_prd)]
+            handles.append(Patch(facecolor=TRAIN_FACE, edgecolor='0.6',
+                                 label='Train (fit) configs'))
+
+        ax.scatter(act, prd, s=60, c=cols, edgecolors='k', linewidths=0.5,
+                   zorder=2)
+        lim_max = max(lim_candidates) * 1.1 if lim_candidates else 1
         lim = [0, lim_max]
         ax.plot(lim, lim, 'k--', linewidth=2)
-        ax.plot(lim, [v * 1.1 for v in lim], color='gray', linestyle='--', alpha=0.5)
-        ax.plot(lim, [v * 0.9 for v in lim], color='gray', linestyle='--', alpha=0.5)
+        for i, pct in enumerate(sorted(error_bands)):
+            style = BAND_STYLES[i % len(BAND_STYLES)]
+            frac = pct / 100.0
+            ax.plot(lim, [v * (1 + frac) for v in lim],
+                    color='gray', linestyle=style, alpha=0.5)
+            ax.plot(lim, [v * (1 - frac) for v in lim],
+                    color='gray', linestyle=style, alpha=0.5)
+            handles.append(plt.Line2D([0], [0], color='gray', linestyle=style,
+                                      alpha=0.5, label=f'+/- {pct:g}% Error'))
         ax.set_xlim(lim); ax.set_ylim(lim)
         ax.set_xlabel(f'Actual {xlabel}', fontsize=11)
         ax.set_ylabel(f'Predicted {ylabel}', fontsize=11)
         ax.set_title(f'{panel_title}\nR² = {R2:.3f}, MAPE = {MAPE:.1f}%', fontsize=12)
         ax.set_aspect('equal'); ax.grid(True)
-        ax.legend(handles=LEGEND_PATCHES + [
-                      plt.Line2D([0], [0], color='gray', linestyle='--',
-                                 alpha=0.5, label='+/- 10% Error')],
-                  loc='upper left', fontsize=8)
+        ax.legend(handles=handles, loc='upper left', fontsize=8)
 
     fig.savefig(out_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
@@ -448,11 +479,143 @@ def _print_formulas(conv_coeffs, z_coeffs, progress=print):
 # Main
 # ============================================================
 
-def main(*, tables_dir=None, out_dir=None, radius_method=None, progress=print):
+def _conv_scatter_arrays(conv_sub, conv_coeffs):
+    """Actual/predicted convergence radii (+ colors) for a set of table rows."""
+    act_P, prd_P, col_P, act_I, prd_I, col_I = [], [], [], [], [], []
+    for _, row in conv_sub.iterrows():
+        cfg = config_parser(row['ConfigName'])
+        if cfg is None:
+            continue
+        pred_P, pred_I = predict_convergence_radius(cfg, conv_coeffs)
+        color = _get_group_color(cfg['det'])
+        act_P.append(row['RadiusP']); prd_P.append(pred_P); col_P.append(color)
+        act_I.append(row['RadiusI']); prd_I.append(pred_I); col_I.append(color)
+    return (np.array(act_P), np.array(prd_P),
+            np.array(col_P) if col_P else np.empty((0, 3)),
+            np.array(act_I), np.array(prd_I),
+            np.array(col_I) if col_I else np.empty((0, 3)))
+
+
+def _z_urban_scatter_arrays(maxR_sub, conv_sub, conv_coeffs, z_coeffs):
+    """Z_urban and R_urban actual/predicted arrays for a set of configs.
+
+    Identical logic for the test and (optionally) train subsets: geometry
+    parsing, predicted-R_conv clipping, and the shared z_urban_valid_mask
+    restriction to the rows the models were actually fitted on.
+    """
+    geo_cache = {}
+    conv_pred_cache = {}
+    for cfg_name in maxR_sub['Config'].unique():
+        cfg = config_parser(cfg_name)
+        if cfg:
+            geo_cache[cfg_name] = {
+                'det': cfg['det'], 'weight': cfg['weight'],
+                'height': cfg['height'], 'swidth': cfg['swidth'],
+                'rho': area_density(cfg['bsize'], cfg['swidth']),
+            }
+            conv_pred_cache[cfg_name] = predict_convergence_radius(cfg, conv_coeffs)
+
+    prep = prepare_maxR_data(maxR_sub, conv_sub)
+    valid = {}
+    for tgt, tcol, mcol, rcol in (
+            ('Pressure', 'Z_urban_P', 'MaxR_P', 'RadiusP'),
+            ('Impulse',  'Z_urban_I', 'MaxR_I', 'RadiusI')):
+        sub = prep.dropna(subset=[tcol, rcol])
+        m = z_urban_valid_mask(sub, tcol, mcol, rcol, tgt)
+        valid[tgt] = set(zip(sub.loc[m, 'Config'], sub.loc[m, 'Z']))
+
+    zu = {k: [] for k in ('act_P', 'prd_P', 'col_P', 'act_I', 'prd_I', 'col_I')}
+    ru = {k: [] for k in ('act_P', 'prd_P', 'col_P', 'act_I', 'prd_I', 'col_I')}
+
+    for _, row in maxR_sub.iterrows():
+        cfg_name = row['Config']
+        if cfg_name not in geo_cache:
+            continue
+        geo = geo_cache[cfg_name]
+
+        z_val = float(row['Z'])
+        maxR_P = row['MaxR_P']
+        maxR_I = row['MaxR_I']
+
+        # Inside R_conv, Z_free >= floor, AND amplification — the fit domain.
+        use_P = (cfg_name, row['Z']) in valid['Pressure']
+        use_I = (cfg_name, row['Z']) in valid['Impulse']
+
+        color = _get_group_color(geo['det'])
+        W_third = geo['weight'] ** (1/3)
+
+        # Z_urban predictions (already in metres: W^(1/3) * Z_urban)
+        conv_pred_P_val, conv_pred_I_val = conv_pred_cache.get(
+            cfg_name, (np.nan, np.nan))
+        pred_mR_P, pred_mR_I = predict_z_urban_per_Z(
+            z_val, geo['weight'], geo['rho'], geo['height'], geo['swidth'],
+            geo['det'], z_coeffs, pred_Rconv_P=conv_pred_P_val)
+
+        # Physical closure: clip from ABOVE at the predicted R_conv only
+        # (urban = free-field beyond it). No lower bound — Z_urban < Z_free is
+        # the attenuation regime and is real, so clamping at the free-field
+        # radius would make it unrepresentable.
+        if np.isfinite(pred_mR_P) and np.isfinite(conv_pred_P_val):
+            pred_mR_P = min(pred_mR_P, conv_pred_P_val)
+        if np.isfinite(pred_mR_I) and np.isfinite(conv_pred_I_val):
+            pred_mR_I = min(pred_mR_I, conv_pred_I_val)
+
+        # R_urban = W^(1/3) * Z_urban — the canonical derivation, same value
+        pred_rR_P, pred_rR_I = pred_mR_P, pred_mR_I
+
+        if use_P and np.isfinite(maxR_P):
+            if np.isfinite(pred_mR_P):
+                zu['act_P'].append(maxR_P / W_third)
+                zu['prd_P'].append(pred_mR_P / W_third)
+                zu['col_P'].append(color)
+            if np.isfinite(pred_rR_P):
+                ru['act_P'].append(maxR_P)
+                ru['prd_P'].append(pred_rR_P)
+                ru['col_P'].append(color)
+
+        if use_I and np.isfinite(maxR_I):
+            if np.isfinite(pred_mR_I):
+                zu['act_I'].append(maxR_I / W_third)
+                zu['prd_I'].append(pred_mR_I / W_third)
+                zu['col_I'].append(color)
+            if np.isfinite(pred_rR_I):
+                ru['act_I'].append(maxR_I)
+                ru['prd_I'].append(pred_rR_I)
+                ru['col_I'].append(color)
+
+    return zu, ru
+
+
+def _parse_error_bands(error_bands):
+    """Normalize the ± error-line percentages: None -> (10,), 'none' -> (),
+    '10,15,20' or an iterable of numbers -> tuple of floats."""
+    if error_bands is None:
+        return (10.0,)
+    if isinstance(error_bands, str):
+        s = error_bands.strip().lower()
+        if s in ('', 'none', 'off'):
+            return ()
+        try:
+            return tuple(float(x) for x in s.replace(';', ',').split(',')
+                         if x.strip())
+        except ValueError:
+            raise ValueError(f'error_bands: could not parse {error_bands!r} — '
+                             f"expected e.g. '10,15,20' or 'none'.")
+    return tuple(float(x) for x in error_bands)
+
+
+def main(*, tables_dir=None, out_dir=None, radius_method=None,
+         show_train=False, error_bands=None, progress=print):
     """Validate the saved coefficients against the best CV test split.
+
+    show_train: also draw the training (fit) configs in gray behind the
+    test points on every scatter — context only, metrics stay test-only.
+    error_bands: ± error-line percentages for the scatters ('10,15,20',
+    an iterable, or 'none'; default ±10%).
 
     Returns dict of summary metrics, or None if required inputs are missing.
     """
+    bands = _parse_error_bands(error_bands)
     tables_dir = paths.resolve(tables_dir, paths.TABLES_DIR)
     out_dir = paths.ensure_dir(paths.resolve(out_dir, paths.CHECK_RESULTS_DIR))
 
@@ -491,7 +654,14 @@ def main(*, tables_dir=None, out_dir=None, radius_method=None, progress=print):
     conv_df = conv_df_all[conv_df_all['ConfigName'].isin(test_configs)].copy()
     maxR_df = maxR_df_all[maxR_df_all['Config'].isin(test_configs)].copy()
 
-    progress(f'Validating on {len(conv_df)} test configs, {len(maxR_df)} maxR rows\n')
+    train_conv_df = conv_df_all[~conv_df_all['ConfigName'].isin(test_configs)].copy()
+    train_maxR_df = maxR_df_all[~maxR_df_all['Config'].isin(test_configs)].copy()
+
+    progress(f'Validating on {len(conv_df)} test configs, {len(maxR_df)} maxR rows')
+    if show_train:
+        progress(f'Also drawing {len(train_conv_df)} train configs in gray '
+                 '(context only — metrics stay test-only)')
+    progress('')
 
     # ---- Print best formulas ----
     _print_formulas(conv_coeffs, z_coeffs, progress=progress)
@@ -543,119 +713,40 @@ def main(*, tables_dir=None, out_dir=None, radius_method=None, progress=print):
     progress(f'  Pressure — R2={R2_P:.4f}, MAPE={MAPE_P:.2f}%')
     progress(f'  Impulse  — R2={R2_I:.4f}, MAPE={MAPE_I:.2f}%')
 
+    conv_train = None
+    if show_train:
+        t = _conv_scatter_arrays(train_conv_df, conv_coeffs)
+        conv_train = {'P': (t[0], t[1]), 'I': (t[3], t[4])}
+
     plot_validation_scatter(
         act_P_arr, prd_P_arr, np.array(conv_colors_P),
         act_I_arr, prd_I_arr, np.array(conv_colors_I),
         'Convergence Radius — Test Configs',
         'Radius [m]', 'Radius [m]',
-        fig('validation_convergence_radius.png'))
+        fig('validation_convergence_radius.png'),
+        train_P=conv_train['P'] if conv_train else None,
+        train_I=conv_train['I'] if conv_train else None,
+        error_bands=bands)
     progress('Saved: validation_convergence_radius.png')
 
     # ================================================================
     # Validate Z_urban (and derived R_urban = W^(1/3) * Z_urban)
     # ================================================================
-    # Parse geometry for each maxR row; cache the PREDICTED convergence
-    # radii per config — Z_urban predictions are clipped to them
-    # (physical closure: MaxR cannot exceed R_conv).
-    geo_cache = {}
-    conv_pred_cache = {}
-    for cfg_name in maxR_df['Config'].unique():
-        cfg = config_parser(cfg_name)
-        if cfg:
-            geo_cache[cfg_name] = {
-                'det': cfg['det'], 'weight': cfg['weight'],
-                'height': cfg['height'], 'swidth': cfg['swidth'],
-                'rho': area_density(cfg['bsize'], cfg['swidth']),
-            }
-            conv_pred_cache[cfg_name] = predict_convergence_radius(cfg, conv_coeffs)
-
-    # Merge convergence radii
-    conv_lookup = {}
-    for _, row in conv_df.iterrows():
-        conv_lookup[row['ConfigName']] = (row['RadiusP'], row['RadiusI'])
-
-    # Score only the rows the models were actually FITTED on. Using the
-    # shared z_urban_valid_mask rather than a local filter is the point: this
-    # block used to require only "inside R_conv" and so also scored the
-    # attenuation regime (Z_urban <= Z_free), which the fit excludes. That
-    # inflated every Z_urban number reported here — for both functional forms
-    # — because the models have no coverage there.
-    _prep = prepare_maxR_data(maxR_df, conv_df)
-    _valid = {}
-    for _tgt, _tcol, _mcol, _rcol in (
-            ('Pressure', 'Z_urban_P', 'MaxR_P', 'RadiusP'),
-            ('Impulse',  'Z_urban_I', 'MaxR_I', 'RadiusI')):
-        _sub = _prep.dropna(subset=[_tcol, _rcol])
-        _m = z_urban_valid_mask(_sub, _tcol, _mcol, _rcol, _tgt)
-        _valid[_tgt] = set(zip(_sub.loc[_m, 'Config'], _sub.loc[_m, 'Z']))
-
-    zu_actual_P, zu_pred_P, zu_colors_P = [], [], []
-    zu_actual_I, zu_pred_I, zu_colors_I = [], [], []
-    ru_actual_P, ru_pred_P, ru_colors_P = [], [], []
-    ru_actual_I, ru_pred_I, ru_colors_I = [], [], []
-
-    for _, row in maxR_df.iterrows():
-        cfg_name = row['Config']
-        if cfg_name not in geo_cache:
-            continue
-        geo = geo_cache[cfg_name]
-        conv_radii = conv_lookup.get(cfg_name, (np.nan, np.nan))
-
-        z_val = float(row['Z'])
-        maxR_P = row['MaxR_P']
-        maxR_I = row['MaxR_I']
-
-        # Inside R_conv, Z_free >= floor, AND amplification — the fit domain.
-        use_P = (cfg_name, row['Z']) in _valid['Pressure']
-        use_I = (cfg_name, row['Z']) in _valid['Impulse']
-
-        color = _get_group_color(geo['det'])
-        W_third = geo['weight'] ** (1/3)
-
-        # Z_urban predictions (already in metres: W^(1/3) * Z_urban)
-        conv_pred_P_val, conv_pred_I_val = conv_pred_cache.get(cfg_name, (np.nan, np.nan))
-        pred_mR_P, pred_mR_I = predict_z_urban_per_Z(
-            z_val, geo['weight'], geo['rho'], geo['height'], geo['swidth'],
-            geo['det'], z_coeffs, pred_Rconv_P=conv_pred_P_val)
-
-        # Physical closure: clip from ABOVE at the predicted R_conv only
-        # (urban = free-field beyond it). No lower bound — Z_urban < Z_free is
-        # the attenuation regime and is real, so clamping at the free-field
-        # radius would make it unrepresentable.
-        if np.isfinite(pred_mR_P) and np.isfinite(conv_pred_P_val):
-            pred_mR_P = min(pred_mR_P, conv_pred_P_val)
-        if np.isfinite(pred_mR_I) and np.isfinite(conv_pred_I_val):
-            pred_mR_I = min(pred_mR_I, conv_pred_I_val)
-
-        # R_urban = W^(1/3) * Z_urban — the canonical derivation, same value
-        pred_rR_P, pred_rR_I = pred_mR_P, pred_mR_I
-
-        if use_P and np.isfinite(maxR_P):
-            if np.isfinite(pred_mR_P):
-                zu_actual_P.append(maxR_P / W_third)
-                zu_pred_P.append(pred_mR_P / W_third)
-                zu_colors_P.append(color)
-            if np.isfinite(pred_rR_P):
-                ru_actual_P.append(maxR_P)
-                ru_pred_P.append(pred_rR_P)
-                ru_colors_P.append(color)
-
-        if use_I and np.isfinite(maxR_I):
-            if np.isfinite(pred_mR_I):
-                zu_actual_I.append(maxR_I / W_third)
-                zu_pred_I.append(pred_mR_I / W_third)
-                zu_colors_I.append(color)
-            if np.isfinite(pred_rR_I):
-                ru_actual_I.append(maxR_I)
-                ru_pred_I.append(pred_rR_I)
-                ru_colors_I.append(color)
+    # _z_urban_scatter_arrays parses geometry per maxR row and caches the
+    # PREDICTED convergence radii per config — Z_urban predictions are
+    # clipped to them (physical closure: MaxR cannot exceed R_conv).
+    zu, ru = _z_urban_scatter_arrays(maxR_df, conv_df, conv_coeffs, z_coeffs)
+    zu_train = ru_train = None
+    if show_train:
+        zu_train, ru_train = _z_urban_scatter_arrays(
+            train_maxR_df, train_conv_df, conv_coeffs, z_coeffs)
 
     # ---- Z_urban summary ----
     progress('\n' + '=' * 60)
     progress('  Z_URBAN VALIDATION (TEST CONFIGS)')
     progress('=' * 60)
-    zu_act_P = np.array(zu_actual_P); zu_prd_P = np.array(zu_pred_P)
-    zu_act_I = np.array(zu_actual_I); zu_prd_I = np.array(zu_pred_I)
+    zu_act_P = np.array(zu['act_P']); zu_prd_P = np.array(zu['prd_P'])
+    zu_act_I = np.array(zu['act_I']); zu_prd_I = np.array(zu['prd_I'])
     if len(zu_act_P) > 1:
         R2, MAPE = r2_mape(zu_act_P, zu_prd_P)
         progress(f'  Pressure — n={len(zu_act_P)}, R2={R2:.4f}, MAPE={MAPE:.2f}%')
@@ -664,11 +755,16 @@ def main(*, tables_dir=None, out_dir=None, radius_method=None, progress=print):
         progress(f'  Impulse  — n={len(zu_act_I)}, R2={R2:.4f}, MAPE={MAPE:.2f}%')
 
     plot_validation_scatter(
-        zu_act_P, zu_prd_P, np.array(zu_colors_P) if zu_colors_P else np.empty((0, 3)),
-        zu_act_I, zu_prd_I, np.array(zu_colors_I) if zu_colors_I else np.empty((0, 3)),
+        zu_act_P, zu_prd_P,
+        np.array(zu['col_P']) if zu['col_P'] else np.empty((0, 3)),
+        zu_act_I, zu_prd_I,
+        np.array(zu['col_I']) if zu['col_I'] else np.empty((0, 3)),
         'Z_urban Validation — Test Configs',
         'Z_urban [m/kg^(1/3)]', 'Z_urban [m/kg^(1/3)]',
-        fig('validation_z_urban.png'))
+        fig('validation_z_urban.png'),
+        train_P=(zu_train['act_P'], zu_train['prd_P']) if zu_train else None,
+        train_I=(zu_train['act_I'], zu_train['prd_I']) if zu_train else None,
+        error_bands=bands)
     progress('Saved: validation_z_urban.png')
 
     # ---- R_urban summary (derived: R_urban = W^(1/3) * Z_urban) ----
@@ -676,8 +772,8 @@ def main(*, tables_dir=None, out_dir=None, radius_method=None, progress=print):
     progress('  R_URBAN VALIDATION (TEST CONFIGS)')
     progress('  (derived canonically: R_urban = W^(1/3) * Z_urban)')
     progress('=' * 60)
-    ru_act_P = np.array(ru_actual_P); ru_prd_P = np.array(ru_pred_P)
-    ru_act_I = np.array(ru_actual_I); ru_prd_I = np.array(ru_pred_I)
+    ru_act_P = np.array(ru['act_P']); ru_prd_P = np.array(ru['prd_P'])
+    ru_act_I = np.array(ru['act_I']); ru_prd_I = np.array(ru['prd_I'])
     if len(ru_act_P) > 1:
         R2, MAPE = r2_mape(ru_act_P, ru_prd_P)
         progress(f'  Pressure — n={len(ru_act_P)}, R2={R2:.4f}, MAPE={MAPE:.2f}%')
@@ -686,11 +782,16 @@ def main(*, tables_dir=None, out_dir=None, radius_method=None, progress=print):
         progress(f'  Impulse  — n={len(ru_act_I)}, R2={R2:.4f}, MAPE={MAPE:.2f}%')
 
     plot_validation_scatter(
-        ru_act_P, ru_prd_P, np.array(ru_colors_P) if ru_colors_P else np.empty((0, 3)),
-        ru_act_I, ru_prd_I, np.array(ru_colors_I) if ru_colors_I else np.empty((0, 3)),
+        ru_act_P, ru_prd_P,
+        np.array(ru['col_P']) if ru['col_P'] else np.empty((0, 3)),
+        ru_act_I, ru_prd_I,
+        np.array(ru['col_I']) if ru['col_I'] else np.empty((0, 3)),
         'R_urban Validation — Test Configs',
         'R_urban [m]', 'R_urban [m]',
-        fig('validation_r_urban.png'))
+        fig('validation_r_urban.png'),
+        train_P=(ru_train['act_P'], ru_train['prd_P']) if ru_train else None,
+        train_I=(ru_train['act_I'], ru_train['prd_I']) if ru_train else None,
+        error_bands=bands)
     progress('Saved: validation_r_urban.png')
 
     # ---- Save validation comparison CSV ----
@@ -740,9 +841,17 @@ def cli(argv=None):
                    help='Which radius-estimator run to validate: '
                         f'{"|".join(VALID_METHODS)}, pXX, or a soft token '
                         "like 'req_soft6' (default: constants.RADIUS_ESTIMATOR).")
+    p.add_argument('--show-train', action='store_true', dest='show_train',
+                   help='Also draw the training (fit) configs in gray behind '
+                        'the test points (metrics stay test-only).')
+    p.add_argument('--error-bands', default=None, dest='error_bands',
+                   help="Comma-separated +/- error-line percentages for the "
+                        "scatters, e.g. '10,15,20'; 'none' removes them "
+                        '(default 10).')
     args = p.parse_args(argv)
     return main(tables_dir=args.tables_dir, out_dir=args.out_dir,
-                radius_method=args.radius_method)
+                radius_method=args.radius_method,
+                show_train=args.show_train, error_bands=args.error_bands)
 
 
 if __name__ == '__main__':
