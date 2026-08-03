@@ -102,6 +102,22 @@ class ParamField:
             w.grid(row=row, column=1, sticky='w', pady=2)
             return w
 
+        if self.kind == 'checks':
+            # One checkbutton per option; value() returns the ticked subset.
+            # default: True/None = all ticked, else the iterable of names.
+            default = self.spec.get('default')
+            ticked = set(self.spec['options'] if default in (None, True)
+                         else default or ())
+            frame = ttk.Frame(master)
+            frame.grid(row=row, column=1, columnspan=2, sticky='w', pady=2)
+            self._check_vars = {}
+            for name in self.spec['options']:
+                var = tk.BooleanVar(value=name in ticked)
+                ttk.Checkbutton(frame, text=name, variable=var).pack(
+                    side='left', padx=(0, 8))
+                self._check_vars[name] = var
+            return frame
+
         if self.kind == 'combo':
             frame = ttk.Frame(master)
             frame.grid(row=row, column=1, columnspan=2, sticky='ew', pady=2)
@@ -147,6 +163,10 @@ class ParamField:
 
     def value(self):
         """Return the converted value, or raise ValueError with a clear message."""
+        if self.kind == 'checks':
+            return tuple(name for name, var in self._check_vars.items()
+                         if var.get())
+
         raw = self.var.get().strip()
 
         if not raw:

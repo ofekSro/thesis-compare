@@ -56,6 +56,25 @@ FIG_SUBDIRS = ('absolute', 'ratio', 'max_radius',
                'theta_P', 'theta_I', 'conv_theta')
 
 
+def _resolve_figure_set(make_figures):
+    """Normalize the make_figures parameter into the set of active categories.
+
+    True -> all of FIG_SUBDIRS; False/None/empty -> none; an iterable of
+    category names -> exactly those (unknown names are an error, not a
+    silent skip — a typo must not quietly disable a figure).
+    """
+    if make_figures is True:
+        return set(FIG_SUBDIRS)
+    if not make_figures:
+        return set()
+    active = set(make_figures)
+    unknown = active - set(FIG_SUBDIRS)
+    if unknown:
+        raise ValueError(f'unknown figure categories {sorted(unknown)}; '
+                         f'expected a subset of {FIG_SUBDIRS}')
+    return active
+
+
 def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
                scale_limits=None, radius_estimator=None,
                rebuild_impulse=False, make_figures=True, progress=print):
@@ -82,9 +101,12 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         because the shipped NPZs were written under the old pressure-gated
         rule and the VTKs are unavailable; once preprocessing can be re-run
         this should be False and the NPZs will already be correct.
-    make_figures : bool
-        False skips every per-config figure (the dominant runtime cost) —
-        tables come out identical. Meant for parameter sweeps.
+    make_figures : bool or iterable of str
+        True draws every per-config figure; False skips them all (the
+        dominant runtime cost) — tables come out identical either way. An
+        iterable of category names (subset of FIG_SUBDIRS: 'absolute',
+        'ratio', 'max_radius', 'theta_P', 'theta_I', 'conv_theta') draws
+        only those categories.
     progress : callable
         Progress sink (default print).
 
@@ -97,6 +119,7 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
     """
     est = resolve_estimator(radius_estimator)
     method = est['method']
+    active_figs = _resolve_figure_set(make_figures)
 
     # Soft tokens need the raw band fields, which only the v2 superset has —
     # so a blank npz_dir defaults to it instead of the v1 folder.
@@ -115,6 +138,10 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
     progress('=' * 50)
     progress(f'Radius estimator: {method}  '
              '(drives both the convergence radius and MaxR)')
+    if active_figs != set(FIG_SUBDIRS):
+        progress('Figures: ' + (', '.join(f for f in FIG_SUBDIRS
+                                          if f in active_figs) or 'none')
+                 + '  (tables are unaffected)')
 
     # Figures depend on the estimator too (they draw the collapsed radius),
     # so each method gets its own tree instead of overwriting the last run.
@@ -163,7 +190,7 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         if rebuild_impulse:
             processed = rebuild_impulse_ratio(processed, cfg['weight'], ff_csv)
 
-        if make_figures:
+        if 'absolute' in active_figs:
             plot_absolute(processed, config_name, fig_dirs['absolute'])
 
         # Geometry parameters
@@ -188,7 +215,7 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
             all_X, all_Z, exclude_r, estimator=est, soft_w_P=soft_w_P
         )
 
-        if make_figures:
+        if 'ratio' in active_figs:
             plot_ratio(processed, cfg, config_name, fig_dirs['ratio'], radius,
                        scale_limits=scale_limits, method=method)
 
@@ -216,7 +243,7 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         progress(f'  R_conv({method}) P: {radius["pressure"]:.1f} m  '
                  f'I: {radius["impulse"]:.1f} m')
 
-        if make_figures:
+        if 'conv_theta' in active_figs:
             plot_theta_histogram(
                 config_name,
                 radius['radius_per_theta_P'],
@@ -273,13 +300,15 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
                 'RadiusEstimator': method,
             })
 
-        if make_figures:
+        if 'max_radius' in active_figs:
             plot_max_radius(processed, config_name, maxR_P_per_Z, maxR_I_per_Z,
                             radius['pressure'], radius['impulse'],
                             fig_dirs['max_radius'])
 
+        if 'theta_P' in active_figs:
             plot_theta_histogram_Z(config_name, theta_radii_P_per_Z, maxR_P_per_Z,
                                    'P', fig_dirs['theta_P'])
+        if 'theta_I' in active_figs:
             plot_theta_histogram_Z(config_name, theta_radii_I_per_Z, maxR_I_per_Z,
                                    'I', fig_dirs['theta_I'])
 
@@ -439,6 +468,10 @@ def _build_parser():
     p.add_argument('--no-figures', action='store_true', dest='no_figures',
                    help='Skip all per-config figures in Phase 1 (tables '
                         'identical, much faster). For parameter sweeps.')
+    p.add_argument('--figures', default=None, dest='figures',
+                   help='Comma-separated figure categories to draw in Phase 1 '
+                        f'({",".join(FIG_SUBDIRS)}), or all|none. '
+                        'Default: all.')
     p.add_argument('--rebuild-impulse', action='store_true', dest='rebuild_impulse',
                    help='Recompute ratioI under the scaled impulse criterion, '
                         'reconstructing the free-field reference. Needed while '
@@ -538,12 +571,24 @@ def cli(argv=None):
             if n_iter_str:
                 n_iter = int(n_iter_str)
 
+    # ---- Figure selection ----
+    if args.figures is not None:
+        s = args.figures.strip().lower()
+        if s == 'all':
+            make_figures = True
+        elif s in ('', 'none'):
+            make_figures = False
+        else:
+            make_figures = tuple(x.strip() for x in s.split(',') if x.strip())
+    else:
+        make_figures = not args.no_figures
+
     return main(phase=phase, n_iterations=n_iter, scale_limits=scale_limits,
                 npz_dir=args.npz_dir, ff_csv=args.ff_csv,
                 tables_dir=args.tables_dir, figures_dir=args.figures_dir,
                 radius_estimator=radius_estimator,
                 rebuild_impulse=args.rebuild_impulse,
-                make_figures=not args.no_figures,
+                make_figures=make_figures,
                 model_p=args.model_p, model_i=args.model_i)
 
 
