@@ -21,7 +21,7 @@ MAX_HEIGHT = 24
 PARAMS = {
     'thresholdP_kPa':  1.01 / 1000,  # mask threshold [kPa]
     'minPressure_kPa': 10,            # convergence threshold [kPa]
-    'softBeta':        6.0,           # tanh projection sharpness
+    'softBeta':        3.0,           # tanh projection sharpness
     'softCap_kPa':     20.0,          # |dP| mapping to weight 1 [kPa]
 }
 
@@ -54,7 +54,19 @@ IMPULSE_CRITERION = {
 # ONE setting drives BOTH the convergence radius and the MaxR / Z_urban radius
 # — they measure the same object and must be measured the same way. There is
 # deliberately no separate setting for each. See processing/radius_estimator.py.
+#
+# Production is 'req_soft3': the equivalent-area collapse measured under the
+# SOFT pressure criterion at beta = 3 (adopted 2026-08; see
+# outputs/check_results/soft_beta_selection_note.md). It was the only tested
+# beta to satisfy both pre-registered rules — the config_93/95 threshold gap
+# below 10 m and the <=0.5 pp acceptance bound on mean LOGO error — and it
+# cuts the worst-case pressure error from 43.4% to 30.1%.
+#
+# The soft path needs the v2 NPZ superset (raw band fields), so a phase-1 run
+# under this default reads data/processed_npz_v2. Set 'req' here (or pass
+# --radius-method req) for the legacy hard criterion; both output sets live
+# side by side under their own filename tokens.
 RADIUS_ESTIMATOR = {
-    'method': 'req',        # 'req' | 'max' | 'p95'
+    'method': 'req_soft3',  # 'req' | 'max' | 'p95' | '<base>_soft[beta]'
     'percentile': 95,       # used only when method is a percentile
 }

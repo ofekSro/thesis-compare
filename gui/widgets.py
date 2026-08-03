@@ -270,15 +270,33 @@ class RadiusEstimatorField:
 
     SOFT_BETA_DEFAULT = 4.0
 
+    @staticmethod
+    def _split_default(method, soft_beta=None):
+        """('req_soft3', None) -> ('req', 3.0);  ('req', None) -> ('req', None).
+
+        Delegates to the shared token grammar rather than parsing here, so
+        the widget and the pipeline can never disagree about a token.
+        """
+        from blastlib.processing.radius_estimator import _split_soft
+        base, beta = _split_soft(method)
+        return base, (float(soft_beta) if soft_beta is not None else beta)
+
     def __init__(self, master, spec, row):
         self.spec = spec
         self.key = spec['key']
 
         default = spec.get('default') or {}
-        self.method = tk.StringVar(value=default.get('method', 'req'))
+        # The default token may already carry the soft suffix (production
+        # default), so split it: the method radios show the base collapse and
+        # the criterion row shows soft + its beta. Without this the widget
+        # would read "Hard" while handing back a soft token.
+        base, beta = self._split_default(default.get('method', 'req'),
+                                         default.get('soft_beta'))
+        self.method = tk.StringVar(value=base)
         self.percentile = tk.StringVar(value=str(default.get('percentile', 95)))
-        self.criterion = tk.StringVar(value='hard')
-        self.beta = tk.StringVar(value=str(self.SOFT_BETA_DEFAULT))
+        self.criterion = tk.StringVar(value='soft' if beta else 'hard')
+        self.beta = tk.StringVar(value=str(beta if beta
+                                           else self.SOFT_BETA_DEFAULT))
 
         ttk.Label(master, text=spec['label'] + ':').grid(
             row=row, column=0, sticky='w', padx=(0, 8), pady=2)

@@ -13,6 +13,7 @@ import itertools
 import numpy as np
 import pytest
 
+from blastlib import constants
 from blastlib.processing.convergence import (
     K_CONSECUTIVE, TOLERANCE, _find_radius_for_slice,
     _find_radius_for_slice_soft, find_convergence_radius)
@@ -195,9 +196,12 @@ def test_soft_token_grammar():
     est = resolve_estimator('req')
     assert est['method'] == 'req' and est['soft_beta'] is None
 
-    est = resolve_estimator('req_soft')      # beta from PARAMS (6.0)
-    assert est['method'] == 'req_soft6'
-    assert est['base_method'] == 'req' and est['soft_beta'] == 6.0
+    # a bare '_soft' takes its beta from the shared constant, whatever the
+    # production value currently is
+    default_beta = constants.PARAMS['softBeta']
+    est = resolve_estimator('req_soft')
+    assert est['method'] == f'req_soft{default_beta:g}'
+    assert est['base_method'] == 'req' and est['soft_beta'] == default_beta
 
     est = resolve_estimator('req_soft8')
     assert est['method'] == 'req_soft8' and est['soft_beta'] == 8.0
@@ -211,7 +215,7 @@ def test_soft_token_grammar():
 
     # collapse of a soft token == collapse of its base
     radii = np.array([np.nan, 10.0, 20.0, np.nan, 15.0])
-    assert (reduce_theta_radii(radii, 'req_soft6')
+    assert (reduce_theta_radii(radii, 'req_soft3')
             == reduce_theta_radii(radii, 'req'))
 
 
