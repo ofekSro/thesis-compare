@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מחשבון רדיוס התכנסות ו-Z_urban</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a212b; --panel2:#222c38; --ink:#e6edf3;
+    --muted:#8b98a5; --line:#2d3743; --accent:#3b82f6; --amp:#2166ac;
+    --att:#c0392b; --ok:#2e8b57; --warn:#d98c00;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.5;padding:18px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .wrap{max-width:940px;margin:0 auto}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px}
+  .card h2{font-size:15px;margin:0 0 12px;color:var(--accent)}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  input,select{width:100%;padding:9px 11px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:8px;color:var(--ink);
+    font-size:15px;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .out{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin-top:16px}
+  .big{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px}
+  .metric{background:var(--panel2);border:1px solid var(--line);
+    border-radius:10px;padding:12px 14px}
+  .metric .lbl{font-size:12px;color:var(--muted)}
+  .metric .val{font-size:26px;font-weight:700;margin-top:2px}
+  .metric .unit{font-size:13px;color:var(--muted);font-weight:400}
+  .derived{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;
+    color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+  .derived b{color:var(--ink);font-weight:600}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}
+  th,td{padding:7px 8px;text-align:center;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600}
+  td.reg{font-weight:700}
+  .amp{color:#6ea8dc} .att{color:#e07b6b}
+  .clip{color:var(--warn);font-size:11px}
+  .note{font-size:12px;color:var(--muted);margin-top:12px;
+    padding-top:10px;border-top:1px solid var(--line)}
+  .pill{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;
+    font-weight:600}
+  .pill.amp{background:rgba(33,102,172,.2);color:#6ea8dc}
+  .pill.att{background:rgba(192,57,43,.2);color:#e07b6b}
+  .tabs{display:flex;gap:8px;margin-bottom:16px}
+  .tab{padding:9px 18px;background:var(--panel);border:1px solid var(--line);
+    border-radius:9px;cursor:pointer;font-size:14px;color:var(--muted);
+    font-family:inherit}
+  .tab.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .hide{display:none}
+  .big3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  @media(max-width:720px){.big3{grid-template-columns:1fr}}
+  .hero{background:var(--panel2);border:1px solid var(--accent);border-radius:10px;
+    padding:14px 16px;margin-top:6px}
+  .hero .lbl{font-size:12px;color:var(--muted)}
+  .hero .val{font-size:30px;font-weight:700;color:var(--accent)}
+  .ban{border-radius:10px;padding:12px 15px;margin:14px 0;font-size:13.5px;
+    border:1px solid}
+  .ban.ok  {background:rgba(46,139,87,.13); border-color:#2e8b57; color:#7fd6a4}
+  .ban.warn{background:rgba(217,140,0,.13); border-color:#d98c00; color:#f0b95c}
+  .ban.err {background:rgba(192,57,43,.13); border-color:#c0392b; color:#f0938a}
+  .ban ul{margin:8px 0 4px;padding-inline-start:20px}
+  .ban li{margin:3px 0}
+  .ban .sub2{display:block;margin-top:8px;font-size:12px;opacity:.8}
+  .band{font-size:12px;color:var(--muted);margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>מחשבון רדיוס התכנסות ו-Z<sub>urban</sub></h1>
+  <div class="sub">Buckingham-Pi · קריטריון לחץ רך (tanh, β=3) סביב 10 kPa · אימפולס |ΔI|/W<sup>1/3</sup> &lt; 20 · מקדמי ייצור <code>req_soft3</code></div>
+
+  <div class="tabs">
+    <button class="tab on" id="tb1" onclick="showTab(1)">מחשבון מלא</button>
+    <button class="tab" id="tb2" onclick="showTab(2)">עד לאן מגיע העומס?</button>
+  </div>
+
+<div id="tab1">
+  <div id="dom1"></div>
+  <div class="grid">
+    <div class="card">
+      <h2>קלט — גיאומטריה ומטען</h2>
+      <label>סוג פיצוץ</label>
+      <select id="det">
+        <option value="1">רחוב (det=1)</option>
+        <option value="2">צומת (det=2)</option>
+      </select>
+      <div class="row2">
+        <div><label>גודל בניין b [m]</label><input id="b" type="number" value="15" step="1"></div>
+        <div><label>רוחב רחוב s [m]</label><input id="s" type="number" value="5" step="1"></div>
+      </div>
+      <div class="row2">
+        <div><label>גובה בניין H [m]</label><input id="H" type="number" value="12" step="1"></div>
+        <div><label>משקל מטען W [kg]</label><input id="W" type="number" value="500" step="10"></div>
+      </div>
+      <label>מרחק מדורג לחיזוי Z<sub>free</sub> [m/kg<sup>1/3</sup>] (לחישוב Z<sub>urban</sub>)</label>
+      <input id="zf" type="number" value="6" step="0.5">
+      <div class="derived" id="derived"></div>
+    </div>
+
+    <div class="card">
+      <h2>רדיוס התכנסות</h2>
+      <div class="big">
+        <div class="metric"><div class="lbl">R<sub>conv</sub> לחץ</div>
+          <div class="val" id="rcp">–<span class="unit"> m</span></div>
+          <div class="band" id="rcpBand"></div></div>
+        <div class="metric"><div class="lbl">R<sub>conv</sub> אימפולס</div>
+          <div class="val" id="rci">–<span class="unit"> m</span></div>
+          <div class="band" id="rciBand"></div></div>
+      </div>
+      <div class="big">
+        <div class="metric"><div class="lbl">Z<sub>conv</sub> לחץ</div>
+          <div class="val" id="zcp" style="font-size:20px">–</div></div>
+        <div class="metric"><div class="lbl">Z<sub>conv</sub> אימפולס</div>
+          <div class="val" id="zci" style="font-size:20px">–</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="out">
+    <h2 style="font-size:15px;margin:0 0 4px;color:var(--accent)">
+      Z<sub>urban</sub> במרחק המבוקש</h2>
+    <div class="big">
+      <div class="metric">
+        <div class="lbl">לחץ · <span id="regP" class="pill amp">–</span></div>
+        <div class="val" id="zup">–</div>
+        <div class="unit">R<sub>urban</sub> = <span id="rup">–</span> m · Λ = <span id="lamP">–</span></div>
+      </div>
+      <div class="metric">
+        <div class="lbl">אימפולס</div>
+        <div class="val" id="zui">–</div>
+        <div class="unit">R<sub>urban</sub> = <span id="rui">–</span> m · Λ = <span id="lamI">–</span></div>
+      </div>
+    </div>
+
+    <table id="tbl">
+      <thead><tr>
+        <th>Z<sub>free</sub></th><th>לחץ: משטר</th><th>Z<sub>urban</sub> P</th>
+        <th>אימפולס: Z<sub>urban</sub> I</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <div class="note">
+      Λ = Z<sub>urban</sub>/Z<sub>free</sub> (פקטור הגברה עירוני). <b>לחץ</b> —
+      נוסחת range-switch עם דעיכת מרחק (1/Z<sub>free</sub>): ההגברה תלוית מרחק (התאבכות).
+      <b>אימפולס</b> — canyon-trap ללא איבר מרחק: הגיאומטריה קובעת פקטור קבוע. הנחתה
+      (Λ&lt;1) רציפה — ln(Λ)&lt;0, בלי מסווג. <span class="clip">clip</span> = נחתך לרדיוס
+      ההתכנסות. תקף ל-Z<sub>free</sub> ≥ 2 ובתוך הרדיוס.
+    </div>
+  </div>
+</div><!-- /tab1 -->
+
+<div id="tab2" class="hide">
+  <div id="dom2"></div>
+  <div class="grid">
+    <div class="card">
+      <h2>קלט</h2>
+      <label>סוג פיצוץ</label>
+      <select id="q_det">
+        <option value="1">רחוב (det=1)</option>
+        <option value="2">צומת (det=2)</option>
+      </select>
+      <div class="row2">
+        <div><label>גודל בניין b [m]</label><input id="q_b" type="number" value="15" step="1"></div>
+        <div><label>רוחב רחוב s [m]</label><input id="q_s" type="number" value="5" step="1"></div>
+      </div>
+      <div class="row2">
+        <div><label>גובה בניין H [m]</label><input id="q_H" type="number" value="12" step="1"></div>
+        <div><label>משקל מטען W [kg]</label><input id="q_W" type="number" value="500" step="10"></div>
+      </div>
+      <label>מרחק מדורג בשדה חופשי Z [m/kg<sup>1/3</sup>]</label>
+      <input id="q_zf" type="number" value="6" step="0.5">
+      <div class="derived" id="q_derived"></div>
+    </div>
+
+    <div class="card">
+      <h2>העומס המדובר</h2>
+      <div class="big">
+        <div class="metric"><div class="lbl">לחץ שיא</div>
+          <div class="val" id="q_P">–<span class="unit"> kPa</span></div></div>
+        <div class="metric"><div class="lbl">אימפולס מדורג</div>
+          <div class="val" id="q_I" style="font-size:20px">–</div>
+          <div class="unit">Pa·s/kg<sup>1/3</sup></div></div>
+      </div>
+      <div class="metric" style="margin-top:12px">
+        <div class="lbl">בשדה חופשי העומס הזה נמצא במרחק</div>
+        <div class="val" id="q_Rff">–<span class="unit"> m</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="out">
+    <h2 style="font-size:15px;margin:0 0 10px;color:var(--accent)">
+      בעיר — עד לאן יכול להימצא אותו עומס</h2>
+    <div class="big">
+      <div class="hero">
+        <div class="lbl">לחץ · עד מרחק</div>
+        <div class="val" id="q_RP">–<span style="font-size:15px"> m</span></div>
+        <div class="unit" id="q_dP">–</div>
+      </div>
+      <div class="hero">
+        <div class="lbl">אימפולס · עד מרחק</div>
+        <div class="val" id="q_RI">–<span style="font-size:15px"> m</span></div>
+        <div class="unit" id="q_dI">–</div>
+      </div>
+    </div>
+    <div class="derived" id="q_extra" style="margin-top:14px"></div>
+    <div class="note">
+      התשובה היא הנקודה <b>הרחוקה ביותר</b> בעיר שבה העומס עדיין לפחות כמו בשדה
+      חופשי במרחק שנבחר — מעבר לה העומס נמוך יותר בכל הכיוונים. ערך מסומן
+      <span class="clip">clip</span> נחתך לרדיוס ההתכנסות: מעבר לו העיר אינה
+      משנה, ולכן המרחק שווה לשדה החופשי.
+    </div>
+  </div>
+</div><!-- /tab2 -->
+</div><!-- /wrap -->
+
+<script>
+// =====================================================================
+// Production coefficients — final_production_*_req_soft3 (soft pressure
+// criterion, beta = 3; RadiusP fitted by relative-error weighted LS,
+// RadiusI with the quadratic log term). Keep in sync with
+// outputs/tables/final_production_*_coefficients_req_soft3.csv
+// =====================================================================
+const CONV_P = {
+  1:{C0:9.063101, C1:-0.645084, C2:2.018126, C3:0.590791, a:1},
+  2:{C0:11.857567,C1:-1.375434, C2:2.782029, C3:0.775845, a:2}
+};
+// Z = A * rho^p * (H/s)^q * pi2^r * exp(r2 * ln(pi2)^2)
+const CONV_I = {
+  1:{A:14.936296, p:0.203128, q:0.023817, r:0.065298, r2:-0.100537},
+  2:{A:14.602444, p:0.175946, q:0.078957, r:0.125061, r2:-0.088928}
+};
+// Z_urban - PySR structured forms (final_production, req_soft3).
+// Pressure  (range_switch): lnL = C0 + C1*[(pi2 - A)/Zf - ln pi2] / (pi2*(s/H) + B)
+// Impulse   (canyon_trap):  lnL = C0 + C1*rho*(sqrt(H/s) - C2*rho) / (H/s + C3*sqrt(pi2))
+// The impulse block is identical to the hard-criterion fit: the soft
+// criterion touches pressure only.
+const ZU = {
+  P:{ 1:{C0:0.086646, C1:1.745664, A:2.743405, B:4.012298},
+      2:{C0:0.129362, C1:0.527611, A:2.221937, B:1.181811} },
+  I:{ 1:{C0:-0.094070,C1:2.963123, C2:0.834425, C3:1.675201},
+      2:{C0:-0.006348,C1:2.665021, C2:1.099072, C3:0.752618} }
+};
+
+const $=id=>document.getElementById(id);
+
+function rho(b,s){ return (b*b)/((b+s)*(b+s)); }
+
+// =====================================================================
+// Validity domain — from the leave-one-geometry-out error analysis on the
+// beta=3 tables (see docs/ALGORITHM.md, "The safe domain", and
+// outputs/check_results/safe_domain_req_soft3.csv).
+//
+//   SAFE   rho 0.31-0.56, pi2 0.5-5.4, H/s <= 3
+//          every held-out config below 20% error on BOTH targets
+//          (38/96 configs; P mean 7.8% max 18.9%, I mean 6.4% max 19.6%;
+//           89% of P and 95% of I within +-15%)
+//   EDGE   inside the sampled envelope but on one of its sparse corners
+//          -> answers still given, worst observed error ~30%
+//   OUT    outside the sampled envelope -> refuse (no extrapolation)
+// =====================================================================
+// ENV is the exact hull of the 96 simulated configurations (a hair of
+// tolerance so a sampled point never reads as outside its own envelope).
+const ENV  = {b:[10,30], s:[5,20], H:[4,24], W:[50,1500],
+              rho:[0.1836,0.7348], pi2:[0.4367,5.4289], hs:[0.1999,4.8001]};
+const SAFE = {rho:[0.308,0.563], pi2:[0.499,5.44], hsMax:3.0};
+
+function checkDomain(b,s,H,W){
+  const W13=Math.cbrt(W), pi2=s/W13, r=rho(b,s), hs=H/s;
+  const out=[], edge=[];
+
+  // --- outside the sampled envelope: refuse ---
+  if(b<ENV.b[0]||b>ENV.b[1]) out.push('b = '+b+' m — מחוץ לטווח שנדגם ('+ENV.b[0]+'–'+ENV.b[1]+' מ\')');
+  if(s<ENV.s[0]||s>ENV.s[1]) out.push('s = '+s+' m — מחוץ לטווח שנדגם ('+ENV.s[0]+'–'+ENV.s[1]+' מ\')');
+  if(H<ENV.H[0]||H>ENV.H[1]) out.push('H = '+H+' m — מחוץ לטווח שנדגם ('+ENV.H[0]+'–'+ENV.H[1]+' מ\')');
+  if(W<ENV.W[0]||W>ENV.W[1]) out.push('W = '+W+' kg — מחוץ לטווח שנדגם ('+ENV.W[0]+'–'+ENV.W[1]+' ק"ג)');
+  if(pi2<ENV.pi2[0]||pi2>ENV.pi2[1])
+    out.push('Π₂ = s/W<sup>1/3</sup> = '+pi2.toFixed(2)+' — מחוץ למעטפת (0.44–5.43)');
+  if(hs<ENV.hs[0]||hs>ENV.hs[1])
+    out.push('H/s = '+hs.toFixed(2)+' — מחוץ למעטפת (0.20–4.80)');
+
+  // --- inside the envelope but off the safe box: name the corner ---
+  if(r>SAFE.rho[1])  edge.push('ρ = '+r.toFixed(2)+' — מרקם צפוף מאוד (מעל 0.56): פינה דלילה, שם נמדדו השגיאות הגדולות ביותר (עד ~30%)');
+  if(r<SAFE.rho[0])  edge.push('ρ = '+r.toFixed(2)+' — מרקם דליל (מתחת ל-0.31): פינה דלילה, שגיאה עד ~25%');
+  if(pi2<SAFE.pi2[0])edge.push('Π₂ = '+pi2.toFixed(2)+' — רחוב צר מאוד יחסית למטען (מתחת ל-0.5): האימפולס שוגה שם עד ~27%');
+  if(hs>SAFE.hsMax)  edge.push('H/s = '+hs.toFixed(2)+' — קניון גבוה (מעל 3): פינה דלילה, שגיאה עד ~26%');
+
+  const tier = out.length ? 'out' : (edge.length ? 'edge' : 'safe');
+  return {ok:out.length===0, tier, out, edge, pi2, rho:r, hs, W13};
+}
+
+function domainBanner(d){
+  if(d.tier==='safe')
+    return '<div class="ban ok"><b>✓ בתוך התחום הבטוח</b> — ρ = '+d.rho.toFixed(2)+
+           ' · Π₂ = '+d.pi2.toFixed(2)+' · H/s = '+d.hs.toFixed(2)+
+           '<span class="sub2">בתחום זה כל תצורה שנבדקה מחוץ למדגם נמצאה מתחת ל-20% שגיאה: '+
+           'לחץ ממוצע 7.8% (מקס\' 18.9%), אימפולס 6.4% (מקס\' 19.6%); '+
+           '89% מחיזויי הלחץ ו-95% מחיזויי האימפולס בתוך ±15%.</span></div>';
+  if(d.tier==='edge')
+    return '<div class="ban warn"><b>⚠ בתוך המעטפת שנדגמה, אך על פינה דלילה</b><ul>'+
+           d.edge.map(x=>'<li>'+x+'</li>').join('')+
+           '</ul><span class="sub2">התוצאה מוצגת, אך יש להתייחס אליה כאומדן: באזורים אלה '+
+           'אין למודל משפחה שכנה ללמוד ממנה, והשגיאה הגרועה ביותר שנמדדה היא כ-30%. '+
+           'ראו התחום הבטוח ב-docs/ALGORITHM.md.</span></div>';
+  return '<div class="ban err"><b>✕ מחוץ למעטפת שנדגמה — לא ניתן לחשב</b><ul>'+
+         d.out.map(x=>'<li>'+x+'</li>').join('')+
+         '</ul><span class="sub2">הנוסחאות הן קורלציה אמפירית בתוך המעטפת שנדגמה '+
+         '(96 סימולציות CFD) ואינן מיועדות לאקסטרפולציה מחוצה לה.</span></div>';
+}
+function blank(ids){ ids.forEach(i=>{const e=$(i); if(e) e.innerHTML='–';}); }
+
+// typical +-band on a radius, by tier (relative error observed in that zone)
+function bandPct(tier){ return tier==='safe' ? 15 : 30; }
+
+function zConvP(det,b,s,H,W){
+  const c=CONV_P[det], W13=Math.cbrt(W), r=rho(b,s), pi2=s/W13;
+  return c.C0 + c.C1*pi2 + c.C2*r*(pi2-c.a)
+       + c.C3*Math.sqrt(r)*(H/s)*(W13/s-1);
+}
+function zConvI(det,b,s,H,W){
+  const c=CONV_I[det], W13=Math.cbrt(W), r=rho(b,s), pi2=s/W13;
+  const ln=Math.log(pi2);
+  return c.A * Math.pow(r,c.p) * Math.pow(H/s,c.q)
+       * Math.exp(c.r*ln + c.r2*ln*ln);
+}
+
+// structured Lambda forms - regime is just sign(ln L)
+function lambda(target,det,b,s,H,W,Zf){
+  const W13=Math.cbrt(W), r=rho(b,s), pi2=s/W13, hs=H/s;
+  let lnL;
+  if(target==='P'){
+    const c=ZU.P[det];
+    lnL = c.C0 + c.C1*((pi2-c.A)/Zf - Math.log(pi2)) / (pi2*(s/H) + c.B);
+  } else {
+    const c=ZU.I[det];
+    lnL = c.C0 + c.C1*r*(Math.sqrt(hs) - c.C2*r) / (hs + c.C3*Math.sqrt(pi2));
+  }
+  return {lam:Math.exp(lnL), reg: lnL<0 ? 'att' : 'amp'};
+}
+
+function calc(){
+  const det=+$('det').value, b=+$('b').value, s=+$('s').value,
+        H=+$('H').value, W=+$('W').value, Zf=+$('zf').value;
+  if(!(b>0&&s>0&&H>=0&&W>0)){return;}
+  const W13=Math.cbrt(W), r=rho(b,s);
+
+  const dom=checkDomain(b,s,H,W);
+  $('dom1').innerHTML=domainBanner(dom);
+  $('derived').innerHTML =
+    `ρ = <b>${r.toFixed(3)}</b>` +
+    `W<sup>1/3</sup> = <b>${W13.toFixed(2)}</b>` +
+    `s/W<sup>1/3</sup> = <b>${(s/W13).toFixed(2)}</b>` +
+    `H/s = <b>${(H/s).toFixed(2)}</b>`;
+  if(!dom.ok){
+    blank(['rcp','rci','zcp','zci','zup','zui','rup','rui','lamP','lamI',
+           'rcpBand','rciBand']);
+    $('regP').textContent='–'; $('regP').className='pill';
+    $('tbody').innerHTML='';
+    return;
+  }
+
+  const ZcP=zConvP(det,b,s,H,W), ZcI=zConvI(det,b,s,H,W);
+  const RcP=ZcP*W13, RcI=ZcI*W13;
+
+  $('zcp').textContent=ZcP.toFixed(2);
+  $('zci').textContent=ZcI.toFixed(2);
+  $('rcp').innerHTML=RcP.toFixed(1)+'<span class="unit"> m</span>';
+  $('rci').innerHTML=RcI.toFixed(1)+'<span class="unit"> m</span>';
+
+  const pct=bandPct(dom.tier);
+  $('rcpBand').innerHTML='±'+(RcP*pct/100).toFixed(0)+' m  ('+pct+'%)';
+  $('rciBand').innerHTML='±'+(RcI*pct/100).toFixed(0)+' m  ('+pct+'%)';
+
+  // single point
+  point(det,b,s,H,W,Zf,ZcP,ZcI,W13);
+  // table over a Z range
+  buildTable(det,b,s,H,W,ZcP,ZcI,W13);
+}
+
+function oneRow(det,b,s,H,W,Zf,ZcP,ZcI,W13){
+  const P=lambda('P',det,b,s,H,W,Zf);
+  const I=lambda('I',det,b,s,H,W,Zf);
+  let zuP=P.lam*Zf, clipP=false;
+  if(zuP>ZcP){zuP=ZcP;clipP=true;}
+  let zuI=I.lam*Zf, clipI=false;
+  if(zuI>ZcI){zuI=ZcI;clipI=true;}
+  return {reg:P.reg,regI:I.reg,zuP,clipP,zuI,clipI,lamP:zuP/Zf,lamI:zuI/Zf};
+}
+
+function point(det,b,s,H,W,Zf,ZcP,ZcI,W13){
+  const R=oneRow(det,b,s,H,W,Zf,ZcP,ZcI,W13);
+  const rp=$('regP');
+  rp.textContent = R.reg==='att'?'הנחתה':'הגברה';
+  rp.className='pill '+(R.reg==='att'?'att':'amp');
+  $('zup').textContent=R.zuP.toFixed(2)+(R.clipP?' *':'');
+  $('zui').textContent=R.zuI.toFixed(2)+(R.clipI?' *':'');
+  $('rup').textContent=(R.zuP*W13).toFixed(1);
+  $('rui').textContent=(R.zuI*W13).toFixed(1);
+  $('lamP').textContent=R.lamP.toFixed(2);
+  $('lamI').textContent=R.lamI.toFixed(2);
+}
+
+function buildTable(det,b,s,H,W,ZcP,ZcI,W13){
+  const tb=$('tbody'); tb.innerHTML='';
+  const zmax=Math.ceil(Math.max(ZcP,ZcI));
+  for(let Zf=2; Zf<=zmax; Zf++){
+    const R=oneRow(det,b,s,H,W,Zf,ZcP,ZcI,W13);
+    const tr=document.createElement('tr');
+    const regTxt = R.reg==='att'
+      ? '<span class="att">הנחתה</span>' : '<span class="amp">הגברה</span>';
+    tr.innerHTML =
+      `<td>${Zf}</td>`+
+      `<td class="reg">${regTxt}</td>`+
+      `<td>${R.zuP.toFixed(2)}${R.clipP?' <span class="clip">clip</span>':''}</td>`+
+      `<td>${R.zuI.toFixed(2)}${R.clipI?' <span class="clip">clip</span>':''}</td>`;
+    tb.appendChild(tr);
+  }
+}
+
+document.querySelectorAll('#tab1 input,#tab1 select').forEach(el=>{
+  el.addEventListener('input',calc);
+});
+calc();
+
+// ================= TAB 2 =================
+// Free-field lookup: Z -> peak pressure [kPa] and scaled impulse [Pa.s/kg^(1/3)]
+// (medians over all configs; scaled impulse varies <1% across charge weights).
+// Independent of the convergence criterion — this is the reference field.
+const FF_Z =[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
+const FF_P =[1371.97,259.64,105.28,59.82,40.41,30.09,23.53,19.04,15.03,12.56,
+             10.45,9.19,8.18,7.25,6.57,6.00,5.42,5.00,4.64,4.32];
+const FF_I =[196.14,111.21,83.42,65.90,53.76,45.25,39.01,34.24,30.42,27.46,
+             25.00,22.94,21.18,19.68,18.37,17.23,16.22,15.32,14.51,13.79];
+
+function ffLookup(arr,Z){                 // log-log interpolation
+  if(Z<=FF_Z[0]) return arr[0];
+  if(Z>=FF_Z[FF_Z.length-1]) return arr[arr.length-1];
+  let i=0; while(FF_Z[i+1]<Z) i++;
+  const t=(Math.log(Z)-Math.log(FF_Z[i]))/(Math.log(FF_Z[i+1])-Math.log(FF_Z[i]));
+  return Math.exp(Math.log(arr[i])+t*(Math.log(arr[i+1])-Math.log(arr[i])));
+}
+
+function showTab(n){
+  document.getElementById('tab1').classList.toggle('hide',n!==1);
+  document.getElementById('tab2').classList.toggle('hide',n!==2);
+  document.getElementById('tb1').classList.toggle('on',n===1);
+  document.getElementById('tb2').classList.toggle('on',n===2);
+  if(n===2) calcQ();
+}
+
+function calcQ(){
+  const det=+$('q_det').value, b=+$('q_b').value, s=+$('q_s').value,
+        H=+$('q_H').value, W=+$('q_W').value, Zf=+$('q_zf').value;
+  if(!(b>0&&s>0&&H>=0&&W>0&&Zf>0)) return;
+  const W13=Math.cbrt(W), r=rho(b,s);
+
+  const dom=checkDomain(b,s,H,W);
+  $('dom2').innerHTML=domainBanner(dom);
+  $('q_derived').innerHTML =
+    `ρ = <b>${r.toFixed(3)}</b>`+
+    `W<sup>1/3</sup> = <b>${W13.toFixed(2)}</b>`+
+    `s/W<sup>1/3</sup> = <b>${(s/W13).toFixed(2)}</b>`+
+    `H/s = <b>${(H/s).toFixed(2)}</b>`;
+  if(!dom.ok){
+    blank(['q_P','q_I','q_Rff','q_RP','q_RI','q_dP','q_dI','q_extra']);
+    return;
+  }
+
+  // the load in question
+  const P=ffLookup(FF_P,Zf), Is=ffLookup(FF_I,Zf);
+  $('q_P').innerHTML=P.toFixed(1)+'<span class="unit"> kPa</span>';
+  $('q_I').textContent=Is.toFixed(1);
+  $('q_Rff').innerHTML=(Zf*W13).toFixed(1)+'<span class="unit"> m</span>';
+
+  const ZcP=zConvP(det,b,s,H,W), ZcI=zConvI(det,b,s,H,W);
+  const out={};
+  [['P',ZcP,'q_RP','q_dP'],['I',ZcI,'q_RI','q_dI']].forEach(([tg,Zc,idR,idD])=>{
+    let zu,clip=false,ident=false;
+    if(Zf>=Zc){                       // already outside the urban zone
+      zu=Zf; ident=true;              // city has no effect: identity
+    }else{
+      const L=lambda(tg,det,b,s,H,W,Zf);
+      zu=L.lam*Zf;
+      if(zu>Zc){zu=Zc;clip=true;}     // cannot exceed the convergence radius
+    }
+    const R=zu*W13, Rff=Zf*W13, extra=R-Rff;
+    out[tg]={R,extra,lam:zu/Zf,clip,ident,Zc};
+    $(idR).innerHTML=R.toFixed(1)+'<span style="font-size:15px"> m</span>';
+    $(idD).innerHTML = ident
+      ? '<b>שדה חופשי</b> — מעבר לרדיוס ההתכנסות, לעיר אין השפעה'
+      : ((extra>=0 ? `<b>+${extra.toFixed(1)} m</b> מעבר לשדה חופשי`
+                   : `<b>${extra.toFixed(1)} m</b> — קרוב יותר מהשדה החופשי`)+
+         ` · Λ = ${(zu/Zf).toFixed(2)}`+
+         (clip?' <span class="clip">clip</span>':''));
+  });
+
+  $('q_extra').innerHTML =
+    `רדיוס התכנסות — לחץ <b>${(ZcP*W13).toFixed(1)} m</b>`+
+    `אימפולס <b>${(ZcI*W13).toFixed(1)} m</b>`+
+    `מרחק שדה חופשי <b>${(Zf*W13).toFixed(1)} m</b>`;
+}
+
+document.querySelectorAll('#tab2 input,#tab2 select').forEach(el=>{
+  el.addEventListener('input',calcQ);
+});
+calcQ();
+</script>
+</body>
+</html>
