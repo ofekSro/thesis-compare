@@ -14,6 +14,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from blastlib import paths  # noqa: E402  (needs the sys.path line above)
 
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        'markers', 'slow: full-data sweeps (all 96 configs); skipped '
+        'automatically when the data stores are absent')
+
 NPZ_V2_DIR = paths.DATA_DIR / 'processed_npz_v2'
 
 
@@ -34,3 +40,34 @@ def npz_v1_dir():
 def npz_v2_dir():
     """data/processed_npz_v2 (raw-field superset), skipping when absent."""
     return _require_config(NPZ_V2_DIR, 'config_93_det2_b10_s5_h15_w250')
+
+
+@pytest.fixture
+def street_npz_dir():
+    """The store the street suite reads (v3-raw preferred), skipping when
+    the anchor test config is absent."""
+    return _require_config(paths.default_npz_dir(soft=True),
+                           'config_93_det2_b10_s5_h15_w250')
+
+
+@pytest.fixture(scope='session')
+def street_full_data():
+    """The street store with ALL 96 configs — parity tests only.
+
+    Session-scoped: the slow tests each sweep the full store; one skip
+    decision serves them all.
+    """
+    d = Path(paths.default_npz_dir(soft=True))
+    n = len(list(d.glob('config_*.npz'))) if d.is_dir() else 0
+    if n < 96:
+        pytest.skip(f'street parity needs all 96 configs, found {n} in {d}')
+    return d
+
+
+@pytest.fixture
+def street_anchors_csv():
+    """The pinned anchors table (tracked since snapshot bf8eefe)."""
+    p = paths.CHECK_RESULTS_DIR / 'street_anchors.csv'
+    if not p.exists():
+        pytest.skip(f'missing pinned table: {p}')
+    return p
