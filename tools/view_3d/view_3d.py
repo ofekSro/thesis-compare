@@ -536,7 +536,7 @@ def show_3d(config_name, ground_npz, obs_npz=None):
 
 def main(config_name=None, *, npz_dir=None, obs_npz_dir=None, progress=print):
     """Open the 3D viewer. config_name=None opens the tkinter picker."""
-    npz_dir = paths.resolve(npz_dir, paths.PROCESSED_NPZ_DIR)
+    npz_dir = paths.resolve(npz_dir, paths.default_npz_dir())
     obs_npz_dir = paths.resolve(obs_npz_dir, paths.OBS_NPZ_DIR)
 
     if config_name is None:

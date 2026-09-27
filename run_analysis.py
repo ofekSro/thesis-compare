@@ -38,6 +38,7 @@ from blastlib import paths
 from blastlib.config.parser import config_parser
 from blastlib import constants
 from blastlib.geometry import area_density, volume_density, exclude_radius, concat3
+from blastlib.io import raw_store
 from blastlib.io.npz_store import load_processed_data
 from blastlib.processing.convergence import find_convergence_radius
 from blastlib.processing.free_field import load_ff_lookup, find_percentile_radius
@@ -111,9 +112,10 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         Progress sink (default print).
 
     A soft radius-estimator token ('req_soft', 'req_soft8', ...) switches
-    the PRESSURE sectors to the soft tanh criterion; it needs the v2 NPZ
-    superset (raw band fields), so point npz_dir at data/processed_npz_v2.
-    The impulse path is identical under hard and soft tokens.
+    the PRESSURE sectors to the soft tanh criterion; it needs the raw band
+    fields, which the v3 raw store (data/raw_npz, the default) produces at
+    load time and the v2 superset carries on disk. A v1 folder cannot serve
+    it. The impulse path is identical under hard and soft tokens.
 
     Returns dict with conv_csv, maxR_csv, method, n_configs.
     """
@@ -121,11 +123,11 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
     method = est['method']
     active_figs = _resolve_figure_set(make_figures)
 
-    # Soft tokens need the raw band fields, which only the v2 superset has —
-    # so a blank npz_dir defaults to it instead of the v1 folder.
-    default_npz = (paths.PROCESSED_NPZ_V2_DIR if est['soft_beta'] is not None
-                   else paths.PROCESSED_NPZ_DIR)
-    npz_dir     = paths.resolve(npz_dir, default_npz)
+    # A blank npz_dir prefers the v3 raw store (it serves both criteria);
+    # failing that, soft tokens need the v2 superset's raw band fields.
+    npz_dir     = paths.resolve(npz_dir,
+                                paths.default_npz_dir(
+                                    soft=est['soft_beta'] is not None))
     ff_csv      = paths.resolve(ff_csv, paths.FF_CSV)
     tables_dir  = paths.ensure_dir(paths.resolve(tables_dir, paths.TABLES_DIR))
     figures_dir = paths.ensure_dir(paths.resolve(figures_dir, paths.FIGURES_DIR))
@@ -166,7 +168,20 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         return {'conv_csv': conv_csv, 'maxR_csv': maxR_csv,
                 'method': method, 'n_configs': 0}
 
-    progress(f'Found {len(all_configs)} configs in {npz_dir}\n')
+    # A raw (v3) store applies the criteria here, at load time, from the
+    # solver's own fields — which is exactly what --rebuild-impulse existed to
+    # approximate back when only processed NPZs and no VTKs were available.
+    # Running it on top would re-derive ratioI from the 1-D free-field table
+    # instead of the true reference field, i.e. strictly worse. Refuse rather
+    # than silently double-apply.
+    raw_store_in_use = raw_store.is_raw_dir(npz_dir)
+    progress(f'Found {len(all_configs)} configs in {npz_dir}'
+             + ('  [raw store — criteria applied now]' if raw_store_in_use
+                else '  [processed store — criteria baked in]'))
+    if rebuild_impulse and raw_store_in_use:
+        progress('  Ignoring --rebuild-impulse: a raw store already computes '
+                 'ratioI from the true reference field.')
+    progress('')
 
     conv_rows   = []
     maxR_rows   = []
@@ -187,7 +202,7 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
             progress(f'  Skipping {config_name} (NPZ load failed)')
             continue
 
-        if rebuild_impulse:
+        if rebuild_impulse and not raw_store_in_use:
             processed = rebuild_impulse_ratio(processed, cfg['weight'], ff_csv)
 
         if 'absolute' in active_figs:

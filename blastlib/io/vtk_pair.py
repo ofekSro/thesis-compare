@@ -2,7 +2,65 @@
 
 import os
 
-from blastlib.io.vtk_reader import readVTK
+from blastlib.io.vtk_reader import read_vtk_full, readVTK
+
+
+def vtk_paths(urban_folder, config_name, cfg, ref_folder=None):
+    """The six file paths one configuration is built from.
+
+    Defined once so the processed loader and the raw-store loader can never
+    disagree about which reference file pairs with which config.
+    """
+    if ref_folder is None:
+        ref_folder = urban_folder
+    urban_folder, ref_folder = str(urban_folder), str(ref_folder)
+    ff = f'free_field_det{cfg["det"]}_w{cfg["weight"]}'
+    return {
+        'fine':      os.path.join(urban_folder, f'{config_name}_1.vtk'),
+        'medium':    os.path.join(urban_folder, f'{config_name}_2.vtk'),
+        'coarse':    os.path.join(urban_folder, f'{config_name}_3.vtk'),
+        'refFine':   os.path.join(ref_folder, f'{ff}_1.vtk'),
+        'refMedium': os.path.join(ref_folder, f'{ff}_2.vtk'),
+        'refCoarse': os.path.join(ref_folder, f'{ff}_3.vtk'),
+    }
+
+
+def _check_present(files, cfg):
+    """(ok, message) — are all six VTKs on disk?"""
+    for key in ('fine', 'medium', 'coarse'):
+        if not os.path.exists(files[key]):
+            return False, '  Warning: missing config files'
+    for key in ('refFine', 'refMedium', 'refCoarse'):
+        if not os.path.exists(files[key]):
+            return False, ('  Warning: missing free field files for '
+                           f'det{cfg["det"]}_w{cfg["weight"]}')
+    return True, ''
+
+
+def load_vtk_triplets(urban_folder, config_name, cfg, ref_folder=None):
+    """Read all six VTKs in full (geometry + dump time retained).
+
+    Returns (urban, reference, success) where *urban* and *reference* are
+    {'1': read_vtk_full(...), '2': ..., '3': ...}. This is the raw-store
+    path; load_vtk_pair below is the historical, field-only view of the same
+    files.
+    """
+    files = vtk_paths(urban_folder, config_name, cfg, ref_folder)
+    ok, msg = _check_present(files, cfg)
+    if not ok:
+        print(msg)
+        return {}, {}, False
+
+    try:
+        urban = {g: read_vtk_full(files[k]) for g, k in
+                 (('1', 'fine'), ('2', 'medium'), ('3', 'coarse'))}
+        ref = {g: read_vtk_full(files[k]) for g, k in
+               (('1', 'refFine'), ('2', 'refMedium'), ('3', 'refCoarse'))}
+    except Exception as e:
+        print(f'  Warning: Error reading VTK files - {e}')
+        return {}, {}, False
+
+    return urban, ref, True
 
 
 def load_vtk_pair(urban_folder, config_name, cfg, ref_folder=None):
@@ -26,35 +84,14 @@ def load_vtk_pair(urban_folder, config_name, cfg, ref_folder=None):
                refP1/refP2/refP3  (kPa),
                refI1/refI2/refI3  (Pa·s, unchanged)
     """
-    if ref_folder is None:
-        ref_folder = urban_folder
-    urban_folder = str(urban_folder)
-    ref_folder = str(ref_folder)
-
     data = {}
     success = False
 
-    files = {
-        'fine':      os.path.join(urban_folder, f'{config_name}_1.vtk'),
-        'medium':    os.path.join(urban_folder, f'{config_name}_2.vtk'),
-        'coarse':    os.path.join(urban_folder, f'{config_name}_3.vtk'),
-        'refFine':   os.path.join(ref_folder,
-                                  f'free_field_det{cfg["det"]}_w{cfg["weight"]}_1.vtk'),
-        'refMedium': os.path.join(ref_folder,
-                                  f'free_field_det{cfg["det"]}_w{cfg["weight"]}_2.vtk'),
-        'refCoarse': os.path.join(ref_folder,
-                                  f'free_field_det{cfg["det"]}_w{cfg["weight"]}_3.vtk'),
-    }
-
-    for key in ('fine', 'medium', 'coarse'):
-        if not os.path.exists(files[key]):
-            print('  Warning: missing config files')
-            return data, success
-
-    for key in ('refFine', 'refMedium', 'refCoarse'):
-        if not os.path.exists(files[key]):
-            print(f'  Warning: missing free field files for det{cfg["det"]}_w{cfg["weight"]}')
-            return data, success
+    files = vtk_paths(urban_folder, config_name, cfg, ref_folder)
+    ok, msg = _check_present(files, cfg)
+    if not ok:
+        print(msg)
+        return data, success
 
     try:
         data['peakP1'], data['impulse1'], data['X1'], data['Z1'] = readVTK(files['fine'])

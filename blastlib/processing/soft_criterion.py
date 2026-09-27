@@ -40,21 +40,31 @@ V2_KEYS = tuple(f'{stem}{g}{suffix}'
 def raw_fields_available(npz_dir=None):
     """(ok, reason) — can the soft criterion run against *npz_dir*?
 
-    Checks that the directory exists, holds config_*.npz, and that the
-    first file's key listing contains the v2 raw fields. Reading the npz
-    table of contents is cheap (no arrays are loaded). None -> the v2
-    default, paths.PROCESSED_NPZ_V2_DIR.
+    Two kinds of folder qualify:
+
+    * a **v3 raw store** — the criteria are applied at load time, so the raw
+      band fields are produced on the fly and are always available;
+    * a **v2 superset** — the raw fields were written at preprocessing time,
+      so the first file's key listing has to carry them.
+
+    A v1 folder does not qualify. Reading the npz table of contents is cheap
+    (no arrays are loaded). None -> paths.default_npz_dir(soft=True).
 
     Made for preflight/GUI gating: callers show *reason* instead of
     letting a soft run die on the missing keys mid-pipeline.
     """
-    npz_dir = Path(paths.PROCESSED_NPZ_V2_DIR if npz_dir is None else npz_dir)
+    from blastlib.io import raw_store
+
+    npz_dir = Path(paths.default_npz_dir(soft=True) if npz_dir is None
+                   else npz_dir)
     if not npz_dir.is_dir():
-        return False, (f'{npz_dir} does not exist — regenerate the v2 NPZ '
-                       f'set with run_preprocess.py (see README).')
+        return False, (f'{npz_dir} does not exist — regenerate the NPZ set '
+                       f'with run_preprocess.py (see README).')
     sample = next(iter(sorted(npz_dir.glob('config_*.npz'))), None)
     if sample is None:
         return False, f'no config_*.npz in {npz_dir}.'
+    if raw_store.is_raw_file(sample):
+        return True, ''
     try:
         with np.load(sample, allow_pickle=True) as npz:
             missing = [k for k in V2_KEYS if k not in npz.files]
@@ -63,7 +73,8 @@ def raw_fields_available(npz_dir=None):
     if missing:
         return False, (f'{sample.name} lacks the raw fields {missing} — '
                        f'these NPZs predate the v2 superset; regenerate with '
-                       f'run_preprocess.py.')
+                       f'run_preprocess.py (which now writes the v3 raw '
+                       f'store, and that serves the soft criterion too).')
     return True, ''
 
 

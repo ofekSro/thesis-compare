@@ -216,21 +216,51 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
                      f'this={worst_mape:.1f}%  successes={n_success}')
 
     # ---- Summary ----
-    progress(f'\n{"="*60}')
-    progress(f'  CV RESULTS ({n_iterations} iterations)')
-    progress(f'{"="*60}')
-    progress(f'Target MAPE: < {target_mape:.0f}%')
-    progress(f'Iterations meeting target: {n_success}/{n_iterations}')
-    progress(f'Best iteration: {best_iteration}')
-    progress(f'Best worst-case MAPE: {best_worst_mape:.2f}%')
+    cv_df = pd.DataFrame(cv_rows)
 
+    # The headline is the DISTRIBUTION over the splits, not its best member.
+    # Two separate cautions apply to these numbers and both belong next to
+    # them rather than in a document nobody reads beside the log:
+    #   * best_worst_mape is a min over n_iterations draws — a selection
+    #     statistic. It is what picks the saved best_* coefficients, and it is
+    #     optimistically biased by construction (typically ~2 pp below the
+    #     median). It is not an accuracy estimate and must never be quoted as
+    #     one.
+    #   * the splits are stratified on det only, so ~92% of held-out configs
+    #     have a same-(det,b,s,H) sibling in train. Since W divides out
+    #     exactly under Hopkinson scaling, that is close to an in-sample test
+    #     of the geometry dependence. The leave-one-geometry-out harness
+    #     (tools/logo_cv) is the estimate to quote for generalisation.
+    progress(f'\n{"="*60}')
+    progress(f'  CV RESULTS ({n_iterations} random {int(100*(1-test_fraction))}'
+             f'/{int(100*test_fraction)} splits)')
+    progress(f'{"="*60}')
+    progress('  Test MAPE per target — median [p25, p75] over the splits:')
+    for key, label in (('conv_P', 'conv_P'), ('conv_I', 'conv_I'),
+                       ('z_P', 'z_P   '), ('z_I', 'z_I   ')):
+        if key in cv_df:
+            v = cv_df[key].dropna()
+            if len(v):
+                progress(f'    {label}: {v.median():5.2f}%  '
+                         f'[{v.quantile(.25):.2f}, {v.quantile(.75):.2f}]')
+    progress(f'  Iterations meeting the < {target_mape:.0f}% target: '
+             f'{n_success}/{n_iterations}')
+    progress('')
+    progress('  Split-selection statistics (NOT accuracy estimates — these are')
+    progress('  the minimum over the splits, and they choose the best_* files):')
+    progress(f'    best iteration       : {best_iteration}')
+    progress(f'    its worst-case MAPE  : {best_worst_mape:.2f}%   '
+             f'(median across splits: {cv_df["worst"].median():.2f}%)')
     if best_mapes:
-        progress(f'\nBest iteration MAPEs:')
-        for k, v in best_mapes.items():
-            progress(f'  {k}: {v:.2f}%')
+        progress('    its per-target MAPEs : '
+                 + '  '.join(f'{k} {v:.2f}%' for k, v in best_mapes.items()))
+    progress('')
+    progress('  Generalisation: quote the leave-one-geometry-out result, not')
+    progress('  these splits — they hold out configs, not geometries, and W')
+    progress('  divides out exactly, so ~92% of test configs have a sibling')
+    progress('  of the same (det, b, s, H) in train.')
 
     # ---- Save CV summary ----
-    cv_df = pd.DataFrame(cv_rows)
     cv_csv = out('cv_summary.csv')
     cv_df.to_csv(cv_csv, index=False)
     progress(f'\nSaved: {cv_csv}')

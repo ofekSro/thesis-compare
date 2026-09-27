@@ -17,6 +17,11 @@ PROCESSED_NPZ_DIR = DATA_DIR / 'processed_npz'   # config_*.npz (was MAT_files/)
 # criterion needs (peakP*_raw, refP*, refI*, ratio*_raw). Regenerated from
 # the raw VTKs by run_preprocess.py; the soft pipeline defaults to it.
 PROCESSED_NPZ_V2_DIR = DATA_DIR / 'processed_npz_v2'
+# v3 raw store: the solver's own fields only, no criterion applied — the
+# criteria move to analysis time (see blastlib/io/raw_store.py). This is the
+# format run_preprocess.py writes by default; it is what lets a threshold,
+# band or projection change be re-run without touching the VTKs.
+RAW_NPZ_DIR       = DATA_DIR / 'raw_npz'
 OBS_NPZ_DIR       = DATA_DIR / 'obs_npz'         # OBS surface npz (was OBS_MAT_files/)
 VTK_DIR           = DATA_DIR / 'vtk'             # raw VTKs (was all_vtks/)
 OBS_VTK_DIR       = VTK_DIR / 'OBS'
@@ -32,6 +37,26 @@ CHECK_RESULTS_DIR = OUTPUTS_DIR / 'check_results'
 # Well-known table files (unsuffixed base names — see suffixed() below)
 CONV_CSV = TABLES_DIR / 'convergence_table.csv'
 MAXR_CSV = TABLES_DIR / 'max_radius_per_Z.csv'
+
+
+def has_configs(directory):
+    """True if *directory* holds at least one config_*.npz."""
+    d = Path(directory)
+    return d.is_dir() and any(d.glob('config_*.npz'))
+
+
+def default_npz_dir(soft=False):
+    """The NPZ folder a run should read when none was given.
+
+    The v3 raw store is preferred whenever it exists: it serves the hard and
+    the soft criterion equally (both are applied at load time), so there is
+    no reason to keep steering soft runs at the v2 superset. Falls back to
+    the historical split — v2 for soft, v1 for hard — on installations that
+    still only have the processed stores.
+    """
+    if has_configs(RAW_NPZ_DIR):
+        return RAW_NPZ_DIR
+    return PROCESSED_NPZ_V2_DIR if soft else PROCESSED_NPZ_DIR
 
 
 def suffixed(name, method):
