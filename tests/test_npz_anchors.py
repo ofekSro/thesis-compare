@@ -18,8 +18,17 @@ ANCHORS = {
     'config_95_det2_b10_s5_h24_w250': 38.15139013777145,
 }
 
+# Raw (v3) store under the RAW-FIELD building mask adopted 2026-09-27
+# (docs/audit/2026-09-27, ALG-01/PHY-01, decision D2b). The v1/v2 anchors
+# above keep guarding the OLD baked-in criterion (those stores load
+# verbatim); these guard the current measurement, pressure and impulse.
+RAW_ANCHORS = {
+    'config_93_det2_b10_s5_h15_w250': (64.6464183290751, 68.1610404157357),
+    'config_95_det2_b10_s5_h24_w250': (39.930952732324215, 64.22452586218307),
+}
 
-def _radius_p(npz_dir, config_name):
+
+def _radii(npz_dir, config_name):
     cfg = config_parser(config_name)
     processed, ok = load_processed_data(npz_dir, config_name)
     assert ok, f'failed to load {config_name} from {npz_dir}'
@@ -34,7 +43,11 @@ def _radius_p(npz_dir, config_name):
         exclude_radius(cfg),
         estimator='req',
     )
-    return radius['pressure']
+    return radius['pressure'], radius['impulse']
+
+
+def _radius_p(npz_dir, config_name):
+    return _radii(npz_dir, config_name)[0]
 
 
 @pytest.mark.parametrize('config_name', sorted(ANCHORS))
@@ -47,3 +60,19 @@ def test_shipped_radius_p_v1(npz_v1_dir, config_name):
 def test_shipped_radius_p_v2(npz_v2_dir, config_name):
     """The v2 superset npz must reproduce the same hard radii bit-for-bit."""
     assert _radius_p(npz_v2_dir, config_name) == ANCHORS[config_name]
+
+
+@pytest.fixture
+def raw_npz_dir():
+    from blastlib import paths
+    from conftest import _require_config
+    return _require_config(paths.RAW_NPZ_DIR, sorted(RAW_ANCHORS)[0])
+
+
+@pytest.mark.parametrize('config_name', sorted(RAW_ANCHORS))
+def test_raw_store_radii(raw_npz_dir, config_name):
+    """The raw store under the raw-field mask reproduces both radii exactly."""
+    p, i = _radii(raw_npz_dir, config_name)
+    anchor_p, anchor_i = RAW_ANCHORS[config_name]
+    assert p == pytest.approx(anchor_p, rel=1e-12)
+    assert i == pytest.approx(anchor_i, rel=1e-12)
