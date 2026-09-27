@@ -75,6 +75,22 @@ PARAMS = {
 #     (outputs/check_results/k_sensitivity_scan.csv; median |d ln R| <= 1%
 #     for K 2->3->4) — which is also why the impulse scan stays HARD while
 #     the pressure scan is soft: impulse has no streak-brittleness to soften.
+# It is a LOAD-FIDELITY band, not a damage threshold, and deliberately so
+# (owner decision 2026-09-27, D8): impulse damage criteria are absolute,
+# target-specific P-I curves that cannot collapse to one Hopkinson-
+# admissible contour, and human primary injury is bounded by the P-I
+# pressure asymptote anyway — UFC 3-340-02 Fig. 1-2 (p. 94) shows no lung
+# damage below ~69 kPa at ANY impulse, a contour at Z ~ 3.7-3.8, deep
+# inside R_conv,I. An absolute human-impulse floor from the figure's
+# vertical asymptote (i_min ~ 3.5 psi.ms/lb^(1/3) x Wh^(1/3) ~ 129 Pa.s
+# at 70 kg) was evaluated and REJECTED: it would cut 17 of the 24 W=50
+# configurations, break the Z collapse the whole regression framework
+# rests on, and hangs on an arbitrary body weight. Human-relevance radii
+# belong to a separate product (R_human, from the full P-I curve on the
+# urban field — future work, aim 4). At the measured radii the band
+# equals a median 55% of the local free-field impulse (p10 36%, p90 92%):
+# an engineering-indistinguishability band, with the framework's damage
+# anchoring on the pressure side (IATG 02.20 Table 8).
 IMPULSE_CRITERION = {
     'thr_I_scaled': 20.0,   # Pa.s/kg^(1/3)
 }

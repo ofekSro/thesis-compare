@@ -62,3 +62,44 @@ ALGORITHM's mesh-sensitivity note into a measurement that does not need
 the cure). The configs that do move >10% at K 2->3 are the singleton
 intermediate geometries (e.g. config_87, config_92) — the same families
 that dominate the LOGO error tail.
+
+## 3. Damage anchoring: thr_I is a load-fidelity band (owner decision, 2026-09-27)
+
+Why thr_I cannot be a damage threshold, and what anchors it instead:
+
+- **Structural incompatibility.** Impulse damage criteria are absolute,
+  target-specific P-I curves; a Hopkinson-admissible band must scale as
+  W^(1/3). An absolute damage impulse picks a different scaled contour
+  for every charge weight — the exact inadmissibility the criterion was
+  rebuilt to remove.
+- **Human primary injury is pressure-bounded at these ranges.** UFC
+  3-340-02 Fig. 1-2 (p. 94, lung survival curves, i scaled by BODY weight
+  Wh — not charge weight): the threshold curve's pressure asymptote is
+  ~10 psi ~ 69 kPa — below that overpressure there is no lung damage at
+  ANY impulse. The 69 kPa free-field contour sits at Z ~ 3.7-3.8, deep
+  inside R_conv,I (median Z 7.6): the human-relevance zone ends well
+  before the convergence radius, so R_conv,I is generously conservative
+  for primary blast injury.
+- **The vertical asymptote was evaluated as a floor and REJECTED.** The
+  figure's impulsive asymptote gives an absolute human floor
+  i_min ~ 3.5 psi.ms/lb^(1/3) x Wh^(1/3): 85 / 129 / 146 Pa.s for
+  Wh = 20 / 70 / 100 kg. Where I_ff drops to 129 Pa.s (70 kg):
+  Z = 7.8 (W=50), 13.4 (250), 16.8 (500), beyond 20 for W >= 1000.
+  Adding it to the criterion would cut 17 of the 24 W=50 configurations
+  (and none of any other weight), i.e. it re-introduces a charge-
+  dependent contour, breaks the Z-collapse the regression framework
+  rests on, and hangs on an arbitrary body-weight choice (Z_floor at
+  W=50 moves 7.8 -> 11.9 between a 70 kg adult and a 20 kg child).
+  Human-relevance radii belong to a separate product: R_human, the
+  distance where the urban (P, I) point crosses the full Fig. 1-2 curve
+  (both asymptotes), per configuration and declared target — future
+  work under proposal aim 4.
+- **What the band means where it bites.** At the measured production
+  radii, 20 Pa.s/kg^(1/3) equals a median 55% of the local free-field
+  impulse (p10 36%, p90 92%, max 145%): an engineering-
+  indistinguishability band. This replaces the artefact-era "~83% of
+  I_ff / 1.8x looser than pressure" description. The framework's damage
+  anchoring lives on the pressure side (IATG 02.20 Table 8 bracket).
+
+Generating script: docs/audit/2026-09-27/scripts/impulse_anchor.py and
+human_floor_test.py.

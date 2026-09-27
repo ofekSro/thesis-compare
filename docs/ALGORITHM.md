@@ -104,7 +104,18 @@ median of −32%, RadiusP by +5%; see the change note in `check_results`).
   cells). Pressure and impulse use physically-appropriate tolerances: pressure a
   10 kPa band (below which load differences are structurally negligible),
   impulse a Hopkinson-scaled band |ΔI|/W^⅓ < 20, which — unlike an absolute
-  Pa·s band — picks the *same* scaled contour at every charge weight. The 91
+  Pa·s band — picks the *same* scaled contour at every charge weight. The
+  impulse band is a **load-fidelity band, not a damage threshold**, and
+  deliberately so: impulse damage criteria are absolute, target-specific
+  P–I curves that cannot collapse to one Hopkinson-admissible contour, and
+  human primary injury is bounded by the P–I pressure asymptote anyway
+  (UFC 3-340-02 Fig. 1-2, p. 94: no lung damage below ≈ 69 kPa at any
+  impulse — a contour at Z ≈ 3.7–3.8, deep inside R_conv,I). At the
+  measured radii the band equals a median 55% of the local free-field
+  impulse (p10 36%, p90 92%) — an engineering-indistinguishability band
+  whose value sits at the measured stability/predictability optimum, with
+  the framework's damage anchoring on the pressure side (see the
+  criterion sensitivity note in `check_results`). The 91
   sector radii are collapsed to one scalar by an equivalent-area rule,
   R = √(4A/π), which is stable because it integrates over all directions rather
   than trusting one.
@@ -236,9 +247,12 @@ converted back by R = Z·W^⅓.
   (band + streak for R_conv, zero-tolerance exceedance for MaxR), so MaxR
   overshoots R_conv systematically; the `beyond_*` flags record it and the
   Z_conv clip closes the chain — the closure is imposed, not assumed.
-- **The criteria are physically calibrated.** The pressure tolerance sits at the
-  load level below which structures are unaffected; the impulse tolerance is
-  Hopkinson-scaled so it means the same thing at every charge weight.
+- **The criteria are physically calibrated.** The pressure tolerance sits at
+  the load level below which structures are unaffected (bracketed by the
+  IATG 02.20 Table 8 damage tiers — see Domain of validity); the impulse
+  tolerance is Hopkinson-scaled so it means the same thing at every charge
+  weight, and is a load-fidelity band whose damage anchoring deliberately
+  lives on the pressure side (see Step 1).
 - **The forms are mechanistic, not fitted noise.** Each term maps to a physical
   effect (channeling/blocking switch, canyon reflection, trapping, interference
   decay). The pressure-vs-impulse structural split is independently confirmed:
