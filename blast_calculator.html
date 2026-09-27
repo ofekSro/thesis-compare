@@ -226,19 +226,23 @@
 
 <script>
 // =====================================================================
-// Production coefficients — final_production_*_req_soft3 (soft pressure
-// criterion, beta = 3; RadiusP fitted by relative-error weighted LS,
-// RadiusI with the quadratic log term). Keep in sync with
+// Production coefficients — final_production_*_req_soft3, regenerated
+// 2026-09-27 on the raw-field-mask store (docs/audit/2026-09-27; see
+// outputs/check_results/raw_mask_and_unified_model_change_note.md).
+// RadiusP: additive form, relative-error weighted LS.
+// RadiusI: unified five-term multiplicative form (one structure, both
+// dets). Keep in sync with
 // outputs/tables/final_production_*_coefficients_req_soft3.csv
 // =====================================================================
 const CONV_P = {
-  1:{C0:9.063101, C1:-0.645084, C2:2.018126, C3:0.590791, a:1},
-  2:{C0:11.857567,C1:-1.375434, C2:2.782029, C3:0.775845, a:2}
+  1:{C0:10.047152, C1:-0.962695, C2:3.096522, C3:0.531860, a:1},
+  2:{C0:11.766105, C1:-0.863179, C2:2.297510, C3:0.699936, a:2}
 };
-// Z = A * rho^p * (H/s)^q * pi2^r * exp(r2 * ln(pi2)^2)
+// Z = A * pi2^(C4 + C5*ln(rho) + C3*ln(H/s))
+//       * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)
 const CONV_I = {
-  1:{A:14.936296, p:0.203128, q:0.023817, r:0.065298, r2:-0.100537},
-  2:{A:14.602444, p:0.175946, q:0.078957, r:0.125061, r2:-0.088928}
+  1:{A:4.182179, C1:1.144503, C2:-0.227736, C3:-0.275500, C4:0.503912, C5:0.262265},
+  2:{A:4.867381, C1:1.064524, C2:-0.127223, C3:-0.165308, C4:0.705072, C5:0.411819}
 };
 // Z_urban - PySR structured forms (final_production, req_soft3).
 // Pressure  (range_switch): lnL = C0 + C1*[(pi2 - A)/Zf - ln pi2] / (pi2*(s/H) + B)
@@ -246,10 +250,10 @@ const CONV_I = {
 // The impulse block is identical to the hard-criterion fit: the soft
 // criterion touches pressure only.
 const ZU = {
-  P:{ 1:{C0:0.086646, C1:1.745664, A:2.743405, B:4.012298},
-      2:{C0:0.129362, C1:0.527611, A:2.221937, B:1.181811} },
-  I:{ 1:{C0:-0.094070,C1:2.963123, C2:0.834425, C3:1.675201},
-      2:{C0:-0.006348,C1:2.665021, C2:1.099072, C3:0.752618} }
+  P:{ 1:{C0:0.097357, C1:2.679750, A:3.018626, B:7.818822},
+      2:{C0:0.110828, C1:0.561888, A:2.107401, B:1.410824} },
+  I:{ 1:{C0:-0.130234,C1:3.032478, C2:0.897673, C3:1.121115},
+      2:{C0:0.004447, C1:2.664317, C2:1.090458, C3:0.690783} }
 };
 
 const $=id=>document.getElementById(id);
@@ -260,6 +264,10 @@ function rho(b,s){ return (b*b)/((b+s)*(b+s)); }
 // Validity domain — from the leave-one-geometry-out error analysis on the
 // beta=3 tables (see docs/ALGORITHM.md, "The safe domain", and
 // outputs/check_results/safe_domain_req_soft3.csv).
+// NOTE 2026-09-27: the SAFE box and its quoted error rates were
+// calibrated on the pre-raw-mask tables and have NOT been recomputed for
+// the new results of record (audit decision D6 pending). The ENV envelope
+// (the sampled hull) is unaffected.
 //
 //   SAFE   rho 0.31-0.56, pi2 0.5-5.4, H/s <= 3
 //          every held-out config below 20% error on BOTH targets
@@ -328,10 +336,10 @@ function zConvP(det,b,s,H,W){
        + c.C3*Math.sqrt(r)*(H/s)*(W13/s-1);
 }
 function zConvI(det,b,s,H,W){
-  const c=CONV_I[det], W13=Math.cbrt(W), r=rho(b,s), pi2=s/W13;
-  const ln=Math.log(pi2);
-  return c.A * Math.pow(r,c.p) * Math.pow(H/s,c.q)
-       * Math.exp(c.r*ln + c.r2*ln*ln);
+  const c=CONV_I[det], W13=Math.cbrt(W), r=rho(b,s), pi2=s/W13, hs=H/s;
+  const lnHs=Math.log(hs);
+  return c.A * Math.pow(pi2, c.C4 + c.C5*Math.log(r) + c.C3*lnHs)
+       * Math.exp(c.C1*r*Math.sqrt(hs) + c.C2*lnHs*lnHs);
 }
 
 // structured Lambda forms - regime is just sign(ln L)

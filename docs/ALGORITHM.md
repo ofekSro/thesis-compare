@@ -1,5 +1,17 @@
 # The Analysis Algorithm
 
+> **Revision 2026-09-27.** This document was updated after the audit of the
+> same date: the building mask now precedes the cross-grid fill (wall-skin
+> sentinel cells no longer drive the scans), the per-direction MaxR level is
+> sampled from the grid-filled reference, and the RadiusI production model
+> was replaced by the unified five-term form. All quantitative statements
+> were refreshed from the regenerated tables; old vs new values are in
+> `outputs/check_results/raw_mask_and_unified_model_change_note.md`.
+> Sections NOT yet refreshed (their studies were not re-run): the safe
+> domain (audit decision D6 pending), the coarsening/mesh-sensitivity
+> measurements in Limitations, and the block-period analysis — each is
+> marked in place.
+
 ## Problem
 
 For an urban configuration — building size *b*, street width *s*, height *H*,
@@ -75,6 +87,17 @@ stand-off changes the near-field energy release.
 Each configuration is a CFD field on three nested grids. For every cell we form
 the ratio urban/free-field, for pressure and for impulse.
 
+Before anything else, cells inside building footprints are removed. The solver
+writes a ~1 Pa sentinel into every in-footprint cell, and **the mask is
+computed on the raw solver field, before the cross-grid max-fill** (since
+2026-09-27). The order matters: filling first let the coarser grid's
+interpolation raise one or two wall-skin cells above the mask threshold, and
+those sentinel-valued cells then entered both scans — pinned as "converged"
+on the pressure side and counted as guaranteed violations on the impulse
+side, where they set the radius at the outermost building wall rather than
+in the streets. Masking the raw field removes them (RadiusI moved by a
+median of −32%, RadiusP by +5%; see the change note in `check_results`).
+
 - **Convergence radius.** The first quadrant is split into 91 one-degree
   sectors. In each sector we scan inward from far to near and mark the point
   where the ratio first leaves a tolerance band and stays out (three consecutive
@@ -90,7 +113,8 @@ the ratio urban/free-field, for pressure and for impulse.
   beyond Z ≈ 10 the free-field pressure itself sits near 10 kPa, so real ×2
   amplification lobes whose peak ΔP grazes the threshold flip tens of metres of
   radius on a small physical change (measured cliff: two configurations
-  differing only in building height jumped 62 m vs 38 m). The production
+  differing only in building height jumped 62 m vs 38 m on the pre-mask
+  store; 64.6 m vs 39.9 m on the current one — the cliff persists). The production
   measurement therefore replaces the band's indicator with a smoothed Heaviside
   (tanh projection): each cell gets an exceedance weight
   w = gate · τ(|ΔP|/20 kPa), with τ the Wang–Lazarov–Sigmund projection of
@@ -119,10 +143,19 @@ the ratio urban/free-field, for pressure and for impulse.
 
 - **Z_urban.** For each integer Z_free we find the exceedance region — the
   outermost cells still delivering at least the free-field load — and collapse it
-  with the *same* estimator. Z_urban = R/W^⅓.
+  with the *same* estimator. The exceedance level is sampled per direction
+  from the reference field **max-filled across the grids, exactly as the
+  urban field it is compared with** (since 2026-09-27; the raw fine-grid
+  reference is deficient near its outer edge, which inflated a handful of
+  large-charge impulse rows). Z_urban = R/W^⅓.
 
-The single estimator drives both radii, so they are measured the same way and
-remain comparable by construction.
+The single estimator collapses both radii from the same 91 sectors, so the
+*aggregation* is shared. The per-sector criteria are deliberately not: R_conv
+uses a tolerance band and a three-cell streak, MaxR a zero-tolerance single
+outermost cell — so MaxR systematically overshoots R_conv, and rows whose
+measured MaxR lies at or beyond R_conv are flagged (`beyond_*`) and excluded
+from the Z_urban fit, with the deployed chain answering the Z_conv clip
+there. The reported error therefore comes in two flavours (see Result).
 
 ## Step 2 — The prediction formulas
 
@@ -139,15 +172,25 @@ the fraction of the canyon wall that is solid. The coefficients are fitted by
 least squares weighted 1/Z — minimizing squared *relative* error — so the loss
 being minimized is the same quantity (MAPE) the validation reports.
 
-**Convergence radius — impulse** (Pi power law with log curvature):
+**Convergence radius — impulse** (unified multiplicative form, one structure
+for both detonation types; production since 2026-09-27):
 
-    Z = A · ρ^p · (H/s)^q · Π₂^r · exp(r₂·(ln Π₂)²)
+    Z = A · Π₂^(C₄ + C₅·ln ρ + C₃·ln(H/s)) · exp(C₁·ρ√(H/s) + C₂·(ln H/s)²)
 
-Impulse integrates every reflected arrival, so it responds to how much wall is
-present — ρ dominates — with no sign-switching structure. A power law is the
-right, minimal form; the quadratic log term (r₂ < 0, a gentle concavity) is the
-one correction the data demands: Π₂ spans a full decade, and the pure power law
-systematically over-predicted at its ends.
+Impulse integrates every reflected arrival, so its radius is set by canyon
+reverberation, and each factor is a mechanism: C₁·ρ√(H/s) is **trapping** —
+wall continuity × canyon aspect, the same construct that drives the Z_urban
+impulse model below; C₂ < 0 is **height saturation** — the height effect
+peaks near H/s ≈ 1 and fades in both directions, which no pure power (H/s)^q
+can represent; C₃ < 0 says **deep canyons mute the street-width effect** —
+once the wave is trapped, width stops mattering; C₄ and C₅ are the
+street-width baseline and its density coupling. ρ is the dominant variable:
+removing its terms triples the held-out error, and it acts through two
+channels (trapping and the Π₂ exponent). The previous separable power law
+A·ρ^p·(H/s)^q·Π₂^r failed structurally on the sentinel-free data — its
+fitted geometry exponents were near zero because the old, artefact radius
+followed the I/W^⅓ = 20 contour (a function of W alone) to the nearest
+wall; historical tables carrying it stay readable (`Formula='power'`).
 
 **Z_urban** is written as an amplification factor Λ = Z_urban/Z_free, and here
 the two loads need genuinely different structures:
@@ -186,9 +229,12 @@ converted back by R = Z·W^⅓.
 - **Dimensional consistency.** Every predictor is a dimensionless Pi group;
   W appears only as W^⅓. The formulas are therefore scale-invariant, not tuned to
   the tested charge sizes — the central requirement for a blast correlation.
-- **The measurement is direction-consistent.** One equivalent-area estimator sets
-  both radii over all 91 sectors, so R_conv and Z_urban cannot drift apart by
-  construction, and the scalar is an integral rather than a fragile extreme.
+- **The measurement is direction-consistent.** One equivalent-area estimator
+  collapses both radii over the same 91 sectors, so the scalar is an integral
+  rather than a fragile extreme. The per-sector criteria differ by design
+  (band + streak for R_conv, zero-tolerance exceedance for MaxR), so MaxR
+  overshoots R_conv systematically; the `beyond_*` flags record it and the
+  Z_conv clip closes the chain — the closure is imposed, not assumed.
 - **The criteria are physically calibrated.** The pressure tolerance sits at the
   load level below which structures are unaffected; the impulse tolerance is
   Hopkinson-scaled so it means the same thing at every charge weight.
@@ -213,33 +259,45 @@ only, so **92.5% of held-out configurations have a sibling of the same
 (det,b,s,H) in the training set** (minimum 60%). Since W divides out exactly
 under Hopkinson scaling, predicting such a sibling is close to interpolation in
 a variable the scaling already handles — so those splits estimate the charge
-law, not the geometry law. Their median is 8.8% (P) / 7.2% (I) for the
-convergence radius and 8.5% (P) / 9.5% (I) for Z_urban, with the production
-configuration (soft criterion β = 3, weighted/curvature fits).
+law, not the geometry law. Their median is 9.8% (P) / 11.1% (I) for the
+convergence radius and 8.7% (P) / 10.4% (I) for Z_urban, with the production
+configuration (soft β = 3 pressure criterion, raw-field mask, unified
+impulse model).
+
+Z_urban carries a second, honest yardstick since 2026-09-27: the fit-domain
+error above is *conditional* on the held-out row's own measured MaxR and
+R_conv — information a user never has. The `z_P_dep` / `z_I_dep` columns of
+`cv_summary` grade the same models on the domain a user can identify
+beforehand (predicted R_conv; `beyond` rows judged against the Z_conv clip):
+median 8.7% (P) and 13.2% (I). Pressure is unaffected; for impulse the
+deployable error is ~3 pp above the conditional one, and both are on record.
 
 A third number appears in the run log and must never be quoted as accuracy:
-the *best-split* MAPE (7.42% against a 9.86% median) is a minimum over 500
-draws — a selection statistic. It is what chooses the coefficients saved in
-`best_*.csv`, which is why those files are for inspection only; the deployable
-coefficients are the `final_production_*` refit on all 96 configurations.
+the *best-split* MAPE is a minimum over 500 draws — a selection statistic. It
+is what chooses the coefficients saved in `best_*.csv`, which is why those
+files are for inspection only; the deployable coefficients are the
+`final_production_*` refit on all 96 configurations.
 
-Under LOGO, for the convergence radii:
+Under LOGO, for the convergence radii on the raw-mask store:
 
 | | mean | median | p90 | max |
 |---|---|---|---|---|
-| RadiusP — before (hard band, OLS fits) | 8.4% | 6.4% | 17.1% | 43.4% |
-| RadiusP — now (soft β=3, weighted fit) | 8.4% | 5.7% | 18.7% | **30.1%** |
-| RadiusI — before (pure power law) | 8.6% | 7.1% | 18.2% | 38.5% |
-| RadiusI — now (log-curvature term) | 7.2% | 5.9% | 16.4% | **30.4%** |
+| RadiusP — production (soft β=3, weighted fit) | street 9.0 / inters. 10.2% | 7.4% | ~21% | 35.5% |
+| RadiusI — old power law (for reference) | 16.4 / 15.2% | 13.9 / 10.9% | 28 / 32% | 85 / 61% |
+| RadiusI — unified form (production) | **12.5 / 9.6%** | 9.2 / 7.2% | 23 / 21% | 49 / 43% |
 
-The historical worst case — the threshold-cliff configuration that every model
-variant failed on at 40–43% — drops to 5.7% under the soft criterion, and the
-median improves for both loads, so the worst-case gain is not bought by
-sacrificing the bulk of the dataset. The one honest cost is the pressure p90,
-which worsens by 1.5 pp: the radius inflation the softening introduces is
-spread over mid-range configurations while its benefit is concentrated in the
-threshold-cliff families. The whole Z_urban model remains 8 coefficients per
-load — no regime classifier — and every coefficient has a physical reading.
+Two context notes belong beside these numbers. First, the pre-2026-09-27
+record quoted conv_I ≈ 7% — that figure was artefact-easy: the old radius
+was largely the position of the outermost building wall, a simple function
+of the very regressors, and is not a baseline the clean measurement should
+be compared against. Second, an in-sample probe with a deliberately rich
+12-term pooled fit stops at ~9.5% (street) / 5.8% (intersection), so the
+unified form sits close to what 48 configurations per group can support;
+the worst held-out families are the singleton intermediate geometries
+(b = 10 / s = 8, 12 at W = 250, 1000), where a held-out fold has no
+neighbour to interpolate from. The unified form was selected by comparing
+candidate forms under this same LOGO harness and is fixed from here on;
+the errors quoted are those of the selected form (no nested selection).
 
 ## Domain of validity
 
@@ -262,13 +320,22 @@ unstated.** The lower end is geometric: a row is admitted only when the
 free-field radius Z_free·W^⅓ clears the first-street exclusion radius that
 R_conv already excludes, and Z_free = 1 lies within one Hopkinson length of the
 charge. The upper end is a data limit — the model is only fitted where the row
-lies inside R_conv, and the row count falls away sharply beyond Z_free ≈ 8 for
-pressure (95, 96, 96, 96, 94, 90, 64 rows at Z_free = 2…8, then 14 and 2) and
-≈ 10 for impulse. Predictions above those values are extrapolation in the one
-variable the pressure form is most sensitive to, since `range_switch` carries a
-1/Z_free term.
+lies inside R_conv, and on the raw-mask tables the row count falls away beyond
+Z_free ≈ 8 for pressure (75, 87, 90, 96, 96, 94, 80 rows at Z_free = 2…8,
+then 33, 12, 4, 1; 668 rows in all) and already beyond Z_free ≈ 6 for
+impulse (75, 87, 85, 66, 50 at Z_free = 2…6, then 24, 15, 9, 5, 2; 418
+rows) — the clean R_conv,I is a third smaller than the artefact one, so the
+impulse fit domain shrank with it. Predictions above those values are
+extrapolation in the one variable the pressure form is most sensitive to,
+since `range_switch` carries a 1/Z_free term.
 
 ### The safe domain — where the error is bounded
+
+> **Not yet recomputed (2026-09-27).** The box, its error rates and the
+> corner table below were measured on the pre-raw-mask tables and old
+> RadiusI model. The audit additionally found the box is drawn around the
+> very errors it bounds (decision D6, pending). Treat this subsection as a
+> description of the previous record until it is re-derived.
 
 The envelope above says where the formulas *interpolate*; it does not say how
 well. Measuring the held-out error of every configuration and asking where it
@@ -328,36 +395,41 @@ Two structural dependencies of the fit itself:
 
 ## The fitted coefficients
 
-Production values, fitted on the soft-criterion (β = 3) tables with the
-weighted/curvature fits described above.
+Production values (2026-09-27 run: raw-field mask, soft β = 3 pressure
+criterion, unified impulse model).
 
 Convergence radius:
 
 | det | target | C₀ | C₁ | C₂ | C₃ | a |
 |---|---|---|---|---|---|---|
-| 1 street | RadiusP | 9.063 | −0.645 | 2.018 | 0.591 | 1 |
-| 2 inters. | RadiusP | 11.858 | −1.375 | 2.782 | 0.776 | 2 |
+| 1 street | RadiusP | 10.047 | −0.963 | 3.097 | 0.532 | 1 |
+| 2 inters. | RadiusP | 11.766 | −0.863 | 2.298 | 0.700 | 2 |
 
-| det | target | A | p (ρ) | q (H/s) | r (Π₂) | r₂ (ln²Π₂) |
-|---|---|---|---|---|---|---|
-| 1 street | RadiusI | 14.936 | 0.203 | 0.024 | 0.065 | −0.101 |
-| 2 inters. | RadiusI | 14.602 | 0.176 | 0.079 | 0.125 | −0.089 |
+| det | target | A | C₁ (ρ√(H/s)) | C₂ (ln²H/s) | C₃ (lnH/s·lnΠ₂) | C₄ (lnΠ₂) | C₅ (lnρ·lnΠ₂) |
+|---|---|---|---|---|---|---|---|
+| 1 street | RadiusI | 4.182 | +1.145 | −0.228 | −0.276 | +0.504 | +0.262 |
+| 2 inters. | RadiusI | 4.867 | +1.065 | −0.127 | −0.165 | +0.705 | +0.412 |
+
+Every RadiusI coefficient keeps its sign and order of magnitude across the
+two groups — the trapping factor is nearly identical (1.14 vs 1.06) — so the
+street/intersection difference is quantitative, not structural, exactly as
+with pressure.
 
 Z_urban (Λ forms):
 
 | det | target | C₀ | C₁ | A | B | C₂ | C₃ |
 |---|---|---|---|---|---|---|---|
-| 1 | Pressure (range_switch) | 0.0866 | 1.7457 | 2.7434 | 4.0123 | — | — |
-| 2 | Pressure (range_switch) | 0.1294 | 0.5276 | 2.2219 | 1.1818 | — | — |
-| 1 | Impulse (canyon_trap) | −0.0941 | 2.9631 | — | — | 0.8344 | 1.6752 |
-| 2 | Impulse (canyon_trap) | −0.0063 | 2.6650 | — | — | 1.0991 | 0.7526 |
+| 1 | Pressure (range_switch) | 0.0974 | 2.6798 | 3.0186 | 7.8188 | — | — |
+| 2 | Pressure (range_switch) | 0.1108 | 0.5619 | 2.1074 | 1.4108 | — | — |
+| 1 | Impulse (canyon_trap) | −0.1302 | 3.0325 | — | — | 0.8977 | 1.1211 |
+| 2 | Impulse (canyon_trap) | 0.0044 | 2.6643 | — | — | 1.0905 | 0.6908 |
 
 (A is the switch threshold, stored positive: the near-field term reads
 (Π₂ − A)/Z_free. Both impulse blocks are identical to the hard-criterion fit —
-the soft criterion touches only pressure, and the tables prove it. Machine-
-precision values live in `final_production_*_coefficients_req_soft3.csv`; the
-hard-criterion set is retained side by side in
-`final_production_*_coefficients_req.csv`.)
+the soft criterion touches only pressure. Machine-precision values live in
+`final_production_*_coefficients_req_soft3.csv`; the calculator and
+`tools/z_surface_3d` carry hand-synced copies that must be re-checked after
+any regression re-run.)
 
 ## Measurement definitions, precisely
 
@@ -388,10 +460,22 @@ hard-criterion set is retained side by side in
   (r < √((b/2)² + (s/2)²) for street detonations, s/2 for intersections) are
   excluded from radius measurement: there the discrete near-field geometry
   dominates and no continuum radius is meaningful.
-- **Both radii, one estimator.** R_conv and the Z_urban exceedance radius are
-  collapsed from the same 91 sectors by the same equivalent-area rule; they are
-  comparable by construction, and the Z_urban ≤ Z_conv clip is meaningful only
-  because of this.
+- **Both radii, one estimator — shared collapse, distinct criteria.** R_conv
+  and the Z_urban exceedance radius are collapsed from the same 91 sectors by
+  the same equivalent-area rule, so the two scalars aggregate directions
+  identically. The per-sector measurements deliberately differ (band + K=3
+  streak + first-street exclusion for R_conv; zero-tolerance outermost cell
+  for MaxR), so MaxR overshoots R_conv systematically rather than
+  occasionally; the `beyond_*` flags record those rows, `z_urban_valid_mask`
+  excludes them from the fit, and the deployed chain answers the Z_conv clip
+  there. The conditional and deployable-domain errors are both reported
+  (`z_*` and `z_*_dep` in `cv_summary`).
+- **The building mask precedes the fill** (2026-09-27): footprint cells are
+  detected on the raw solver field (~1 Pa sentinel) per grid, before the
+  cross-grid max-fill, so interpolation can no longer resurrect wall-skin
+  cells into the scans. The merged reference (`ref*_fill`) is what the
+  per-direction MaxR level samples, like-for-like with the merged urban
+  field.
 
 ## Provenance of the functional forms
 
@@ -411,6 +495,23 @@ brute-force expectation of the hard scan over all violation outcomes, and to
 reproduce the shipped hard radii bit-exactly in its β → ∞ limit on the real
 fields; β was then selected from a measured sensitivity table (β ∈ 2…12,
 radius inflation vs threshold-gap closure vs LOGO error) rather than assumed.
+
+**The unified RadiusI form (2026-09-27)** went through a five-way search on
+the raw-mask tables before adoption: residual diagnostics of the old power
+law (which flagged the missing saturation and depth–width interaction), an
+exhaustive enumeration of ~21,000 candidate term sets scored by LOGO with a
+per-fold refit, an independent genetic-programming search (gplearn; PySR's
+Julia backend is blocked on this machine by an OS application-control
+policy) whose Pareto front converged on the same saturation-plus-interaction
+structure, mechanistic saturation forms with a free scale h\* fitted in
+MATLAB (rejected: h\* is not identifiable from 5–6 distinct H/s levels — CI
+spans an order of magnitude), and additive pressure-family variants
+(rejected: best 15.5/12.0% against 12.5/9.6%, confirming the impulse radius
+is multiplicative where the pressure radius is additive). The winning set
+was then constrained to ONE shared term set for both detonation groups
+(cost: +0.3 pp on the street group). The selection used the same LOGO
+metric that is reported, so the quoted errors are those of the selected
+form; a nested selection was judged disproportionate and is noted as such.
 
 **`canyon_trap` was re-challenged, and held.** The impulse form was tested
 against **10,484** distinct alternative closed forms sampled over the same
@@ -483,6 +584,14 @@ a filter that was applied to the fit, which would inflate the reported accuracy
 without improving the model.
 
 ## Limitations
+
+> The coarsening measurements in this section predate the 2026-09-27 mask
+> change and have not been re-run; the construction argument is unaffected.
+> On the clean store two complementary stability facts are now on record
+> (`outputs/check_results/impulse_criterion_sensitivity_note.md`): the hard
+> impulse scan is K-stable (median |Δln R| ≤ 1% for K = 2→3→4, so it is
+> deliberately NOT softened), and thr_I = 20 sits at the measured
+> stability/predictability optimum of a 5–40 threshold sweep.
 
 - **The soft convergence radius is not mesh-converged.** The measured
   quantity depends on the discretisation, not only on the field, and the
