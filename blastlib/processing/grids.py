@@ -105,10 +105,14 @@ def process_grids(data, params, weight=None):
     out['impulse2_orig'] = impulse2.copy()
     out['impulse3_orig'] = impulse3.copy()
 
-    # Create pressure threshold masks
-    mask1 = peakP1 <= threshold_p
-    mask2 = peakP2 <= threshold_p
-    mask3 = peakP3 <= threshold_p
+    # Create pressure threshold masks — on the RAW solver field, before the
+    # cross-grid max-fill. The solver writes a ~1 Pa sentinel inside building
+    # footprints; masking the FILLED field let wall-skin cells (raised above
+    # threshold_p by the coarser grid's interpolation across the wall) enter
+    # both convergence scans. docs/audit/2026-09-27 ALG-01/PHY-01, decision D2.
+    mask1 = peakP1_raw <= threshold_p
+    mask2 = peakP2_raw <= threshold_p
+    mask3 = peakP3_raw <= threshold_p
 
     # Apply masks to orig arrays (for Figure 1)
     out['peakP1_orig'][mask1]   = np.nan
@@ -171,6 +175,18 @@ def process_grids(data, params, weight=None):
         out[f'refI{g}'] = data[f'refI{g}']
         out[f'ratioP{g}_raw'] = out[f'ratioP{g}'].copy()
         out[f'ratioI{g}_raw'] = out[f'ratioI{g}'].copy()
+
+    # Reference field max-filled across grids exactly as the urban field is.
+    # The per-direction MaxR level must compare like with like: near the
+    # fine-grid edge the raw fine reference is deficient (outer boundary
+    # effect; time truncation in the W=1500 corner), which inflated MaxR_I
+    # there. docs/audit/2026-09-27 PHY-04, decision option (a).
+    out['refP1_fill'] = refP1
+    out['refI1_fill'] = refI1
+    out['refP2_fill'] = refP2
+    out['refI2_fill'] = refI2
+    out['refP3_fill'] = refP3
+    out['refI3_fill'] = refI3
 
     # ---- Force ratio = 1 where the field counts as converged ----
     #

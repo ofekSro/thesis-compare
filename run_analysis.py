@@ -288,8 +288,17 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         # directions); R_conv cancels that by dividing cell-by-cell, and MaxR
         # only cancels it if its threshold is sampled per direction too.
         # ff_lookup stays as the fallback for sectors the field cannot serve.
-        all_refP = concat3(processed, 'refP{}')
-        all_refI = concat3(processed, 'refI{}')
+        # The level is sampled from the MAX-FILLED reference — the same
+        # cross-grid merge as the urban field it is compared with — because
+        # the raw fine reference is deficient near its outer edge
+        # (docs/audit/2026-09-27 PHY-04). Legacy v1/v2 stores carry only the
+        # raw reference and keep the old behaviour.
+        if 'refP1_fill' in processed:
+            all_refP = concat3(processed, 'refP{}_fill')
+            all_refI = concat3(processed, 'refI{}_fill')
+        else:
+            all_refP = concat3(processed, 'refP{}')
+            all_refI = concat3(processed, 'refI{}')
         th_idx = theta_index(all_X, all_Z)
         dist_all = np.sqrt(all_X ** 2 + all_Z ** 2)
 
