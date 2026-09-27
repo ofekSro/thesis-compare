@@ -56,7 +56,57 @@ def _percentile_radius(radii, p=95):
     return reduce_theta_radii(radii, method='percentile', percentile=p)
 
 
-def find_percentile_radius(all_vals, all_X, all_Zc, ff_val, estimator=None):
+def theta_index(all_X, all_Zc):
+    """Angular-bin index (0..90) of every cell; -1 outside the first quadrant.
+
+    Computed once per configuration and reused for all 20 free-field levels —
+    the binning does not depend on Z.
+    """
+    theta = np.arctan2(np.asarray(all_Zc, float), np.asarray(all_X, float))
+    edges = theta_bin_edges()
+    idx = np.digitize(theta, edges) - 1
+    # theta == pi/2 lands one past the last bin; the last bin is closed.
+    idx = np.where(theta == edges[-1], N_THETA - 1, idx)
+    return np.where((idx >= 0) & (idx < N_THETA), idx, -1)
+
+
+def reference_level_per_theta(ref_vals, dist, th_idx, r_target, tol=0.6,
+                              max_tol=4.0):
+    """Free-field level at radius *r_target*, per angular sector.
+
+    The reference field is a simulation on the same Cartesian mesh as the
+    urban run, and on that mesh it is anisotropic — measured at 9.6% between
+    directions, high on the diagonal and low on the axes. R_conv never sees
+    that because it divides cell-by-cell by the reference at the same point;
+    MaxR did, because it compared against one scalar. Sampling the reference
+    per direction restores the same cancellation for MaxR.
+
+    Median of *ref_vals* in the ring |dist - r_target| < tol, per sector. The
+    ring widens (up to *max_tol*) while sectors come up empty, so a thin ring
+    at small radius or across a grid seam still yields a level. Sectors that
+    stay empty are returned NaN for the caller to fall back on.
+
+    Returns (91,) array.
+    """
+    out = np.full(N_THETA, np.nan)
+    finite = np.isfinite(ref_vals) & (ref_vals > 0) & (th_idx >= 0)
+    if not np.any(finite):
+        return out
+
+    while tol <= max_tol:
+        ring = finite & (np.abs(dist - r_target) < tol)
+        if np.any(ring):
+            for i in np.unique(th_idx[ring]):
+                if np.isnan(out[i]):
+                    out[i] = float(np.median(ref_vals[ring & (th_idx == i)]))
+        if not np.any(np.isnan(out)):
+            break
+        tol *= 2.0
+    return out
+
+
+def find_percentile_radius(all_vals, all_X, all_Zc, ff_val, estimator=None,
+                           exclude_r=0.0, th_idx=None, dist=None):
     """Find the exceedance-region radius for one free-field level.
 
     Identifies cells whose values are at least the free-field reference value
@@ -75,15 +125,42 @@ def find_percentile_radius(all_vals, all_X, all_Zc, ff_val, estimator=None):
     ----------
     all_vals : np.ndarray
         Flattened array of field values (pressure or impulse).
-    all_X : np.ndarray
-        Flattened array of X coordinates corresponding to all_vals.
-    all_Zc : np.ndarray
-        Flattened array of Z coordinates corresponding to all_vals.
-    ff_val : float
-        Free-field reference value (exceedance threshold).
+    all_X, all_Zc : np.ndarray
+        Flattened coordinates corresponding to all_vals.
+    ff_val : float or (91,) array
+        Free-field exceedance threshold. A scalar applies one level in every
+        direction (the historical behaviour, and the fallback when no
+        reference field is available). An array applies ff_val[i] in sector i
+        — see reference_level_per_theta. NaN entries fall back to the median
+        of the finite ones.
     estimator : dict, str or None
         Collapse method. None uses constants.RADIUS_ESTIMATOR — the same
         setting convergence.py uses, so MaxR and R_conv always match in kind.
+    exclude_r : float
+        Near-blast exclusion radius; cells at or inside it are dropped.
+        **Production passes 0 and excludes the near field per ROW instead**
+        (z_urban.z_urban_valid_mask, condition `R_free > exclude_r`). The
+        parameter is kept because it is the obvious thing to reach for and
+        the reason not to is not obvious:
+
+        Excluding cells here does not remove a *direction* from the estimate,
+        it gives that direction a radius of zero. A sector whose exceedance
+        lies only inside the first street then contributes zero area to the
+        Req sum rather than dropping out of it — 6.7% of sectors, measured,
+        and not only in rows the near-field condition would have removed
+        anyway. The resulting Req is systematically short at small Z_free,
+        which flattens the low-range end of Lambda(Z_free); the pressure
+        range_switch fit stops being identified there (its open-canyon
+        denominator B runs to whatever bound is offered: 4.0 -> 8.0 at a
+        bound of 8, -> 17.5 at a bound of 1000). Applying the same exclusion
+        per row leaves B identified at 7.1 on the same 280 rows.
+
+        In short: this is a domain restriction, not a measurement change, and
+        it belongs where the domain is defined.
+    th_idx, dist : np.ndarray or None
+        Precomputed theta_index(...) and cell distances. Supplied by callers
+        that loop over many levels for one configuration; computed here when
+        omitted.
 
     Returns
     -------
@@ -93,22 +170,34 @@ def find_percentile_radius(all_vals, all_X, all_Zc, ff_val, estimator=None):
     """
     est = resolve_estimator(estimator)
 
-    match = ~np.isnan(all_vals) & (all_vals >= ff_val)
+    if dist is None:
+        dist = np.sqrt(np.asarray(all_X, float) ** 2
+                       + np.asarray(all_Zc, float) ** 2)
+    if th_idx is None:
+        th_idx = theta_index(all_X, all_Zc)
+
+    level = np.asarray(ff_val, dtype=float)
+    if level.ndim == 0:
+        threshold = np.full(len(all_vals), float(level))
+    else:
+        if level.shape != (N_THETA,):
+            raise ValueError(f'ff_val must be a scalar or a ({N_THETA},) '
+                             f'array, got shape {level.shape}')
+        if np.all(np.isnan(level)):
+            return np.nan, np.full(N_THETA, np.nan)
+        level = np.where(np.isnan(level), np.nanmedian(level), level)
+        threshold = np.where(th_idx >= 0, level[th_idx], np.inf)
+
+    with np.errstate(invalid='ignore'):
+        match = (~np.isnan(all_vals) & (all_vals >= threshold)
+                 & (dist > exclude_r) & (th_idx >= 0))
     if not np.any(match):
         return np.nan, np.full(N_THETA, np.nan)
 
-    vals_X = all_X[match]
-    vals_Z = all_Zc[match]
-    dist_m = np.sqrt(vals_X ** 2 + vals_Z ** 2)
-    theta_m = np.arctan2(vals_Z, vals_X)
-
-    bin_edges = theta_bin_edges()
-
     r_per_theta = np.full(N_THETA, np.nan)
-    for i in range(N_THETA):
-        in_bin = in_theta_bin(theta_m, bin_edges, i)
-        if np.any(in_bin):
-            r_per_theta[i] = float(np.max(dist_m[in_bin]))
+    m_idx, m_dist = th_idx[match], dist[match]
+    for i in np.unique(m_idx):
+        r_per_theta[i] = float(np.max(m_dist[m_idx == i]))
 
     r_scalar = reduce_theta_radii(r_per_theta, est['method'], est['percentile'])
     return r_scalar, r_per_theta

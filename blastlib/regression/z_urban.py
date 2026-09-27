@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from blastlib.config.parser import config_parser
-from blastlib.geometry import area_density
+from blastlib.geometry import area_density, exclude_radius
 from blastlib.regression.stats import lstsq, r2_mape
 from blastlib.regression.convergence_models import predict_pi, predict_impulse
 
@@ -214,34 +214,59 @@ BEYOND_COL = {'Pressure': 'beyond_P', 'Impulse': 'beyond_I'}
 
 
 def z_urban_valid_mask(sub, target_col, maxR_col, radius_col, target_name):
-    """Rows eligible for the Z_urban fit: the full in-convergence domain.
+    """Rows eligible for the Z_urban fit: the domain the model is used on.
 
-    Two conditions:
-      1. inside the convergence radius — beyond it the urban field IS the
-         free field, so the row carries no urban information;
-      2. Z_free >= the validity floor (see the module header).
+    The model answers "inside R_conv, what urban distance carries the load
+    that the free field carries at Z_free". Four conditions follow from that
+    sentence, and all four are enforced here:
 
-    There used to be a third condition, `Z_urban > Z_free`, restricting the fit
-    to the amplification regime. It is gone. Attenuation is not an edge case:
-    it is 51% of in-convergence pressure rows and 15% of impulse rows, most of
-    them well inside R_conv, so excluding it left the model with no coverage
-    over half its own domain and predicting amplification where the data
-    attenuates. Pressure handles the two regimes with an explicit split (see
-    attenuation_regime); impulse fits both together.
+      1. `MaxR < R_conv` — the place where the load is actually delivered
+         lies inside the convergence radius. Recorded by Phase 1 as
+         beyond_P / beyond_I; the `MaxR < R_conv` branch keeps older,
+         flagless CSVs working and selects the identical set.
+      2. `R_free < R_conv` — the free-field distance being mapped also lies
+         inside it. Beyond R_conv no mapping is needed: the urban field is
+         taken to be the free field, so those rows are outside the model's
+         job. Without this, rows survive whose target the Z_conv clip
+         truncates at prediction time, and training on them pulls the fit
+         toward a value it can never output.
+      3. `R_free > exclude_r` — outside the first street. R_conv has always
+         excluded that region as one where the discrete near-field geometry
+         dominates and no continuum radius is meaningful; leaving it in on
+         the MaxR side made the same region meaningless for one radius and
+         training data for the other.
+      4. `Z_free >= Z_URBAN_ZF_MIN` (= 2) — Z_free = 1 sits within one
+         Hopkinson length of the charge and is not of interest.
 
-    Condition 1 is what Phase 1 records as beyond_P / beyond_I. The
-    `MaxR < R_conv` fallback keeps older, flagless CSVs working — it selects
-    the identical set, since beyond == (MaxR is NaN) or (MaxR >= R_conv) and
-    NaN rows are dropped by the caller's dropna().
+    Conditions 2 and 3 use R_free / ExcludeR when Phase 1 wrote them, and
+    fall back to recomputing R_free from Z_free and the weight (condition 3
+    is then skipped, since a flagless CSV carries no geometry for it).
 
-    Defined once and used by the fit, the evaluation and the validation plots
-    so those three can never drift apart.
+    There used to be a further condition, `Z_urban > Z_free`, restricting the
+    fit to the amplification regime. It is gone. Attenuation is not an edge
+    case: it is 51% of in-convergence pressure rows and 15% of impulse rows,
+    most of them well inside R_conv, so excluding it left the model with no
+    coverage over half its own domain and predicting amplification where the
+    data attenuates. Pressure handles the two regimes with an explicit split
+    (see attenuation_regime); impulse fits both together.
+
+    Defined once and used by the fit, the evaluation, the validation plots and
+    tools/check_formulas, so those can never drift apart.
     """
     beyond_col = BEYOND_COL[target_name]
     if beyond_col in sub.columns:
         inside = ~sub[beyond_col].astype(bool)
     else:
         inside = sub[maxR_col] < sub[radius_col]
+
+    if 'R_free' in sub.columns:
+        r_free = sub['R_free'].astype(float)
+    else:
+        r_free = sub['Z_free'].astype(float) * sub['weight'].astype(float) ** (1 / 3)
+    inside = inside & (r_free < sub[radius_col].astype(float))
+
+    if 'exclude_r' in sub.columns:
+        inside = inside & (r_free > sub['exclude_r'].astype(float))
 
     return inside & (sub['Z_free'] >= Z_URBAN_ZF_MIN[target_name])
 
@@ -381,7 +406,18 @@ def _fit_z_urban_group(Z_free, Z_urban, rho, H, s, W13, target_name):
 # the sign story of every term, A >= 0 puts the (Pi_2 - A) sign flip at a
 # physical street width, and the denominators stay positive over the data.
 RANGE_SWITCH_P0     = (0.11, 1.34, 2.4, 1.95)
-RANGE_SWITCH_BOUNDS = ((-2.0, 0.0, 0.0, 0.2), (2.0, 6.0, 6.0, 8.0))
+# B's upper bound is 20, not 8. The bounds exist to keep each fit on the
+# physically readable branch, and nothing about B being large is unreadable —
+# it is simply stronger open-canyon damping. At 8 the bound became *binding*
+# once the fit domain was restricted to rows inside R_conv: the hard-criterion
+# det=1 optimum sits at 8.33, so the reported 8.000 was the box face and not a
+# fitted value. B is what the damping denominator falls back to in a tight
+# canyon (Pi_2/Pi_3 -> 0), so it caps the achievable amplification; when it
+# runs far above the data's own Pi_2/Pi_3 (median 0.87) only the ratio C1/B is
+# identified, and a coefficient pinned to a bound must never be read as a
+# measurement. Both production fits are interior at this bound — verified in
+# tests/test_z_urban_domain.py.
+RANGE_SWITCH_BOUNDS = ((-2.0, 0.0, 0.0, 0.2), (2.0, 6.0, 6.0, 20.0))
 CANYON_TRAP_P0      = (0.0, 2.6, 1.0, 1.0)
 CANYON_TRAP_BOUNDS  = ((-2.0, 0.0, 0.0, 0.0), (2.0, 12.0, 4.0, 6.0))
 
@@ -581,6 +617,10 @@ def prepare_maxR_data(maxR_df, conv_df):
             'height': float(cfg['height']),
             'rho': rho,
             'C': C,
+            # Same near-blast exclusion R_conv uses, so z_urban_valid_mask can
+            # apply it to MaxR too. Derived here rather than read from the CSV
+            # so flagless (older) tables still get the condition.
+            'exclude_r': float(exclude_radius(cfg)),
         })
     geo_df = pd.DataFrame(records)
 
@@ -598,6 +638,11 @@ def prepare_maxR_data(maxR_df, conv_df):
     df['Z_free'] = df['Z'].astype(float)
     df['Z_urban_P'] = df['MaxR_P'] / df['weight'] ** (1/3)
     df['Z_urban_I'] = df['MaxR_I'] / df['weight'] ** (1/3)
+    # Radius in metres of the free-field level this row maps. Phase 1 writes
+    # it; recompute for older tables so the range conditions still apply.
+    if 'R_free' not in df.columns:
+        df['R_free'] = df['Z_free'] * df['weight'] ** (1/3)
+    df['R_free'] = df['R_free'].astype(float)
 
     # Merge convergence radii
     conv_cols = conv_df[['ConfigName', 'RadiusP', 'RadiusI']].copy()

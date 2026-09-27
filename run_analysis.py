@@ -41,7 +41,10 @@ from blastlib.geometry import area_density, volume_density, exclude_radius, conc
 from blastlib.io import raw_store
 from blastlib.io.npz_store import load_processed_data
 from blastlib.processing.convergence import find_convergence_radius
-from blastlib.processing.free_field import load_ff_lookup, find_percentile_radius
+from blastlib.processing.free_field import (load_ff_lookup,
+                                            find_percentile_radius,
+                                            reference_level_per_theta,
+                                            theta_index)
 from blastlib.processing.radius_estimator import resolve_estimator, VALID_METHODS
 from blastlib.processing.ff_reference import rebuild_impulse_ratio
 from blastlib.processing.soft_criterion import (soft_pressure_fields,
@@ -188,6 +191,12 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
     theta_radii_P = {}
     theta_radii_I = {}
     theta_centers_deg = None
+    # How often the per-direction reference level was unavailable and the
+    # scalar from free_field_data.csv had to stand in. Reported at the end:
+    # a large share would mean the reference field is not covering the radii
+    # being probed, which the per-direction fix assumes it does.
+    n_fallback = 0
+    n_levels   = 0
 
     for i, config_name in enumerate(all_configs):
         progress(f'Processing [{i+1}/{len(all_configs)}] {config_name}...')
@@ -274,7 +283,18 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         all_P_orig = concat3(processed, 'peakP{}_orig')
         all_I_orig = concat3(processed, 'impulse{}_orig')
 
+        # The reference FIELD, for a per-direction exceedance level. On the
+        # Cartesian mesh the free field is anisotropic (~9.6% between
+        # directions); R_conv cancels that by dividing cell-by-cell, and MaxR
+        # only cancels it if its threshold is sampled per direction too.
+        # ff_lookup stays as the fallback for sectors the field cannot serve.
+        all_refP = concat3(processed, 'refP{}')
+        all_refI = concat3(processed, 'refI{}')
+        th_idx = theta_index(all_X, all_Z)
+        dist_all = np.sqrt(all_X ** 2 + all_Z ** 2)
+
         weight = cfg['weight']
+        W13 = float(weight) ** (1 / 3)
         act_R_P = radius['pressure']
         act_R_I = radius['impulse']
         maxR_P_per_Z = {}
@@ -284,10 +304,26 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
 
         for z_val in range(1, 21):
             P_ff, I_ff = ff_lookup[weight][z_val]
-            maxR_P, r_theta_P = find_percentile_radius(all_P_orig, all_X, all_Z,
-                                                       P_ff, estimator=est)
-            maxR_I, r_theta_I = find_percentile_radius(all_I_orig, all_X, all_Z,
-                                                       I_ff, estimator=est)
+            r_free = z_val * W13
+
+            lvl_P = reference_level_per_theta(all_refP, dist_all, th_idx, r_free)
+            lvl_I = reference_level_per_theta(all_refI, dist_all, th_idx, r_free)
+            n_fallback += int(np.isnan(lvl_P).sum() + np.isnan(lvl_I).sum())
+            n_levels += 2 * len(lvl_P)
+            lvl_P = np.where(np.isnan(lvl_P), P_ff, lvl_P)
+            lvl_I = np.where(np.isnan(lvl_I), I_ff, lvl_I)
+
+            # exclude_r is deliberately NOT applied here — it is applied per
+            # ROW in z_urban.z_urban_valid_mask instead. See the note on
+            # find_percentile_radius: inside the per-sector maximum it silently
+            # converts "this direction is excluded" into "this direction has
+            # radius zero", which Req then integrates as zero area.
+            maxR_P, r_theta_P = find_percentile_radius(
+                all_P_orig, all_X, all_Z, lvl_P, estimator=est,
+                th_idx=th_idx, dist=dist_all)
+            maxR_I, r_theta_I = find_percentile_radius(
+                all_I_orig, all_X, all_Z, lvl_I, estimator=est,
+                th_idx=th_idx, dist=dist_all)
 
             maxR_P_per_Z[z_val] = maxR_P
             maxR_I_per_Z[z_val] = maxR_I
@@ -299,7 +335,7 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
             # These rows used to be dropped here (and the beyond side NaN'd),
             # which hid how often it happens. Record the flag and the raw
             # value instead; the exclusion now lives in the fit, in
-            # z_urban.z_urban_valid_mask, and selects exactly the same rows.
+            # z_urban.z_urban_valid_mask.
             beyond_P = bool(np.isnan(maxR_P) or maxR_P >= act_R_P)
             beyond_I = bool(np.isnan(maxR_I) or maxR_I >= act_R_I)
 
@@ -312,6 +348,10 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
                 'MaxR_I': maxR_I,
                 'beyond_P': beyond_P,
                 'beyond_I': beyond_I,
+                # Geometry of the row, so z_urban_valid_mask's two range
+                # conditions are auditable straight from the table.
+                'R_free': r_free,
+                'ExcludeR': exclude_r,
                 'RadiusEstimator': method,
             })
 
@@ -357,6 +397,7 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
     maxR_df = pd.DataFrame(maxR_rows, columns=['Config', 'Z', 'P_ff', 'I_ff',
                                                'MaxR_P', 'MaxR_I',
                                                'beyond_P', 'beyond_I',
+                                               'R_free', 'ExcludeR',
                                                'RadiusEstimator'])
     maxR_df.to_csv(maxR_csv, index=False)
     progress(f'Saved: {maxR_csv}')
@@ -366,6 +407,11 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
                  f'P {int(maxR_df["beyond_P"].sum())}, '
                  f'I {int(maxR_df["beyond_I"].sum())} '
                  '(kept in the CSV, excluded at fitting)')
+    if n_levels:
+        progress(f'  Exceedance level per direction: '
+                 f'{100 * (1 - n_fallback / n_levels):.1f}% from the reference '
+                 f'field, {100 * n_fallback / n_levels:.1f}% fell back to the '
+                 f'free_field_data.csv scalar')
     progress(f'\nPhase 1 complete: {len(conv_rows)} configs processed')
 
     return {'conv_csv': conv_csv, 'maxR_csv': maxR_csv,
