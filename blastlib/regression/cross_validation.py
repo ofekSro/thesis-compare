@@ -27,6 +27,7 @@ from blastlib.regression.convergence_models import (
 from blastlib.regression.stats import r2_mape
 from blastlib.regression.z_urban import (
     prepare_maxR_data, fit_z_urban_all_groups, evaluate_z_urban,
+    evaluate_z_urban_deployable,
 )
 from blastlib.regression.output import (
     save_best_convergence_coefficients, save_best_nonlinear_coefficients,
@@ -176,6 +177,14 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         z_mape_P, z_mape_I = evaluate_z_urban(test_maxR, z_coeffs,
                                               conv_P_coeffs, conv_I_coeffs)
 
+        # Same models, second yardstick: error on the domain a user can
+        # identify BEFORE the answer (predicted R_conv; beyond rows graded
+        # against the clip). Reported beside z_P/z_I, and deliberately kept
+        # OUT of worst/best-split selection so best_* files are unchanged.
+        # docs/audit/2026-09-27 STA-02/ALG-03, decision D3 (a)+(b).
+        z_mape_P_dep, z_mape_I_dep = evaluate_z_urban_deployable(
+            test_maxR, z_coeffs, conv_P_coeffs, conv_I_coeffs)
+
         # ---- Collect MAPEs ----
         mapes = {
             'conv_P': conv_mape_P, 'conv_I': conv_mape_I,
@@ -194,6 +203,8 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
             'worst': worst_mape,
             'conv_P_r2': conv_r2_P,
             'conv_I_r2': conv_r2_I,
+            'z_P_dep': z_mape_P_dep,
+            'z_I_dep': z_mape_I_dep,
         })
 
         if worst_mape < target_mape:
@@ -237,7 +248,9 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
     progress(f'{"="*60}')
     progress('  Test MAPE per target — median [p25, p75] over the splits:')
     for key, label in (('conv_P', 'conv_P'), ('conv_I', 'conv_I'),
-                       ('z_P', 'z_P   '), ('z_I', 'z_I   ')):
+                       ('z_P', 'z_P   '), ('z_I', 'z_I   '),
+                       ('z_P_dep', 'z_P_dep (deployable domain)'),
+                       ('z_I_dep', 'z_I_dep (deployable domain)')):
         if key in cv_df:
             v = cv_df[key].dropna()
             if len(v):

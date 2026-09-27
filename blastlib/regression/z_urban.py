@@ -786,3 +786,96 @@ def evaluate_z_urban(test_df, z_coeffs, conv_P_coeffs=None, conv_I_coeffs=None):
         _, mape_I = r2_mape(a, p)
 
     return mape_P, mape_I
+
+
+def evaluate_z_urban_deployable(test_df, z_coeffs, conv_P_coeffs=None,
+                                conv_I_coeffs=None):
+    """Evaluate Z_urban on the domain a user can identify before the answer.
+
+    evaluate_z_urban grades only rows passing z_urban_valid_mask, whose
+    conditions need the row's own MEASURED MaxR and R_conv — information the
+    deployed chain never has at prediction time. Here the domain is what a
+    user of the chain can check beforehand: Z_free >= the fit minimum,
+    R_free > exclude_r, and R_free below the PREDICTED R_conv from this
+    fold's convergence coefficients. Rows whose measured MaxR lies at or
+    beyond R_conv stay in and are graded against the clipped prediction —
+    exactly what the calculator answers there. Reported alongside the
+    conditional error, never replacing it.
+    docs/audit/2026-09-27 STA-02 / ALG-03, decision D3 options (a)+(b).
+
+    Returns (mape_P, mape_I) [%]; NaN where a fold has no eligible rows or
+    no convergence coefficients to build the predicted domain from.
+    """
+    all_actual_P, all_pred_P = [], []
+    all_actual_I, all_pred_I = [], []
+
+    for det_val in [1, 2]:
+        mask = (test_df['det'] == det_val)
+
+        for target_col, target_name in [('Z_urban_P', 'Pressure'),
+                                        ('Z_urban_I', 'Impulse')]:
+            popt = z_coeffs.get((det_val, target_name))
+            conv_coeffs = (conv_P_coeffs if target_name == 'Pressure'
+                           else conv_I_coeffs)
+            if popt is None or conv_coeffs is None:
+                continue
+
+            sub = test_df[mask].dropna(subset=[target_col])
+            if len(sub) == 0:
+                continue
+
+            W = sub['weight'].values.astype(float)
+            det_arr = np.full(len(sub), det_val, dtype=int)
+            rho = sub['rho'].values.astype(float)
+            H = sub['height'].values.astype(float)
+            s = sub['swidth'].values.astype(float)
+            b = sub['bsize'].values.astype(float)
+            if target_name == 'Pressure':
+                Rconv_pred = predict_pi(W, rho, H, det_arr, s, b, conv_coeffs)
+            else:
+                Rconv_pred = predict_impulse(W, rho, H, det_arr, s, b,
+                                             conv_coeffs)
+
+            r_free = sub['R_free'].astype(float).values
+            dom = (np.isfinite(Rconv_pred) & (r_free < Rconv_pred)
+                   & (sub['Z_free'].values >= Z_URBAN_ZF_MIN[target_name]))
+            if 'exclude_r' in sub.columns:
+                dom &= r_free > sub['exclude_r'].astype(float).values
+
+            sub_valid = sub[dom]
+            if len(sub_valid) == 0:
+                continue
+
+            W13 = sub_valid['weight'].values ** (1 / 3)
+            xi = None
+            if Z_URBAN_FORM.get(target_name) == 'lambda_regime':
+                xi = (sub_valid['Z_free'].values.astype(float)
+                      / predicted_Zconv_P(sub_valid, conv_P_coeffs))
+            y_pred = predict_z_urban(
+                sub_valid['Z_free'].values, sub_valid['rho'].values,
+                sub_valid['height'].values, sub_valid['swidth'].values,
+                W13, target_name, popt, xi=xi)
+            y_pred = clip_z_urban_pred(y_pred, sub_valid, det_val,
+                                       target_name, conv_P_coeffs,
+                                       conv_I_coeffs)
+            y_actual = sub_valid[target_col].values
+
+            if target_name == 'Pressure':
+                all_actual_P.append(y_actual)
+                all_pred_P.append(y_pred)
+            else:
+                all_actual_I.append(y_actual)
+                all_pred_I.append(y_pred)
+
+    mape_P = np.nan
+    mape_I = np.nan
+    if all_actual_P:
+        a = np.concatenate(all_actual_P)
+        p = np.concatenate(all_pred_P)
+        _, mape_P = r2_mape(a, p)
+    if all_actual_I:
+        a = np.concatenate(all_actual_I)
+        p = np.concatenate(all_pred_I)
+        _, mape_I = r2_mape(a, p)
+
+    return mape_P, mape_I
