@@ -119,7 +119,8 @@ median of −32%, RadiusP by +5%; see the change note in `check_results`).
   (tanh projection): each cell gets an exceedance weight
   w = gate · τ(|ΔP|/20 kPa), with τ the Wang–Lazarov–Sigmund projection of
   sharpness β, pinned so w = 0 at ΔP = 0, w = ½ exactly at the old 10 kPa edge
-  and w = 1 from 20 kPa up. The low-pressure floor (P < 10 kPa) and the ±5%
+  and w = 1 from 20 kPa up. The low-pressure floor (URBAN peak P < 10 kPa;
+  see the measurement definitions for why the urban field) and the ±5%
   ratio gate stay hard. The per-sector radius is then the *expectation of the
   same far-to-near three-consecutive-cell scan* under these per-cell
   probabilities (a three-state Markov chain over the streak length), so an
@@ -441,9 +442,17 @@ any regression re-run.)
   the fields the hard band tested — which is what makes the β → ∞ reduction
   bit-exact rather than approximate.
 - **The band is applied to the field, not by the scanner.** `process_grids`
-  forces the stored ratio to exactly 1 wherever P < 10 kPa *or*
-  |P − P_ref| < 10 kPa, and the sector scan then runs on that already-banded
-  field. Its ±5% ratio test is therefore not a second, independent tolerance —
+  forces the stored ratio to exactly 1 wherever the URBAN peak P < 10 kPa
+  *or* |P − P_ref| < 10 kPa, and the sector scan then runs on that
+  already-banded field. The floor is on the urban field by decision (owner,
+  2026-09-27, audit D7): where the city itself delivers less than the
+  relevance floor, the location is of no engineering interest even if the
+  free field there is stronger. A consequence to state plainly: shielding
+  below 10 kPa counts as converged, so R_conv,P does not track where
+  shielding fades — and substituting the free field beyond R_conv is
+  conservative for pressure in shielded zones (it over-predicts the load).
+  The shielding pattern itself is preserved in the unforced
+  `ratioP{g}_raw` maps. Its ±5% ratio test is therefore not a second, independent tolerance —
   it only ever sees cells the absolute band already passed. Since
   10/P_ref < 0.05 only for P_ref > 200 kPa, the absolute band is the binding
   constraint everywhere outside the immediate near field: at a representative

@@ -20,7 +20,14 @@ MAX_HEIGHT = 24
 # the hard band exactly. softBeta = None (or 0) disables the soft path.
 PARAMS = {
     'thresholdP_kPa':  1.01 / 1000,  # mask threshold [kPa]
-    'minPressure_kPa': 10,            # convergence threshold [kPa]
+    # Convergence band / relevance floor [kPa]. The floor clause tests the
+    # URBAN peak (grids.py: lowP = peakP_raw < minPressure) — an owner
+    # decision (2026-09-27, audit D7/CHO-03): where the city itself delivers
+    # under 10 kPa the location is of no engineering interest even if the
+    # free field there is stronger. Hence shielding below the floor counts
+    # as converged, and the free-field substitution beyond R_conv is
+    # conservative for pressure in shielded zones.
+    'minPressure_kPa': 10,
     'softBeta':        3.0,           # tanh projection sharpness
     'softCap_kPa':     20.0,          # |dP| mapping to weight 1 [kPa]
 }
