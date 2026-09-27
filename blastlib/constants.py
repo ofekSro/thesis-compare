@@ -27,6 +27,16 @@ PARAMS = {
     # free field there is stronger. Hence shielding below the floor counts
     # as converged, and the free-field substitution beyond R_conv is
     # conservative for pressure in shielded zones.
+    # Damage-level anchor (audit D8a): IATG 02.20:2021[E] 3rd ed., Table 8
+    # ties its quantity-distance tiers to peak side-on overpressure. 10 kPa
+    # sits between the 9 kPa tier (acceptable protection for low-density
+    # areas: un-strengthened buildings suffer average damage up to ~20% of
+    # replacement cost; personnel in the open unlikely to be injured by
+    # blast) and the 11 kPa tier (damage to main structural members,
+    # repairs > 20% of replacement cost). I.e. the floor sits at the
+    # standard's boundary between repairable and structural damage. The
+    # IATG levels are free-field side-on values; the full CFD-vs-KB
+    # cross-check is still pending (PHY-06).
     'minPressure_kPa': 10,
     'softBeta':        3.0,           # tanh projection sharpness
     'softCap_kPa':     20.0,          # |dP| mapping to weight 1 [kPa]

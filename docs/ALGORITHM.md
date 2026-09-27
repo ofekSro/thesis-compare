@@ -384,6 +384,18 @@ Two structural dependencies of the fit itself:
   d log R / d log p_thr ≈ −0.6). The choice is not arbitrary: engineering
   relevance of blast loads ends near Z ≈ 16 and the 10 kPa contour sits near
   Z ≈ 12, so the threshold lies where loads stop being structurally damaging.
+  This placement now has a standards anchor (IATG 02.20:2021[E], Table 8):
+  the guideline ties its quantity-distance tiers to peak side-on
+  overpressure, and 10 kPa falls between its 9 kPa tier — the acceptable
+  protection level for low-density areas, where un-strengthened buildings
+  suffer average damage up to 20% of replacement cost and personnel in the
+  open are unlikely to be injured by blast — and its 11 kPa tier, where main
+  structural members are damaged and repairs exceed 20% of replacement cost.
+  The corresponding IATG scaled distances, D = 11.1·Q^⅓ and 9.6·Q^⅓ m,
+  bracket the measured median Z_conv,P of 9.9. Caution: the IATG levels are
+  free-field side-on values while this band is applied to the urban CFD
+  field, and the CFD-versus-Kingery-Bulmash cross-check is still open — so
+  this is a placement argument for the threshold, not a calibration of it.
   Under the soft criterion the threshold is still centred at 10 kPa (the
   projection crosses ½ exactly there), but the measured radius no longer jumps
   discontinuously when a lobe peak grazes it — the criterion's *location* is
