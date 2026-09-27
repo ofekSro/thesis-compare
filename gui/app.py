@@ -219,6 +219,42 @@ class ToolTab(ttk.Frame):
             self.progress.stop()
 
 
+# Live-figure tabs, by the 'kind' their spec declares: (module, class). Kept as
+# names rather than imports so a tab whose dependencies are missing costs only
+# itself — see the fallback below.
+PREVIEW_TABS = {
+    'preview':        ('gui.preview', 'ConfigCurveTab'),
+    'ratio_preview':  ('gui.ratio_preview', 'RatioPreviewTab'),
+    'matched_sets':   ('gui.matched_preview', 'MatchedSetsTab'),
+    'street_preview': ('gui.street_preview', 'StreetPreviewTab'),
+}
+
+
+def _build_tab(notebook, spec):
+    """Pick the tab class for a spec. Unknown/absent kind = run-and-log.
+
+    A preview tab needs matplotlib's Tk backend; if that import fails the whole
+    launcher would otherwise die, so fall back to a message rather than
+    taking every other tab down with it.
+    """
+    preview = PREVIEW_TABS.get(spec.get('kind'))
+    if preview is not None:
+        module_name, class_name = preview
+        try:
+            import importlib
+            module = importlib.import_module(module_name)
+            return getattr(module, class_name)(notebook, spec)
+        except Exception as exc:
+            frame = ttk.Frame(notebook, padding=20)
+            ttk.Label(frame, wraplength=600, foreground='firebrick',
+                      text=f'This tab could not be loaded:\n\n{exc}\n\n'
+                           'It needs matplotlib with the TkAgg backend.').pack()
+            frame.spec = spec
+            frame.run = None
+            return frame
+    return ToolTab(notebook, spec)
+
+
 class LauncherApp(ttk.Frame):
     def __init__(self, master):
         super().__init__(master, padding=8)
@@ -228,7 +264,7 @@ class LauncherApp(ttk.Frame):
         notebook.pack(fill='both', expand=True)
         self.tabs = []
         for spec in specs.TABS:
-            tab = ToolTab(notebook, spec)
+            tab = _build_tab(notebook, spec)
             notebook.add(tab, text=spec['name'])
             self.tabs.append(tab)
 
@@ -237,8 +273,9 @@ class LauncherApp(ttk.Frame):
 
     def _on_close(self):
         """Warn before closing while work is still running."""
+        # preview tabs have no worker thread, so getattr rather than .run
         busy = [t.spec['name'] for t in self.tabs
-                if t.run is not None and t.run.is_alive()]
+                if getattr(t, 'run', None) is not None and t.run.is_alive()]
         if busy:
             from tkinter import messagebox
             if not messagebox.askokcancel(
@@ -247,7 +284,7 @@ class LauncherApp(ttk.Frame):
                     'Quitting now stops it and may leave partial output. Quit anyway?'):
                 return
             for t in self.tabs:
-                if t.run is not None and t.run.is_alive():
+                if getattr(t, 'run', None) is not None and t.run.is_alive():
                     t.run.cancel()
         self._master.destroy()
 
