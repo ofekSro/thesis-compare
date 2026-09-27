@@ -47,7 +47,10 @@ def load_convergence_coefficients(csv_path):
     RadiusP ('additive'): keys C0, C1, C2, C3, a, has_H_term
         Z = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)
                + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1)
-    RadiusI ('power'): keys A, p, q, r, r2
+    RadiusI ('unified', production since 2026-09-27): keys A, C1..C5
+        Z = A * Pi2^(C4 + C5*ln(rho) + C3*ln(H/s))
+              * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)
+    RadiusI ('power', historical tables): keys A, p, q, r, r2
         Z = A * rho^p * (H/s)^q * (s/W^(1/3))^r * exp(r2*ln(s/W^(1/3))^2)
         (r2 comes from the r2_sW13sq column; CSVs written before the
         quadratic term lack it and load as r2 = 0 — the legacy power law)
@@ -58,7 +61,17 @@ def load_convergence_coefficients(csv_path):
         det = int(row['Det'])
         target = row['Target']
         formula = row['Formula'] if 'Formula' in df.columns else 'additive'
-        if formula == 'power':
+        if formula == 'unified':
+            coeffs[(det, target)] = {
+                'formula': 'unified',
+                'A': float(row['A']),
+                'C1': float(row['C1_trap']),
+                'C2': float(row['C2_sat']),
+                'C3': float(row['C3_hs_pi2']),
+                'C4': float(row['C4_pi2']),
+                'C5': float(row['C5_rho_pi2']),
+            }
+        elif formula == 'power':
             coeffs[(det, target)] = {
                 'formula': 'power',
                 'A': float(row['A']),
@@ -185,7 +198,15 @@ def predict_convergence_radius(cfg, conv_coeffs):
         if key not in conv_coeffs:
             continue
         c = conv_coeffs[key]
-        if c['formula'] == 'power':
+        if c['formula'] == 'unified':
+            if height <= 0 or rho <= 0:
+                continue                          # both are logged in the fit
+            hs = height / swidth
+            ln_hs = np.log(hs)
+            Z = (c['A'] * pi2 ** (c['C4'] + c['C5'] * np.log(rho)
+                                  + c['C3'] * ln_hs)
+                 * np.exp(c['C1'] * rho * np.sqrt(hs) + c['C2'] * ln_hs ** 2))
+        elif c['formula'] == 'power':
             if height <= 0 or rho <= 0:
                 continue                          # both are logged in the fit
             Z = (c['A'] * rho ** c['p'] * (height / swidth) ** c['q']
@@ -366,9 +387,10 @@ def _print_formulas(conv_coeffs, z_coeffs, progress=print):
     progress('    a = 1 (street) / 2 (intersection): density-switch threshold')
     progress('    Canyon law: H/s effect flips sign at s = W^(1/3) (channeling <-> blocking)')
     progress('    sqrt(rho) = b/(b+s) = canyon wall continuity (cross-street gaps leak)')
-    progress('  RadiusI (Pi power law):')
-    progress('    Z = A * rho^p * (H/s)^q * (s/W^(1/3))^r')
-    progress('  where rho = b^2/(b+s)^2,  W^(1/3) is Hopkinson length scale')
+    progress('  RadiusI (unified multiplicative; historical tables: power law):')
+    progress('    Z = A * Pi2^(C4 + C5*ln(rho) + C3*ln(H/s))')
+    progress('          * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)')
+    progress('  where rho = b^2/(b+s)^2, Pi2 = s/W^(1/3), W^(1/3) Hopkinson scale')
     progress('  Groups: by det only (2 formulas per target)')
     progress('=' * 70)
 
@@ -377,7 +399,13 @@ def _print_formulas(conv_coeffs, z_coeffs, progress=print):
         for (det, tgt), c in sorted((k, v) for k, v in conv_coeffs.items() if k[1] == target):
             loc = det_names.get(det, f'det={det}')
             progress(f'  {loc}:')
-            if c['formula'] == 'power':
+            if c['formula'] == 'unified':
+                progress(f'    Z = {c["A"]:.4f}'
+                         f' * Pi2^({c["C4"]:+.4f} {c["C5"]:+.4f}*ln(rho)'
+                         f' {c["C3"]:+.4f}*ln(H/s))')
+                progress(f'          * exp({c["C1"]:+.4f}*rho*sqrt(H/s)'
+                         f' {c["C2"]:+.4f}*ln(H/s)^2)')
+            elif c['formula'] == 'power':
                 r2 = c.get('r2', 0.0)
                 quad = f' * exp({r2:+.4f}*ln(s/W^1/3)^2)' if r2 != 0.0 else ''
                 progress(f'    Z = {c["A"]:.4f} * rho^({c["p"]:+.4f})'

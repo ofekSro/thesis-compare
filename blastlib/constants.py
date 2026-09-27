@@ -41,11 +41,23 @@ PARAMS = {
 # convergence decisions were made by a pressure threshold and RadiusI landed
 # on the 10 kPa contour. That floor is deliberately absent here.
 #
-# thr_I_scaled = 20 is a calibration, not a measured boundary: it is the
-# loosest-but-lowest value giving 100% convergence with no reliance on
-# extrapolated free-field data. At the resulting radius it is a ~83% relative
-# band (urban within a factor ~1.8 of free-field), against ~47% for the
-# pressure rule at ITS radius — the impulse test remains ~1.8x looser.
+# thr_I_scaled = 20 is a calibration, not a measured boundary. It was
+# originally chosen on the pre-2026-09 store as the loosest-but-lowest value
+# giving 100% convergence — but that store let building-skin sentinel cells
+# drive RadiusI (docs/audit/2026-09-27, ALG-01/PHY-01), so the old "100%
+# convergence" and "~1.8x looser than pressure" readings described the
+# artefact. On the raw-mask store the value was re-examined and KEPT:
+#   * a threshold sweep over 5..40 Pa.s/kg^(1/3)
+#     (outputs/check_results/thr_I_sensitivity_scan.csv) shows 20 at the
+#     stability/predictability optimum — stricter bands push the radius into
+#     the far, noisy field (median Z_conv,I 24.9 at thr=5), looser ones into
+#     the discrete near field (3.6 at thr=40), and the LOGO error of the
+#     production RadiusI form is minimal at 20;
+#   * sensitivity d ln R / d ln thr ~ -0.7 across the sweep;
+#   * the K=3 streak rule sits on a stable plateau for BOTH loads
+#     (outputs/check_results/k_sensitivity_scan.csv; median |d ln R| <= 1%
+#     for K 2->3->4) — which is also why the impulse scan stays HARD while
+#     the pressure scan is soft: impulse has no streak-brittleness to soften.
 IMPULSE_CRITERION = {
     'thr_I_scaled': 20.0,   # Pa.s/kg^(1/3)
 }

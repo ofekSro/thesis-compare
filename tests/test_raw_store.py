@@ -40,21 +40,34 @@ def test_detected_as_raw(raw_dir):
 
 
 def test_expansion_matches_shipped_v2_bit_for_bit(raw_dir):
-    """Every array a v3 file yields equals the v2 file's, exactly.
+    """Criterion-independent arrays a v3 file yields equal the v2 file's.
 
-    Bit equality is the right bar here and is achievable: the solver wrote
-    float32, the Pa->kPa division preserves float32, and the coordinates are
-    rebuilt with the same expression the VTK reader uses. Anything looser
-    would hide a real change in the numbers.
+    Until 2026-09-27 this test required FULL bit equality with the shipped
+    v2 store. The raw-field building mask adopted then (docs/audit/
+    2026-09-27, ALG-01/PHY-01, decision D2b) deliberately changes every
+    masked/pinned array relative to v2, whose criteria were baked at write
+    time with the old merged-field mask — so full equality is no longer the
+    contract. What must still hold, exactly:
+      * v3 yields a superset of v2's keys (new ref*_fill keys are additive);
+      * every criterion-INDEPENDENT array is bit-identical: coordinates,
+        the raw reference fields, and the raw pressure peaks.
+    The criterion-dependent arrays are pinned by tests/test_npz_anchors.py
+    (raw-store anchors) instead.
     """
     _require_config(NPZ_V2_DIR, CONFIG)
     from_raw, ok_raw = load_processed_data(raw_dir, CONFIG)
     from_v2, ok_v2 = load_processed_data(NPZ_V2_DIR, CONFIG)
     assert ok_raw and ok_v2
 
-    assert set(from_raw) == set(from_v2), 'key sets differ'
+    missing = set(from_v2) - set(from_raw)
+    assert not missing, f'v3 lost keys the v2 store had: {sorted(missing)}'
+
+    criterion_free = (['X1', 'Z1', 'X2', 'Z2', 'X3', 'Z3']
+                      + [f'refP{g}' for g in '123']
+                      + [f'refI{g}' for g in '123']
+                      + [f'peakP{g}_raw' for g in '123'])
     mismatched = []
-    for key in sorted(from_raw):
+    for key in criterion_free:
         a = np.asarray(from_raw[key])
         b = np.asarray(from_v2[key])
         if a.shape != b.shape or not np.array_equal(a, b, equal_nan=True):

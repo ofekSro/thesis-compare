@@ -39,7 +39,7 @@ from blastlib.regression.plots import plot_best_validation
 def run_cross_validation(conv_csv, maxR_csv, output_folder,
                          n_iterations=500, test_fraction=0.2,
                          target_mape=10.0, method=None,
-                         model_p='relwls', model_i='quad', progress=print):
+                         model_p='relwls', model_i='unified', progress=print):
     """Run repeated 80/20 train/test splits and find best formula coefficients.
 
     Parameters
@@ -67,13 +67,18 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         error, the production default after the 2026-08 acceptance gate) or
         'legacy' (plain OLS). See convergence_models._fit_pi_group.
     model_i : str
-        RadiusI fit variant: 'quad' (r2*ln(Pi2)^2 term, production default)
-        or 'legacy' (4-coefficient power law). See _fit_impulse_group.
+        RadiusI fit variant: 'unified' (the shared five-term form,
+        production default since 2026-09-27), 'quad' (power law with the
+        r2*ln(Pi2)^2 term, previous production) or 'legacy'
+        (4-coefficient power law). See _fit_impulse_group.
     progress : callable
         Progress sink (default print). A GUI can pass its own logger.
     """
     pi_weighting = 'relative' if model_p == 'relwls' else 'ols'
-    impulse_model = 'quad' if model_i == 'quad' else 'legacy'
+    if model_i not in ('unified', 'quad', 'legacy'):
+        raise ValueError(f"model_i must be 'unified', 'quad' or 'legacy', "
+                         f'got {model_i!r}')
+    impulse_model = model_i
     output_folder = str(output_folder)
 
     def out(name):
@@ -289,7 +294,11 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
     progress('  RadiusP: Z = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)')
     progress('                + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1)')
     progress('           a = 1 (street) / 2 (intersection)')
-    progress('  RadiusI: Z = A * rho^p * (H/s)^q * (s/W^1/3)^r')
+    if impulse_model == 'unified':
+        progress('  RadiusI: Z = A * Pi2^(C4 + C5*ln(rho) + C3*ln(H/s))')
+        progress('               * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)')
+    else:
+        progress('  RadiusI: Z = A * rho^p * (H/s)^q * (s/W^1/3)^r')
     progress(f'{"="*60}')
     progress(f'  Median conv_P MAPE: {med_conv_P:.2f}%  |  R² = {med_r2_P:.3f}')
     progress(f'  Median conv_I MAPE: {med_conv_I:.2f}%  |  R² = {med_r2_I:.3f}')

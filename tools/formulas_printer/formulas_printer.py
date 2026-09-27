@@ -28,14 +28,25 @@ def format_convergence_formulas(csv_path):
         ' BEST CONVERGENCE RADIUS FORMULAS    R = W^(1/3) * Z',
         ' RadiusP: Z = C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)',
         '                + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1)',
-        ' RadiusI: Z = A * rho^p * (H/s)^q * (s/W^1/3)^r',
+        ' RadiusI: Z = A * Pi2^(C4 + C5*ln(rho) + C3*ln(H/s))',
+        '               * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)',
+        '          (historical tables: Z = A * rho^p * (H/s)^q * Pi2^r)',
         '=' * 70,
     ]
     for target in ['RadiusP', 'RadiusI']:
         lines.append(f'\n--- {target} ---')
         for _, row in df[df['Target'] == target].iterrows():
             lines.append(f"  {row['Location']}:")
-            if row['Formula'] == 'power':
+            if row['Formula'] == 'unified':
+                lines.append(
+                    f"    Z = {row['A']:.4f}"
+                    f" * Pi2^({row['C4_pi2']:+.4f}"
+                    f" {row['C5_rho_pi2']:+.4f}*ln(rho)"
+                    f" {row['C3_hs_pi2']:+.4f}*ln(H/s))")
+                lines.append(
+                    f"          * exp({row['C1_trap']:+.4f}*rho*sqrt(H/s)"
+                    f" {row['C2_sat']:+.4f}*ln(H/s)^2)")
+            elif row['Formula'] == 'power':
                 r2 = float(row['r2_sW13sq']) if 'r2_sW13sq' in df.columns else 0.0
                 quad = f" * exp({r2:+.4f}*ln(s/W^1/3)^2)" if r2 != 0.0 else ''
                 lines.append(

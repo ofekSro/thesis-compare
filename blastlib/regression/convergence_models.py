@@ -212,16 +212,28 @@ def fit_pi_all_groups(conv_df, target_col, weighting='ols'):
 # ============================================================
 
 def _fit_impulse_group(W, rho, H, s, R_target, model='legacy'):
-    """Fit the Pi power law for one det group via log-space OLS.
+    """Fit the RadiusI model for one det group via log-space OLS.
 
-    Formula: Z = A * rho^p * (H/s)^q * Pi2^r * exp(r2*ln(Pi2)^2),
+    model='unified' (production since 2026-09-27, on the raw-mask store):
+        Z = A * Pi2^(C4 + C5*ln(rho) + C3*ln(H/s))
+              * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)
+    One functional form for both det groups, coefficients per group. The
+    separable power law fails structurally on the sentinel-free data: the
+    height effect saturates (ln^2 term) and couples to the scaled street
+    width (C3), and the trapping factor rho*sqrt(H/s) — the same construct
+    as the Z_urban canyon_trap model — carries the density dependence.
+    Selected by leave-one-geometry-out comparison under the constraint of
+    one shared term set; every coefficient significant in both groups.
+    See docs/audit/2026-09-27 (D2 follow-up) and ALGORITHM.md.
+
+    model='quad' / 'legacy' (history): the Pi power law
+        Z = A * rho^p * (H/s)^q * Pi2^r * exp(r2*ln(Pi2)^2)
+    with r2 fitted ('quad') or fixed to 0 ('legacy'). Kept so historical
+    tables and studies can be reproduced; not fitted in production.
+
     Z = R/W^(1/3), Pi2 = s/W^(1/3).
-
-    model: 'legacy' fixes r2 = 0 (the original 4-coefficient fit);
-    'quad' fits the quadratic log term as a 5th coefficient.
-
-    Returns dict with keys: A, p, q, r, r2.  Returns None if fewer than 6
-    samples (H > 0 and rho > 0 are required — both are logged).
+    Returns a dict predict_impulse dispatches on ('C1'.. keys for unified,
+    'p'/'q'/'r' for the power law). None if fewer than 6 samples.
     """
     MIN_SAMPLES = 6
     W        = np.asarray(W,        dtype=float)
@@ -238,6 +250,17 @@ def _fit_impulse_group(W, rho, H, s, R_target, model='legacy'):
     W13 = W ** (1 / 3)
     lnZ = np.log(R_target / W13)
     ln_pi2 = np.log(s / W13)
+    if model == 'unified':
+        ln_hs = np.log(H / s)
+        X = np.column_stack([np.ones(len(W)),
+                             rho * np.sqrt(H / s),     # C1: canyon trapping
+                             ln_hs ** 2,               # C2: height saturation
+                             ln_hs * ln_pi2,           # C3: depth-width coupling
+                             ln_pi2,                   # C4: street-width base
+                             np.log(rho) * ln_pi2])    # C5: density-width coupling
+        c0, C1, C2, C3, C4, C5 = lstsq(X, lnZ)
+        return {'A': np.exp(c0), 'C1': C1, 'C2': C2, 'C3': C3,
+                'C4': C4, 'C5': C5}
     if model == 'quad':
         X = np.column_stack([np.ones(len(W)), np.log(rho), np.log(H / s),
                              ln_pi2, ln_pi2 ** 2])
@@ -251,14 +274,16 @@ def _fit_impulse_group(W, rho, H, s, R_target, model='legacy'):
 
 
 def predict_impulse(W, rho, H, det, s, b, imp_coeffs):
-    """Predict convergence radius using the Pi power law.
+    """Predict the impulse convergence radius.
 
-    Formula: R = W^(1/3) * A * rho^p * (H/s)^q * Pi2^r * exp(r2*ln(Pi2)^2)
-
-    imp_coeffs: dict {det_val: coef_dict} from _fit_impulse_group. Dicts
-    without an 'r2' key (older saved coefficients) predict with r2 = 0,
-    i.e. the legacy 4-coefficient power law.
-    Returns prediction array (NaN where group is missing).
+    Dispatches on the coefficient dict:
+      unified ('C1'.. keys):
+        R = W^(1/3) * A * Pi2^(C4 + C5*ln(rho) + C3*ln(H/s))
+              * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)
+      power law ('p'/'q'/'r' keys, historical tables):
+        R = W^(1/3) * A * rho^p * (H/s)^q * Pi2^r * exp(r2*ln(Pi2)^2)
+    Dicts without an 'r2' key (older saved coefficients) predict with
+    r2 = 0. Returns prediction array (NaN where group is missing).
     """
     W   = np.asarray(W,   dtype=float)
     rho = np.asarray(rho, dtype=float)
@@ -274,21 +299,33 @@ def predict_impulse(W, rho, H, det, s, b, imp_coeffs):
         if not mask.any():
             continue
         W13m = W[mask] ** (1 / 3)
-        Z = (coef['A'] * rho[mask] ** coef['p']
-             * (H[mask] / s[mask]) ** coef['q']
-             * (s[mask] / W13m) ** coef['r'])
-        r2 = coef.get('r2', 0.0)
-        if r2 != 0.0:
-            Z = Z * np.exp(r2 * np.log(s[mask] / W13m) ** 2)
+        if 'C1' in coef:
+            hs = H[mask] / s[mask]
+            ln_hs = np.log(hs)
+            ln_pi2 = np.log(s[mask] / W13m)
+            lnZ = (np.log(coef['A'])
+                   + coef['C1'] * rho[mask] * np.sqrt(hs)
+                   + coef['C2'] * ln_hs ** 2
+                   + coef['C3'] * ln_hs * ln_pi2
+                   + coef['C4'] * ln_pi2
+                   + coef['C5'] * np.log(rho[mask]) * ln_pi2)
+            Z = np.exp(lnZ)
+        else:
+            Z = (coef['A'] * rho[mask] ** coef['p']
+                 * (H[mask] / s[mask]) ** coef['q']
+                 * (s[mask] / W13m) ** coef['r'])
+            r2 = coef.get('r2', 0.0)
+            if r2 != 0.0:
+                Z = Z * np.exp(r2 * np.log(s[mask] / W13m) ** 2)
         pred[mask] = W13m * Z
     return pred
 
 
 def fit_impulse_all_groups(conv_df, target_col='RadiusI', model='legacy'):
-    """Fit the Pi power law for det=1 and det=2 groups.
+    """Fit the RadiusI model for det=1 and det=2 groups.
 
-    model: 'legacy' (4 coefficients) or 'quad' — see _fit_impulse_group.
-    Returns dict {det_val: coef_dict_or_None}.
+    model: 'unified' (production), 'quad' or 'legacy' (historical power
+    laws) — see _fit_impulse_group. Returns dict {det_val: coef_or_None}.
     """
     W   = conv_df['ChargeWeight'].values.astype(float)
     H   = conv_df['Height'].values.astype(float)

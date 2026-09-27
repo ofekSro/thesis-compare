@@ -14,13 +14,17 @@ def save_best_convergence_coefficients(conv_P_coeffs, conv_I_coeffs, output_fold
     Superset schema, one row per (det, target) — 4 rows total:
       Det, Location, Target, Formula,
       C0, C1_sW13, C2_switch, C3_canyon, a_thresh, has_H_term,   (additive, P)
-      A, p_rho, q_HoverS, r_sW13, r2_sW13sq                      (power, I)
+      A, C1_trap, C2_sat, C3_hs_pi2, C4_pi2, C5_rho_pi2,         (unified, I)
+      p_rho, q_HoverS, r_sW13, r2_sW13sq                         (power, I, legacy)
     Unused cells are left empty.
 
     RadiusP (Formula='additive'):
       R = W^(1/3) * (C0 + C1*(s/W^1/3) + C2*rho*(s/W^1/3 - a)
                         + C3*sqrt(rho)*(H/s)*(W^1/3/s - 1))
-    RadiusI (Formula='power'):
+    RadiusI (Formula='unified', production since 2026-09-27):
+      R = W^(1/3) * A * Pi2^(C4_pi2 + C5_rho_pi2*ln(rho) + C3_hs_pi2*ln(H/s))
+              * exp(C1_trap*rho*sqrt(H/s) + C2_sat*ln(H/s)^2)
+    RadiusI (Formula='power', historical tables):
       R = W^(1/3) * A * rho^p * (H/s)^q * (s/W^(1/3))^r
               * exp(r2 * ln(s/W^(1/3))^2)
     r2_sW13sq is 0 for the legacy 4-coefficient fit; readers of older CSVs
@@ -29,6 +33,13 @@ def save_best_convergence_coefficients(conv_P_coeffs, conv_I_coeffs, output_fold
     loc_names = {1: 'Street', 2: 'Intersection'}
 
     rows = []
+    for det_val, coef in conv_P_coeffs.items():
+        if coef is None:
+            continue
+    empty_I = {'A': np.nan, 'C1_trap': np.nan, 'C2_sat': np.nan,
+               'C3_hs_pi2': np.nan, 'C4_pi2': np.nan, 'C5_rho_pi2': np.nan,
+               'p_rho': np.nan, 'q_HoverS': np.nan, 'r_sW13': np.nan,
+               'r2_sW13sq': np.nan}
     for det_val, coef in conv_P_coeffs.items():
         if coef is None:
             continue
@@ -43,32 +54,34 @@ def save_best_convergence_coefficients(conv_P_coeffs, conv_I_coeffs, output_fold
             'C3_canyon': coef['C3'],
             'a_thresh': coef['a'],
             'has_H_term': int(coef['has_H_term']),
-            'A': np.nan,
-            'p_rho': np.nan,
-            'q_HoverS': np.nan,
-            'r_sW13': np.nan,
-            'r2_sW13sq': np.nan,
+            **empty_I,
         })
     for det_val, coef in conv_I_coeffs.items():
         if coef is None:
             continue
-        rows.append({
+        row = {
             'Det': det_val,
             'Location': loc_names.get(det_val, str(det_val)),
             'Target': 'RadiusI',
-            'Formula': 'power',
             'C0': np.nan,
             'C1_sW13': np.nan,
             'C2_switch': np.nan,
             'C3_canyon': np.nan,
             'a_thresh': np.nan,
             'has_H_term': np.nan,
-            'A': coef['A'],
-            'p_rho': coef['p'],
-            'q_HoverS': coef['q'],
-            'r_sW13': coef['r'],
-            'r2_sW13sq': coef.get('r2', 0.0),
-        })
+            **empty_I,
+        }
+        if 'C1' in coef:
+            row.update({'Formula': 'unified', 'A': coef['A'],
+                        'C1_trap': coef['C1'], 'C2_sat': coef['C2'],
+                        'C3_hs_pi2': coef['C3'], 'C4_pi2': coef['C4'],
+                        'C5_rho_pi2': coef['C5']})
+        else:
+            row.update({'Formula': 'power', 'A': coef['A'],
+                        'p_rho': coef['p'], 'q_HoverS': coef['q'],
+                        'r_sW13': coef['r'],
+                        'r2_sW13sq': coef.get('r2', 0.0)})
+        rows.append(row)
 
     df = pd.DataFrame(rows)
     path = os.path.join(str(output_folder), filename)
@@ -197,10 +210,12 @@ def print_final_formulas(conv_df, conv_P_coeffs, conv_I_coeffs):
     print('    a = 1 (street) / 2 (intersection): density-switch threshold')
     print('    Canyon law: H/s effect flips sign at s = W^(1/3) (channeling <-> blocking)')
     print('    sqrt(rho) = b/(b+s) = canyon wall continuity (cross-street gaps leak)')
-    print('  RadiusI (Pi power law):')
-    print('    Z = A * rho^p * (H/s)^q * (s/W^(1/3))^r')
-    print('    one exponent per Pi group, so the geometry effects separate')
-    print('  where rho = b^2/(b+s)^2, W^(1/3) is the Hopkinson length scale')
+    print('  RadiusI (unified multiplicative model; legacy tables: power law):')
+    print('    Z = A * Pi2^(C4 + C5*ln(rho) + C3*ln(H/s))')
+    print('          * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)')
+    print('    C1: canyon trapping (wall continuity x aspect, as in Z_urban)')
+    print('    C2 < 0: height saturation; C3 < 0: deep canyons mute width')
+    print('  where rho = b^2/(b+s)^2, Pi2 = s/W^(1/3), W^(1/3) the Hopkinson scale')
     print(f'{"="*70}')
 
     print(f'\n--- RadiusP ---')
@@ -229,12 +244,19 @@ def print_final_formulas(conv_df, conv_P_coeffs, conv_I_coeffs):
         if coef is None:
             continue
         loc = loc_names.get(det_val, f'det={det_val}')
-        r2 = coef.get('r2', 0.0)
-        quad = f' * exp({r2:+.4f}*ln(s/W^1/3)^2)' if r2 != 0.0 else ''
         print(f'  {loc}:')
-        print(f'    Z = {coef["A"]:.4f} * rho^({coef["p"]:+.4f})'
-              f' * (H/s)^({coef["q"]:+.4f})'
-              f' * (s/W^1/3)^({coef["r"]:+.4f})' + quad)
+        if 'C1' in coef:
+            print(f'    Z = {coef["A"]:.4f}'
+                  f' * Pi2^({coef["C4"]:+.4f} {coef["C5"]:+.4f}*ln(rho)'
+                  f' {coef["C3"]:+.4f}*ln(H/s))')
+            print(f'          * exp({coef["C1"]:+.4f}*rho*sqrt(H/s)'
+                  f' {coef["C2"]:+.4f}*ln(H/s)^2)')
+        else:
+            r2 = coef.get('r2', 0.0)
+            quad = f' * exp({r2:+.4f}*ln(s/W^1/3)^2)' if r2 != 0.0 else ''
+            print(f'    Z = {coef["A"]:.4f} * rho^({coef["p"]:+.4f})'
+                  f' * (H/s)^({coef["q"]:+.4f})'
+                  f' * (s/W^1/3)^({coef["r"]:+.4f})' + quad)
         print(f'    R = W^(1/3) * Z')
     print()
 

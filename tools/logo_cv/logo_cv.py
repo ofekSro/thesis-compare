@@ -31,7 +31,7 @@ from blastlib.regression.convergence_models import (
 GROUP_COLS = ['Det', 'BuildingSize', 'StreetWidth', 'Height']
 
 MODEL_P_CHOICES = ('legacy', 'relwls')
-MODEL_I_CHOICES = ('legacy', 'quad')
+MODEL_I_CHOICES = ('legacy', 'quad', 'unified')
 
 
 def _make_fitters(model_p, model_i):
@@ -47,7 +47,8 @@ def _make_fitters(model_p, model_i):
     if model_i == 'legacy':
         fit_i = lambda df: fit_impulse_all_groups(df, 'RadiusI')
     else:
-        fit_i = lambda df: fit_impulse_all_groups(df, 'RadiusI', model='quad')
+        # 'unified' (production since 2026-09-27) or 'quad' (previous)
+        fit_i = lambda df: fit_impulse_all_groups(df, 'RadiusI', model=model_i)
     return fit_p, fit_i
 
 
