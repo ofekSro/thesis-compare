@@ -134,9 +134,42 @@ the CSV rather than being dropped, so how often it happens is visible.
 ### Regenerating the NPZ files from raw VTKs
 
 ```
-python run_preprocess.py            # data/vtk/       → data/processed_npz/
-python run_preprocess_obs.py        # data/vtk/OBS/   → data/obs_npz/
+python run_preprocess.py            # data/vtk/       → data/raw_npz/
+python run_preprocess.py --store processed          # → data/processed_npz/
+python run_preprocess_obs.py        # data/vtk/OBS/  → data/obs_npz/
 ```
+
+### The two NPZ store formats
+
+`run_preprocess.py` writes the **raw store** (schema v3, `data/raw_npz/`) by
+default. It holds only what the solver produced — urban peak pressure and
+impulse, the free-field reference for both, the grid definition and the dump
+times — and applies **no criterion**. The threshold mask, the
+multi-resolution fill, the smart cut, the ratios and the pinning of converged
+cells all happen when `run_analysis.py` loads the file.
+
+That matters because in the older *processed* stores (v1/v2) those decisions
+were baked in at write time, so changing the pressure threshold, the impulse
+band, the tolerance or the projection sharpness meant regenerating everything
+from the VTKs — and the raw urban impulse was never stored at all, so the
+impulse criterion could not be re-derived from a v2 file even in principle.
+
+| | processed (v1/v2) | raw (v3) |
+|---|---|---|
+| criteria | fixed at write time | applied at analysis time |
+| change a threshold | rebuild from VTK | re-run `run_analysis.py` |
+| raw urban impulse | absent | stored |
+| size, 96 configs | 5.1 GB / 7.3 GB | **0.9 GB** |
+| load cost per config | ~0.1 s | ~0.4 s |
+
+Both are read transparently — point `--npz-dir` at either, or leave it blank
+and the raw store is preferred when present. The numbers are identical:
+`tests/test_raw_store.py` asserts that a v3 file expanded through
+`process_grids()` reproduces the shipped v2 arrays **bit for bit**, and the
+soft criterion is served by both (a v1 folder serves neither).
+
+The VTKs do not have to live under `data/vtk/` — pass `--vtk-dir` (or fill
+the VTK folder box in the GUI) to read them wherever they are.
 
 ---
 
@@ -178,8 +211,9 @@ Each is independent and takes `--help`. All write under `outputs/`.
 |---|---|
 | `tools\check_formulas\check_formulas.py` | Validate saved coefficients against the best CV test split |
 | `tools\formulas_printer\formulas_printer.py` | Print the fitted formulas in readable form |
+| `tools\pressure_report\pressure_report.py` | Per-config pressure report: R_conv and the per-Z urban radius, measured vs production formula, as a colour-banded `.xlsx` (needs `openpyxl`) |
 | `tools\pi_effects\pi_effects.py` | ~40 diagnostic plots of R and Z vs each Pi group |
-| `tools\radius_methods\radius_methods.py` | Compare max / p95 / equivalent-area radius definitions |
+| `tools\radius_methods\radius_methods.py` | Compare max / p95 / equivalent-area (hard) / equivalent-area under the soft criterion (beta); 2x2 figures as PNG + PDF |
 | `tools\regime_graphs\regime_graphs.py` | The two thesis figures on the height-effect sign flip |
 | `tools\z_surface_3d\z_surface_3d.py` | 3D surface of Z_P (hardcoded production coefficients) |
 | `tools\view_3d\view_3d.py` | Interactive pyvista 3D viewer (needs the optional deps) |
@@ -201,11 +235,15 @@ blastlib/          shared core (importable package)
   paths.py         every directory name, defined once
   constants.py     MAX_HEIGHT, PARAMS
   geometry.py      area/volume density, exclusion radius, 3-resolution concat
+  progress.py      Unicode-safe printer (the Hebrew-path/cp1252 fix)
   config/          config-name parsing, VTK config discovery
   io/              NPZ store, binary VTK readers
   processing/      grid merging, convergence radius, free-field lookup
   regression/      CV orchestrator, models, stats, output, plots
   plotting/        figure generation
+  street/          street-channelling model E(r): strip measurement,
+                   anchors, fitting, model, validation, figures
+                   (docs/STREET_CHANNELLING_MODEL.md; CLIs in tools/street/)
 run_analysis.py    Phase 1 + Phase 2 entry point
 run_preprocess.py  VTK → NPZ
 run_preprocess_obs.py
