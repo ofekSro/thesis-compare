@@ -39,7 +39,7 @@ from blastlib.regression.plots import plot_best_validation
 def run_cross_validation(conv_csv, maxR_csv, output_folder,
                          n_iterations=500, test_fraction=0.2,
                          target_mape=10.0, method=None,
-                         model_p='relwls', model_i='unified', progress=print):
+                         model_p='relwls', model_i='quad', progress=print):
     """Run repeated 80/20 train/test splits and find best formula coefficients.
 
     Parameters
@@ -67,9 +67,11 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         error, the production default after the 2026-08 acceptance gate) or
         'legacy' (plain OLS). See convergence_models._fit_pi_group.
     model_i : str
-        RadiusI fit variant: 'unified' (the shared five-term form,
-        production default since 2026-09-27), 'quad' (power law with the
-        r2*ln(Pi2)^2 term, previous production) or 'legacy'
+        RadiusI fit variant: 'quad' (the Pi power law with the
+        r2*ln(Pi2)^2 term — production default; reinstated 2026-09-28
+        under the accurate-or-irrelevant criterion, where it is the best
+        form), 'unified' (the shared five-term form — best under the
+        2026-09-27 scaled-band criterion, kept available) or 'legacy'
         (4-coefficient power law). See _fit_impulse_group.
     progress : callable
         Progress sink (default print). A GUI can pass its own logger.

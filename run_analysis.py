@@ -429,16 +429,17 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
 
 def run_phase2(*, tables_dir=None, n_iterations=500, test_fraction=0.2,
                target_mape=10.0, radius_estimator=None,
-               model_p='relwls', model_i='unified', progress=print):
+               model_p='relwls', model_i='quad', progress=print):
     """Phase 2: cross-validated regression over the Phase 1 CSVs.
 
     *radius_estimator* selects which Phase 1 tables to read and how the
     outputs are named; it does not affect any fitting formula.
     *model_p* ('relwls'|'legacy') and *model_i*
-    ('unified'|'quad'|'legacy') select the convergence-model fit variants
+    ('quad'|'unified'|'legacy') select the convergence-model fit variants
     — see run_cross_validation. Defaults are production: 'relwls' since
-    the 2026-08 acceptance gate, 'unified' since the 2026-09-27 RadiusI
-    model change; pass the older tokens to reproduce historical sets.
+    the 2026-08 acceptance gate, 'quad' reinstated 2026-09-28 under the
+    accurate-or-irrelevant impulse criterion; pass the other tokens to
+    reproduce the 2026-09-27 unified set or older ones.
 
     Returns the summary dict from run_cross_validation.
     """
@@ -472,7 +473,7 @@ def main(*, phase='all', n_iterations=500, scale_limits=None,
          npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
          test_fraction=0.2, target_mape=10.0, radius_estimator=None,
          rebuild_impulse=False, make_figures=True,
-         model_p='relwls', model_i='unified', progress=print):
+         model_p='relwls', model_i='quad', progress=print):
     """Run the analysis. Never prompts — this is the GUI/API entry point.
 
     phase : 'all' | '1' | '2'
@@ -553,11 +554,11 @@ def _build_parser():
                         "error weighted LS (production default) or 'legacy' "
                         "plain OLS.")
     p.add_argument('--model-i', choices=['legacy', 'quad', 'unified'],
-                   default='unified', dest='model_i',
-                   help="RadiusI fit variant for Phase 2: 'unified' shared "
-                        "five-term form (production default since "
-                        "2026-09-27), 'quad' power law with the (ln Pi2)^2 "
-                        "term, or 'legacy' 4-coefficient power law.")
+                   default='quad', dest='model_i',
+                   help="RadiusI fit variant for Phase 2: 'quad' power law "
+                        "with the (ln Pi2)^2 term (production default, "
+                        "reinstated 2026-09-28), 'unified' shared five-term "
+                        "form, or 'legacy' 4-coefficient power law.")
     return p
 
 

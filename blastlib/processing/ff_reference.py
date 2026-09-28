@@ -77,7 +77,10 @@ def rebuild_impulse_ratio(processed, weight, ff_csv, thr_I_scaled=None):
         ref = reference_curve(ff_csv, weight, 'I', Zsc)
         with np.errstate(invalid='ignore', divide='ignore'):
             ratio = I / ref
-            conv = impulse_converged(I, ref, W13, thr_I_scaled)
+            if thr_I_scaled is not None:      # explicit: historical rule
+                conv = impulse_converged_scaled(I, ref, W13, thr_I_scaled)
+            else:
+                conv = impulse_converged(I, ref, W13)
         # Preserve the existing NaN mask: those cells carry no data at all.
         ratio = np.where(conv & ~np.isnan(ratio), 1.0, ratio)
         processed[f'ratioI{g}'] = np.where(
@@ -85,16 +88,34 @@ def rebuild_impulse_ratio(processed, weight, ff_csv, thr_I_scaled=None):
     return processed
 
 
-def impulse_converged(I_urban, I_ref, W13, thr_I_scaled=None):
+def impulse_converged(I_urban, I_ref, W13, rel_band=None, floor_scaled=None):
     """Cells where the urban impulse counts as converged to free-field.
 
-        |I_urban - I_ref| / W^(1/3) < thr_I_scaled
+    Production criterion (owner decision, 2026-09-28 — "accurate or
+    irrelevant"; see constants.IMPULSE_CRITERION for the full rationale):
 
-    Dividing by W^(1/3) is what makes this admissible under Hopkinson-Cranz;
-    see constants.IMPULSE_CRITERION. Deliberately contains no pressure term:
-    gating the impulse ratio on a pressure threshold is what pinned RadiusI to
-    the 10 kPa contour.
+        |I_urban - I_ref| / I_ref < rel_band      (free field is accurate)
+        or  I_urban / W^(1/3) < floor_scaled      (urban impulse irrelevant)
+
+    The relevance floor is on the URBAN impulse, mirroring the pressure
+    floor's logic (audit D7): where the city itself delivers less than the
+    floor, the point is of no engineering interest. The floor's W^(1/3)
+    scaling keeps it Hopkinson-admissible; the accuracy clause is relative,
+    so it is scale-free by construction. Deliberately contains no pressure
+    term: gating the impulse ratio on a pressure threshold is what pinned
+    RadiusI to the 10 kPa contour. Cells with a non-positive reference can
+    only converge through the floor clause.
     """
-    if thr_I_scaled is None:
-        thr_I_scaled = constants.IMPULSE_CRITERION['thr_I_scaled']
+    if rel_band is None:
+        rel_band = constants.IMPULSE_CRITERION['rel_band']
+    if floor_scaled is None:
+        floor_scaled = constants.IMPULSE_CRITERION['floor_scaled']
+    with np.errstate(invalid='ignore', divide='ignore'):
+        accurate = (I_ref > 0) & (np.abs(I_urban - I_ref) / I_ref < rel_band)
+    return accurate | (I_urban / W13 < floor_scaled)
+
+
+def impulse_converged_scaled(I_urban, I_ref, W13, thr_I_scaled=20.0):
+    """The 2026-07..2026-09 scaled-band criterion, kept to reproduce
+    historical tables:  |I_urban - I_ref| / W^(1/3) < thr_I_scaled."""
     return np.abs(I_urban - I_ref) / W13 < thr_I_scaled

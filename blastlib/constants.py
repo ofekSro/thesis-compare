@@ -44,6 +44,43 @@ PARAMS = {
 
 # When the urban IMPULSE counts as converged to free-field.
 #
+# PRODUCTION CRITERION (owner decision, 2026-09-28 — the "accurate or
+# irrelevant" specification, replacing the scaled band below):
+#
+#   |I_urban - I_ff| / I_ff < rel_band        (free field is ACCURATE here)
+#   or  I_urban / W^(1/3) < floor_scaled      (urban impulse IRRELEVANT here)
+#
+# Meaning: beyond R_conv,I, either free-field impulse prediction is correct
+# to within rel_band, or the charge's impulse no longer matters at all. The
+# floor is on the URBAN impulse — the same owner logic as the pressure
+# floor (audit D7): where the city itself delivers less than the floor, the
+# location is of no engineering interest. The scaled band it replaces was
+# rejected by the owner because its permitted RELATIVE deviation grows with
+# distance (beyond Z ~ 13.7 a cell at twice the free-field impulse counted
+# as converged), so "use free field beyond R_conv" could under-predict.
+#
+#   * rel_band = 0.10 — twice the impulse mesh-convergence tolerance (5%),
+#     fixed from the decision sweep over beta in {0.10..0.30} + floor-only
+#     (outputs/check_results/criterion_decision_suite.csv): the radius is
+#     floor-dominated, so tighter bands are strictly more stable and more
+#     predictable (LOGO of the production form 8.6% at 0.10 vs 16.2% at
+#     0.30); 0.10 keeps the accuracy semantics at near-floor-only cost.
+#   * floor_scaled = 20 Pa.s/kg^(1/3) — carried over from the previous
+#     band value; sits at Z ~ 13.7 on the free-field curve, the same
+#     engineering-relevance range as the pressure floor's Z ~ 12. Floor
+#     sensitivity (15/25 at beta=0.2): median Z_conv,I 23.5/15.1 —
+#     d ln R / d ln floor ~ -0.9 — with predictability flat (~11%), so the
+#     floor sets the radius scale, not its stability. K = 2/3/4 stable
+#     (median shift < 1%).
+#   * Under this criterion the impulse radius is the larger of the two
+#     (median Z_conv,I ~ 18.6 vs Z_conv,P ~ 9.9): amplified urban impulse
+#     stays RELEVANT far beyond the free-field relevance range (Z ~ 13.7)
+#     — a genuine urban effect, unlike the artefact-driven ordering of the
+#     pre-2026-09-27 record.
+#
+# ---- Historical: the 2026-07..2026-09-27 scaled band (kept for
+#      reproducing old tables via impulse_converged_scaled) ----
+#
 #   |I_urban - I_ff| / W^(1/3) < thr_I_scaled     [Pa.s/kg^(1/3)]
 #
 # The scaling factor is required, not cosmetic. Free-field impulse scales as
@@ -90,9 +127,13 @@ PARAMS = {
 # urban field — future work, aim 4). At the measured radii the band
 # equals a median 55% of the local free-field impulse (p10 36%, p90 92%):
 # an engineering-indistinguishability band, with the framework's damage
-# anchoring on the pressure side (IATG 02.20 Table 8).
+# anchoring on the pressure side (IATG 02.20 Table 8). [The damage-anchor
+# analysis above remains valid under the new criterion: the floor is a
+# relevance level, not a damage level, and R_human stays a separate
+# product.]
 IMPULSE_CRITERION = {
-    'thr_I_scaled': 20.0,   # Pa.s/kg^(1/3)
+    'rel_band':     0.10,   # relative accuracy band (-)
+    'floor_scaled': 20.0,   # urban relevance floor [Pa.s/kg^(1/3)]
 }
 
 # How a 91-element per-angle radius array collapses to one scalar radius.

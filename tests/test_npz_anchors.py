@@ -18,13 +18,15 @@ ANCHORS = {
     'config_95_det2_b10_s5_h24_w250': 38.15139013777145,
 }
 
-# Raw (v3) store under the RAW-FIELD building mask adopted 2026-09-27
-# (docs/audit/2026-09-27, ALG-01/PHY-01, decision D2b). The v1/v2 anchors
-# above keep guarding the OLD baked-in criterion (those stores load
-# verbatim); these guard the current measurement, pressure and impulse.
+# Raw (v3) store under the RAW-FIELD building mask (2026-09-27, D2b) and
+# the accurate-or-irrelevant impulse criterion (2026-09-28; see
+# constants.IMPULSE_CRITERION). The v1/v2 anchors above keep guarding the
+# OLD baked-in criterion (those stores load verbatim); these guard the
+# current measurement, pressure and impulse. Previous impulse anchors
+# under the scaled-band criterion: 68.1610404157357 / 64.22452586218307.
 RAW_ANCHORS = {
-    'config_93_det2_b10_s5_h15_w250': (64.6464183290751, 68.1610404157357),
-    'config_95_det2_b10_s5_h24_w250': (39.930952732324215, 64.22452586218307),
+    'config_93_det2_b10_s5_h15_w250': (64.6464183290751, 133.187531219038),
+    'config_95_det2_b10_s5_h24_w250': (39.930952732324215, 141.36036347261955),
 }
 
 

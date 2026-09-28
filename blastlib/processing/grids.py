@@ -37,8 +37,9 @@ def process_grids(data, params, weight=None):
     params keys:
         thresholdP_kPa  — mask threshold (cells below this → NaN)
         minPressure_kPa — pressure convergence band (kPa, absolute)
-        thr_I_scaled    — impulse convergence band (Pa.s/kg^(1/3)), optional;
-                          defaults to constants.IMPULSE_CRITERION
+        rel_band_I      — impulse relative-accuracy band (-), optional
+        floor_I_scaled  — impulse relevance floor (Pa.s/kg^(1/3)), optional;
+                          both default to constants.IMPULSE_CRITERION
 
     weight : charge weight [kg], required for the impulse criterion. Passing
         None falls back to the legacy pressure-gated impulse rule, which is
@@ -49,8 +50,10 @@ def process_grids(data, params, weight=None):
     """
     threshold_p  = params['thresholdP_kPa']
     min_pressure = params['minPressure_kPa']
-    thr_I_scaled = params.get('thr_I_scaled',
-                              constants.IMPULSE_CRITERION['thr_I_scaled'])
+    rel_band_I   = params.get('rel_band_I',
+                              constants.IMPULSE_CRITERION['rel_band'])
+    floor_I      = params.get('floor_I_scaled',
+                              constants.IMPULSE_CRITERION['floor_scaled'])
 
     out = {}
     for k in ('X1', 'Z1', 'X2', 'Z2', 'X3', 'Z3'):
@@ -195,11 +198,11 @@ def process_grids(data, params, weight=None):
     # (cross-weight spread 4.7%), so an absolute kPa band picks one contour
     # for every charge weight and is admissible.
     #
-    # IMPULSE: |I_urban - I_ref| / W^(1/3) < thr_I_scaled, and NOT gated on
-    # pressure. The previous rule OR-ed in the low-pressure floor (which made
-    # 94.5% of the decisions and pinned RadiusI to the 10 kPa contour) and
-    # used an absolute Pa.s band, whose strictness varies as W^(1/3) — see
-    # constants.IMPULSE_CRITERION.
+    # IMPULSE (production since 2026-09-28): relative-accuracy band OR urban
+    # relevance floor — |dI|/I_ref < rel_band, or I_urban/W^(1/3) < floor —
+    # and NOT gated on pressure. See ff_reference.impulse_converged and
+    # constants.IMPULSE_CRITERION for the rationale and the criterion
+    # history (pressure-gated rule -> scaled band -> this).
     lowP1 = peakP1_raw < min_pressure
     lowP2 = peakP2_raw < min_pressure
     lowP3 = peakP3_raw < min_pressure
@@ -219,9 +222,12 @@ def process_grids(data, params, weight=None):
         conv_I3 = lowP3 | (np.abs(data['impulse3'] - data['refI3']) < min_pressure)
     else:
         W13 = float(weight) ** (1 / 3)
-        conv_I1 = impulse_converged(data['impulse1'], data['refI1'], W13, thr_I_scaled)
-        conv_I2 = impulse_converged(data['impulse2'], data['refI2'], W13, thr_I_scaled)
-        conv_I3 = impulse_converged(data['impulse3'], data['refI3'], W13, thr_I_scaled)
+        conv_I1 = impulse_converged(data['impulse1'], data['refI1'], W13,
+                                    rel_band_I, floor_I)
+        conv_I2 = impulse_converged(data['impulse2'], data['refI2'], W13,
+                                    rel_band_I, floor_I)
+        conv_I3 = impulse_converged(data['impulse3'], data['refI3'], W13,
+                                    rel_band_I, floor_I)
 
     for arr_name, conv_mask in (
         ('ratioP1', conv_P1), ('ratioP2', conv_P2), ('ratioP3', conv_P3),
