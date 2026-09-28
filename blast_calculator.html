@@ -76,7 +76,7 @@
 <body>
 <div class="wrap">
   <h1>מחשבון רדיוס התכנסות ו-Z<sub>urban</sub></h1>
-  <div class="sub">Buckingham-Pi · קריטריון לחץ רך (tanh, β=3) סביב 10 kPa · אימפולס: |ΔI|/I<sub>ff</sub> &lt; 10% או I/W<sup>1/3</sup> &lt; 20 · מקדמי ייצור <code>req_soft3</code></div>
+  <div class="sub">Buckingham-Pi · קריטריון לחץ רך (tanh, β=3) סביב 10 kPa · אימפולס: |ΔI|/I<sub>ff</sub> &lt; 10% או P<sub>urban</sub> &lt; 10 kPa · מקדמי ייצור <code>req_soft3</code></div>
 
   <div class="tabs">
     <button class="tab on" id="tb1" onclick="showTab(1)">מחשבון מלא</button>
@@ -227,14 +227,16 @@
 <script>
 // =====================================================================
 // Production coefficients — final_production_*_req_soft3, regenerated
-// 2026-09-28 on the raw-field-mask store under the accurate-or-irrelevant
-// impulse criterion (|dI|/I_ff < 10% OR I/W^(1/3) < 20; see
-// blastlib/constants.py::IMPULSE_CRITERION and
-// outputs/check_results/impulse_criterion_change_note.md).
-// RadiusP: additive form, relative-error weighted LS (unchanged by the
-// impulse-criterion change — bit-identical to the 2026-09-27 fit).
-// RadiusI: quad power law (the original form; under the new criterion it
-// is the best-performing structure). Keep in sync with
+// 2026-09-28 evening on the raw-field-mask store under the
+// RELEVANCE-BOUNDED impulse criterion (|dI|/I_ff < 10% OR urban peak
+// P < 10 kPa — one relevance floor for both loads; see
+// blastlib/constants.py::IMPULSE_CRITERION,
+// outputs/check_results/impulse_pressure_floor_change_note.md and
+// docs/audit/2026-09-28/physics.md). R_conv,I is a relevance-bounded
+// radius, not a field-merging radius.
+// RadiusP: additive form, relative-error weighted LS (bit-identical
+// through every impulse-criterion change).
+// RadiusI: quad power law (the owner's original form). Keep in sync with
 // outputs/tables/final_production_*_coefficients_req_soft3.csv
 // =====================================================================
 const CONV_P = {
@@ -243,20 +245,20 @@ const CONV_P = {
 };
 // Z = A * rho^p * (H/s)^q * pi2^r * exp(r2*ln(pi2)^2)
 const CONV_I = {
-  1:{A:24.773186, p:0.351875, q:0.083441, r:0.107555, r2:-0.041943},
-  2:{A:22.030702, p:0.211145, q:0.132500, r:0.151425, r2:-0.008064}
+  1:{A:17.409640, p:0.303090, q:-0.055761, r:0.034366, r2:0.007220},
+  2:{A:16.327480, p:0.164625, q:-0.012297, r:0.070116, r2:-0.013301}
 };
 // Z_urban - PySR structured forms (final_production, req_soft3).
 // Pressure  (range_switch): lnL = C0 + C1*[(pi2 - A)/Zf - ln pi2] / (pi2*(s/H) + B)
 // Impulse   (canyon_trap):  lnL = C0 + C1*rho*(sqrt(H/s) - C2*rho) / (H/s + C3*sqrt(pi2))
-// The pressure block is untouched by the impulse-criterion change; the
-// impulse block was refit 2026-09-28 (the larger R_conv,I admits more
-// rows into the fit domain).
+// The pressure block is untouched by the impulse-criterion changes; the
+// impulse block tracks the criterion through the fit domain (R_conv,I
+// bounds which rows the Lambda_I fit sees). Refit 2026-09-28 evening.
 const ZU = {
   P:{ 1:{C0:0.097357, C1:2.679750, A:3.018626, B:7.818822},
       2:{C0:0.110828, C1:0.561888, A:2.107401, B:1.410824} },
-  I:{ 1:{C0:-0.091534,C1:3.047982, C2:0.917725, C3:1.296509},
-      2:{C0:0.037271, C1:2.659300, C2:1.136753, C3:0.941983} }
+  I:{ 1:{C0:-0.092926,C1:3.019080, C2:0.895714, C3:1.423355},
+      2:{C0:0.027238, C1:2.638889, C2:1.114329, C3:0.899828} }
 };
 
 const $=id=>document.getElementById(id);

@@ -1,18 +1,21 @@
 # The Analysis Algorithm
 
-> **Revision 2026-09-28.** Two audit rounds are folded in. 2026-09-27: the
-> building mask precedes the cross-grid fill (wall-skin sentinel cells no
-> longer drive the scans) and the per-direction MaxR level is sampled from
-> the grid-filled reference
-> (`outputs/check_results/raw_mask_and_unified_model_change_note.md`).
-> 2026-09-28: the impulse convergence criterion was redefined to the
-> accurate-or-irrelevant specification — the scaled band it replaces let
-> the permitted relative deviation grow with distance — and under it the
-> original quad power law returns as the RadiusI production model,
-> displacing the previous day's unified form
-> (`outputs/check_results/impulse_criterion_change_note.md`). All
-> quantitative statements below are from the tables regenerated under the
-> new criterion.
+> **Revision 2026-09-28 (evening).** Three audit rounds are folded in.
+> 2026-09-27: the building mask precedes the cross-grid fill (wall-skin
+> sentinel cells no longer drive the scans) and the per-direction MaxR
+> level is sampled from the grid-filled reference
+> (`raw_mask_and_unified_model_change_note.md`). 2026-09-28 morning: the
+> impulse criterion was redefined to accurate-or-irrelevant — the scaled
+> band it replaced let the permitted relative deviation grow with distance
+> — and the original quad power law returned as the RadiusI production
+> model (`impulse_criterion_change_note.md`). 2026-09-28 evening, on the
+> physics audit's verdict (`docs/audit/2026-09-28/physics.md`): the
+> morning rule's relevance floor on the urban scaled impulse was replaced
+> by the SAME urban-pressure floor the pressure criterion uses — an
+> impulse level is not a relevance measure; damage relevance is bounded in
+> pressure (`impulse_pressure_floor_change_note.md`). All quantitative
+> statements below are from the tables regenerated under the final
+> criterion.
 > Sections NOT yet refreshed (their studies were not re-run): the safe
 > domain (audit decision D6 pending), the coarsening/mesh-sensitivity
 > measurements in Limitations, and the block-period analysis — each is
@@ -109,29 +112,33 @@ median of −32%, RadiusP by +5%; see the change note in `check_results`).
   where the ratio first leaves a tolerance band and stays out (three consecutive
   cells). Pressure and impulse use physically-appropriate tolerances. Pressure:
   a 10 kPa band (below which load differences are structurally negligible).
-  Impulse (since 2026-09-28, the **accurate-or-irrelevant** criterion): a cell
-  is converged when |ΔI|/I_ff < 10% — the free-field prediction is *accurate*
-  there — **or** I_urban/W^⅓ < 20 Pa·s/kg^⅓ — the urban impulse is below the
-  engineering-relevance floor, the same urban-side floor logic as the
-  pressure criterion. This is the guarantee the radius exists to give:
-  beyond R_conv,I the free-field impulse is either correct to within 10% or
-  irrelevant. The scaled band it replaced (|ΔI|/W^⅓ < 20) let the permitted
-  *relative* deviation grow with distance — beyond Z ≈ 13.7 a cell at twice
-  the free-field impulse counted as converged, so the free-field
-  substitution could under-predict. The floor keeps the band's
-  20 Pa·s/kg^⅓ as a relevance level (Z ≈ 13.7 on the free-field curve,
-  the same range as the pressure floor's Z ≈ 12), Hopkinson-scaled so it
-  picks the same contour at every charge weight; rel_band = 10% is twice
-  the impulse mesh tolerance, fixed by a decision sweep
-  (`criterion_decision_suite.csv`) that showed the radius floor-dominated —
-  tighter bands are strictly more stable. The criterion is a
-  **relevance/fidelity rule, not a damage threshold**, and deliberately so:
-  impulse damage criteria are absolute, target-specific P–I curves that
-  cannot collapse to one Hopkinson-admissible contour, and human primary
-  injury is bounded by the P–I pressure asymptote anyway (UFC 3-340-02
-  Fig. 1-2, p. 94: no lung damage below ≈ 69 kPa at any impulse — a
-  contour at Z ≈ 3.7–3.8, deep inside R_conv,I); the framework's damage
-  anchoring lives on the pressure side. The 91
+  Impulse (production, 2026-09-28 evening — the physics-audit verdict): a
+  cell is converged when |ΔI|/I_ff < 10% — the free-field prediction is
+  *accurate* there — **or** the urban raw peak pressure is below 10 kPa —
+  the location is *damage-irrelevant*, by the SAME urban-pressure floor
+  the pressure criterion uses (one relevance quantum for both loads). The
+  floor is a pressure statement on purpose: every P–I damage curve is
+  bounded from below by a pressure asymptote, so below the anchored
+  10 kPa no impulse magnitude can damage the anchored structural class
+  (UFC 3-340-02 Fig. 1-2 is the human-target instance: no lung damage
+  below ≈ 69 kPa at any impulse; IATG 02.20 Table 8 states every
+  structural tier as a pressure). An impulse-only irrelevance level does
+  not exist — the audit measured the alternatives and rejected them
+  (physics-11..17): an impulse-only mirror collapses onto the rejected
+  scaled band, and absolute Pa·s clauses vary as W^⅓ across charge
+  weights and break the Z collapse. rel_band = 10% is twice the impulse
+  mesh-convergence tolerance — the minimal band clearly above numerical
+  noise. **R_conv,I is a relevance-bounded convergence radius**: it is
+  floor-dominated (the accuracy clause trims the floor-only radius by
+  ~1.5% at the median), so beyond it the free-field impulse is accurate
+  to 10% *or the location cannot matter* — it is NOT the radius at which
+  the urban impulse field merges with the free field. The merging radius
+  is larger and, in channelling configurations, lies beyond the validated
+  Z ≤ 20 range: channelled canyons carry > 10%-excess impulse to
+  Z ≈ 19–32, a genuine finding about the reach of channelling, reported
+  descriptively, not as the engineering radius. Criterion history in
+  `constants.py::IMPULSE_CRITERION` (pressure-gated rule → scaled band →
+  impulse-floor, one run → this). The 91
   sector radii are collapsed to one scalar by an equivalent-area rule,
   R = √(4A/π), which is stable because it integrates over all directions rather
   than trusting one.
@@ -205,21 +212,23 @@ production again since 2026-09-28):
 
     Z = A · ρ^p · (H/s)^q · Π₂^r · exp(r₂·(ln Π₂)²)
 
-A multiplicative Pi power law with one curvature term: r₂ < 0 lets the
-street-width effect saturate at large Π₂ (a pure power cannot). Impulse
-integrates every reflected arrival, so its radius grows with density and
-canyon aspect (p, q > 0), and under the accurate-or-irrelevant criterion the
-radius is where the amplified urban impulse falls to the relevance floor —
-a smooth transform of the amplification field, which is why a smooth
-separable law fits it well. The form's history is a criterion story, told
-in full in `impulse_criterion_change_note.md`: under the pre-2026-09-27
-store the same law scored ≈ 7% LOGO for artefact reasons (the radius was
-largely the outermost building wall); on the clean store under the scaled
-band it failed structurally (near-zero geometry exponents — the radius
-tracked the I/W^⅓ = 20 contour, a function of W alone) and was briefly
-replaced by a unified five-term form (2026-09-27, still available as
-`model='unified'`); under the corrected criterion the original law is the
-best form again, now for physical reasons.
+Under the relevance-bounded criterion the radius is, to first order, the
+urban 10 kPa peak-pressure contour, so its geometry dependence is the
+geometry dependence of pressure amplification at that range: plan density
+dominates (p = 0.30 street / 0.16 intersection — denser fabric carries the
+10 kPa level further out), while the height and street-width exponents are
+small — a *correct* reflection of the measured urban I–P decoupling, not a
+fit failure. The smooth multiplicative law fits it well (LOGO median 7.4 /
+7.7%); the candidate forms sit within ~0.4 pp of one another here, and the
+owner's original law is retained as production. The form's history is a
+criterion story, told in `impulse_criterion_change_note.md` and
+`impulse_pressure_floor_change_note.md`: ≈ 7% LOGO on the pre-mask store
+was artefact-easy (the radius was largely the outermost building wall);
+under the scaled band the same law failed structurally (the radius tracked
+the I/W^⅓ = 20 contour, a function of W alone) and was briefly replaced by
+a unified five-term form (2026-09-27, still available as
+`model='unified'`); under the corrected criteria the original law is again
+the production form.
 
 **Z_urban** is written as an amplification factor Λ = Z_urban/Z_free, and here
 the two loads need genuinely different structures:
@@ -264,13 +273,15 @@ converted back by R = Z·W^⅓.
   (band + streak for R_conv, zero-tolerance exceedance for MaxR), so MaxR
   overshoots R_conv systematically; the `beyond_*` flags record it and the
   Z_conv clip closes the chain — the closure is imposed, not assumed.
-- **The criteria are physically calibrated.** The pressure tolerance sits at
-  the load level below which structures are unaffected (bracketed by the
-  IATG 02.20 Table 8 damage tiers — see Domain of validity); the impulse
-  criterion guarantees the free field is accurate to 10% or the urban
-  impulse is below a Hopkinson-scaled relevance floor, so it means the same
-  thing at every charge weight, with the damage anchoring deliberately on
-  the pressure side (see Step 1).
+- **The criteria are physically calibrated, on ONE relevance quantum.** The
+  pressure tolerance sits at the load level below which structures are
+  unaffected (bracketed by the IATG 02.20 Table 8 damage tiers — see Domain
+  of validity), and the impulse criterion guarantees the free field is
+  accurate to 10% or the location is below that SAME 10 kPa damage floor —
+  the P–I pressure asymptote makes this the only physical irrelevance
+  statement for impulse (see Step 1). Both clauses pick one scaled contour
+  at every charge weight, and the shared floor makes the two radii
+  commensurable for the safety-distance comparison.
 - **The forms are mechanistic, not fitted noise.** Each term maps to a physical
   effect (channeling/blocking switch, canyon reflection, trapping, interference
   decay). The pressure-vs-impulse structural split is independently confirmed:
@@ -292,18 +303,18 @@ only, so **92.5% of held-out configurations have a sibling of the same
 (det,b,s,H) in the training set** (minimum 60%). Since W divides out exactly
 under Hopkinson scaling, predicting such a sibling is close to interpolation in
 a variable the scaling already handles — so those splits estimate the charge
-law, not the geometry law. Their median is 9.8% (P) / 8.0% (I) for the
-convergence radius and 8.7% (P) / 8.6% (I) for Z_urban, with the production
+law, not the geometry law. Their median is 9.8% (P) / 8.3% (I) for the
+convergence radius and 8.7% (P) / 8.9% (I) for Z_urban, with the production
 configuration (soft β = 3 pressure criterion, raw-field mask,
-accurate-or-irrelevant impulse criterion, quad power-law impulse model).
+relevance-bounded impulse criterion, quad power-law impulse model).
 
 Z_urban carries a second, honest yardstick since 2026-09-27: the fit-domain
 error above is *conditional* on the held-out row's own measured MaxR and
 R_conv — information a user never has. The `z_P_dep` / `z_I_dep` columns of
 `cv_summary` grade the same models on the domain a user can identify
 beforehand (predicted R_conv; `beyond` rows judged against the Z_conv clip):
-median 8.7% (P) and 10.0% (I). Pressure is unaffected; for impulse the
-deployable error is ~1.4 pp above the conditional one, and both are on
+median 8.7% (P) and 11.3% (I). Pressure is unaffected; for impulse the
+deployable error is ~2.4 pp above the conditional one, and both are on
 record.
 
 A third number appears in the run log and must never be quoted as accuracy:
@@ -318,22 +329,23 @@ production criteria:
 | | mean | median | p90 | max |
 |---|---|---|---|---|
 | RadiusP — production (soft β=3, weighted fit) | street 9.0 / inters. 10.2% | 7.4% | ~21% | 35.5% |
-| RadiusI — quad power law (production) | **9.2 / 8.1%** | 5.8 / 5.9% | 20 / 18% | 48 / 48% |
+| RadiusI — quad power law (production) | **9.0 / 9.0%** | 7.4 / 7.7% | 16 / 18% | 36 / 28% |
 
-(R² of the LOGO predictions: 0.924 P, 0.935 I; per-row predictions in
-`logo_cv_req_soft3_relwls_quad.csv`.) Context notes. The pre-2026-09-27
-record quoted conv_I ≈ 7% — artefact-easy: that radius was largely the
-position of the outermost building wall, a simple function of the very
-regressors. Under the intermediate scaled-band criterion on the clean
-store the same law scored 16.4/15.2% and the unified five-term form
-12.5/9.6% (`impulse_criterion_change_note.md` holds the full trail); the
-current numbers are not comparable to either — the measured quantity
-changed, not just the model. The worst held-out families remain the
-singleton intermediate geometries (b = 10 / s = 8, 12 at W = 250, 1000),
-where a held-out fold has no neighbour to interpolate from. The model form
-was fixed by the criterion decision suite (power law vs unified under the
-new criterion, same LOGO arbiter) and the errors quoted are those of the
-selected form (no nested selection).
+(Per-row predictions in `logo_cv_req_soft3_relwls_quad.csv`.) Context
+notes. The pre-2026-09-27 record quoted conv_I ≈ 7% — artefact-easy: that
+radius was largely the position of the outermost building wall, a simple
+function of the very regressors. The intermediate criteria's numbers
+(scaled band: 16.4/15.2% for this law; impulse-floor rule: 9.2/8.1%,
+median 5.8/5.9%) are not comparable to the current ones — the measured
+quantity changed each time, not just the model
+(`impulse_criterion_change_note.md`, `impulse_pressure_floor_change_note.md`
+hold the trail). The worst held-out families remain the singleton
+intermediate geometries (b = 10 / s = 8, 12 at W = 250, 1000), where a
+held-out fold has no neighbour to interpolate from. On the final radii
+the candidate forms (legacy/quad/unified) sit within ~0.4 pp of one
+another (unified: mean 8.6/7.0% but worst case 44% vs 36%); the owner's
+original quad law is retained — the errors quoted are those of the
+retained form (no nested selection).
 
 ## Domain of validity
 
@@ -419,15 +431,21 @@ Two structural dependencies of the fit itself:
   d log R / d log p_thr ≈ −0.6). The choice is not arbitrary: engineering
   relevance of blast loads ends near Z ≈ 16 and the 10 kPa contour sits near
   Z ≈ 12, so the threshold lies where loads stop being structurally damaging.
-  This placement now has a standards anchor (IATG 02.20:2021[E], Table 8):
-  the guideline ties its quantity-distance tiers to peak side-on
-  overpressure, and 10 kPa falls between its 9 kPa tier — the acceptable
-  protection level for low-density areas, where un-strengthened buildings
-  suffer average damage up to 20% of replacement cost and personnel in the
-  open are unlikely to be injured by blast — and its 11 kPa tier, where main
-  structural members are damaged and repairs exceed 20% of replacement cost.
-  The corresponding IATG scaled distances, D = 11.1·Q^⅓ and 9.6·Q^⅓ m,
-  bracket the measured median Z_conv,P of 9.9. Caution: the IATG levels are
+  This placement now has a standards anchor (IATG 02.20:2021[E], Table 8;
+  tier texts corrected 2026-09-28 per audit physics-6, the owner confirming
+  10 kPa as the intended boundary): the guideline ties its
+  quantity-distance tiers to peak side-on overpressure, and 10 kPa falls
+  between its 9 kPa tier (PTRD — un-strengthened buildings suffer average
+  damage of the order of 10% of replacement cost) and its 11 kPa tier
+  (Blue Line IBD — the acceptable protection level for low-density areas,
+  damage up to ~20% of replacement cost, personnel in the open unlikely to
+  be injured by blast). The floor thus marks the standard's ~10%-repair to
+  ~20%-repair boundary; the repairable-vs-structural-member boundary is
+  the 16 kPa tier, deliberately not the anchor. The corresponding IATG
+  scaled distances, D = 14.8·Q^⅓ (9 kPa) and 11.1·Q^⅓ m (11 kPa), bracket
+  the CFD 10 kPa free-field contour (Z ≈ 11.3–12.1); the measured median
+  Z_conv,P of 9.9 sits just inside the 11 kPa tier distance, consistent
+  with the CFD-vs-KB peak deficit. Caution: the IATG levels are
   free-field side-on values while this band is applied to the urban CFD
   field, and the CFD-versus-Kingery-Bulmash cross-check is still open — so
   this is a placement argument for the threshold, not a calibration of it.
@@ -443,8 +461,8 @@ Two structural dependencies of the fit itself:
 
 ## The fitted coefficients
 
-Production values (2026-09-28 run: raw-field mask, soft β = 3 pressure
-criterion, accurate-or-irrelevant impulse criterion, quad power-law
+Production values (2026-09-28 evening run: raw-field mask, soft β = 3
+pressure criterion, relevance-bounded impulse criterion, quad power-law
 impulse model).
 
 Convergence radius:
@@ -456,15 +474,17 @@ Convergence radius:
 
 | det | target | A | p (ρ) | q (H/s) | r (Π₂) | r₂ (ln²Π₂) |
 |---|---|---|---|---|---|---|
-| 1 street | RadiusI | 24.773 | 0.3519 | 0.0834 | 0.1076 | −0.0419 |
-| 2 inters. | RadiusI | 22.031 | 0.2111 | 0.1325 | 0.1514 | −0.0081 |
+| 1 street | RadiusI | 17.410 | 0.3031 | −0.0558 | 0.0344 | +0.0072 |
+| 2 inters. | RadiusI | 16.327 | 0.1646 | −0.0123 | 0.0701 | −0.0133 |
 
-Every RadiusI coefficient keeps its sign across the two groups — density
-raises the radius, canyon aspect raises it, street width saturates
-(r₂ < 0) — so the street/intersection difference is quantitative, not
-structural, exactly as with pressure. The exponents are genuinely
-geometric now: under the superseded scaled band they collapsed toward
-zero, the signature of a radius that was a function of W alone.
+Density dominates (p is the only large exponent, same sign both groups);
+the height and street-width exponents are small — as they should be for a
+relevance-bounded radius that is, to first order, the urban 10 kPa
+pressure contour, whose location geometry shifts mainly through density.
+This is not the scaled-band pathology returning: there the radius was a
+function of W alone (the criterion's contour); here it is the pressure
+field's own geometry response, and the LOGO error (median ~7.5%) shows
+the small exponents carry real signal.
 
 Z_urban (Λ forms):
 
@@ -472,13 +492,14 @@ Z_urban (Λ forms):
 |---|---|---|---|---|---|---|---|
 | 1 | Pressure (range_switch) | 0.0974 | 2.6798 | 3.0186 | 7.8188 | — | — |
 | 2 | Pressure (range_switch) | 0.1108 | 0.5619 | 2.1074 | 1.4108 | — | — |
-| 1 | Impulse (canyon_trap) | −0.0915 | 3.0480 | — | — | 0.9177 | 1.2965 |
-| 2 | Impulse (canyon_trap) | 0.0373 | 2.6593 | — | — | 1.1368 | 0.9420 |
+| 1 | Impulse (canyon_trap) | −0.0929 | 3.0191 | — | — | 0.8957 | 1.4234 |
+| 2 | Impulse (canyon_trap) | 0.0272 | 2.6389 | — | — | 1.1143 | 0.8998 |
 
 (A is the switch threshold, stored positive: the near-field term reads
-(Π₂ − A)/Z_free. The impulse blocks were refit on 2026-09-28 — the larger
-R_conv,I admits more rows into the fit domain; the structure and every
-sign are unchanged. Machine-precision values live in
+(Π₂ − A)/Z_free. The impulse blocks track the criterion through the fit
+domain — R_conv,I bounds which rows the Λ_I fit sees; the structure and
+every sign have held through all three 2026-09 criterion changes.
+Machine-precision values live in
 `final_production_*_coefficients_req_soft3.csv`; the calculator and
 `tools/z_surface_3d` carry hand-synced copies that must be re-checked after
 any regression re-run.)
@@ -559,11 +580,11 @@ radius inflation vs threshold-gap closure vs LOGO error) rather than assumed.
 **The unified RadiusI form (2026-09-27; superseded the next day)** — kept
 here because the search it survived documents the feature space. It was
 the best form *under the scaled-band criterion*; when that criterion was
-replaced (2026-09-28) the decision suite re-ran the comparison under the
-new measurement and the original quad power law won (LOGO 8.6% mean vs
-the unified form's larger error on the new radii), so the search below
-describes the superseded record, not production. It went through a
-five-way search on
+replaced (2026-09-28, twice — see the revision note) the form comparison
+was re-run under each new measurement and the original quad power law was
+retained (on the final radii the forms sit within ~0.4 pp; see Result),
+so the search below describes the superseded record, not production. It
+went through a five-way search on
 the raw-mask tables before adoption: residual diagnostics of the old power
 law (which flagged the missing saturation and depth–width interaction), an
 exhaustive enumeration of ~21,000 candidate term sets scored by LOGO with a
@@ -658,13 +679,13 @@ without improving the model.
 > The coarsening measurements in this section predate the 2026-09-27 mask
 > change and have not been re-run; the construction argument is unaffected.
 > On the clean store two complementary stability facts are on record: the
-> hard impulse scan is K-stable (median |Δln R| ≤ 1% for K = 2→3→4 under
-> both the old and the new criterion, so it is deliberately NOT softened —
+> hard impulse scan is K-stable (median |Δln R| ≤ 1% for K = 2→3→4 across
+> the swept criteria, so it is deliberately NOT softened —
 > `impulse_criterion_sensitivity_note.md`, `criterion_decision_suite.csv`),
-> and under the accurate-or-irrelevant criterion the radius is
-> floor-dominated, with floor sensitivity d ln R / d ln floor ≈ −0.9 and
-> predictability flat across the swept floors (the floor sets the radius
-> *scale*, not its stability).
+> and the relevance-bounded radius is floor-dominated with mild floor
+> sensitivity: the neighbouring IATG tiers (9 / 11 kPa) move the median
+> Z_conv,I by only ±5% (elasticity ≈ −0.5; `pfloor_variant_suite`) — the
+> floor sets the radius *scale*, not its stability.
 
 - **The soft convergence radius is not mesh-converged.** The measured
   quantity depends on the discretisation, not only on the field, and the
