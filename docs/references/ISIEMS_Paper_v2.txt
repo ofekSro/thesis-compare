@@ -1,0 +1,582 @@
+
+=== page 1 ===
+20th International Symposium on Interaction of the Effects of Munitions with Structures 
+ 
+1 
+ 
+ 
+Distribution: For public release 
+ 
+A CFD-Based Parametric Study for Fast Prediction of Blast Loading 
+in Urban Environments 
+ 
+ 
+Main author1*, co-author2, co-author3, Arial 12pt bold  
+National Building Research Institute, Technion – Israel Institute of Technology, Technion 
+City, Haifa 32000, Israel 
+ 
+1 organization, country 
+ 
+ 
+Keywords: blast wave channelling, street canyon, Hopkinson-Cranz scaling, fast-running 
+engineering model, safety distance, urban blast loading 
+ 
+Abstract 
+The ability to predict blast behaviour in an urban environment has gained significant interest in recent 
+years. While blast wave propagation in free field can be predicted with reasonable accuracy using well-
+established empirical and fast-running models, urban environments produce complex phenomena 
+including channelling, shielding, multiple reflections and non-linear interactions between wave fronts, 
+which limit the validity of such simple models. Three-dimensional Computational Fluid Dynamics (CFD) 
+simulations capture these interactions in full, yet their computational cost renders them impractical for 
+broad parametric studies or rapid real-time assessment. In recent years, advances in GPU-based CFD 
+solvers have dramatically reduced simulation runtimes, making it feasible to run a vast number of high-
+resolution simulations and enabling broad parametric studies that were previously impractical. 
+This work presents a large-scale parametric study based on CFD simulations using ViperBlast, a 
+GPU-based solver that enables a vast number of high-resolution three-dimensional simulations. The 
+influence of key parameters is examined, including charge location, building dimensions, building 
+density and the aspect ratio of building height to street width, on the pressure and impulse fields 
+throughout the domain. 
+Preliminary results establish an engineering prediction framework derived directly from the simulation 
+database. For each pressure or impulse level characterised by the scaled distance in free field, a 
+convergence radius was defined beyond which the loading in the urban environment may be assumed 
+equivalent to free field. For the region where the influence of the urban environment remains dominant, 
+two families of equations were fitted for the scaled distance in the urban environment and the 
+corresponding physical radius, enabling rapid prediction of blast loads as a function of geometry and 
+charge weight, and thus direct derivation of safety distances and expected damage. This framework 
+serves as a fast and generalisable decision-support tool for protective design engineers without complex 
+simulations for each scenario. 
+ 
+ 
+
+
+=== page 2 ===
+2 
+ 
+Introduction 
+Explosive events in dense urban areas, whether by deliberate attack [1], industrial accident, or legacy 
+ordnance recovered in built-up ground, are becoming more frequent. These events demand a 
+capability to predict the blast loading they impose. This is required for the selective hardening of 
+buildings and critical infrastructure, for safety distances in accidental events and in controlled 
+demolition, and for real-time decisions such as evacuation and area closure. The charge weight and 
+its location are uncertain in such cases, so an order-of-magnitude understanding of the pressures is of 
+greater practical use than a precise value. 
+Protection against explosive threats has traditionally rested upon free-field knowledge. The peak 
+overpressure and the positive-phase impulse follow from the charge mass W and the standoff 
+distance R alone, through the Hopkinson-Cranz cube-root law [2, 3]. The problem is thereby reduced 
+to the scaled distance Z = R/W1/3, in m/kg1/3, and the relations of Kingery and Bulmash [4] express 
+every free-field parameter as a function of Z alone. This description is one-dimensional. 
+Within a built-up area, that description fails. The wave undergoes reflection from façades, 
+diffraction about corners, channelling along street canyons, and shadowing behind blocks, and the 
+resulting fronts superimpose non-linearly [5]. The geometry enters the definition of the load rather than 
+correcting it, and points at equal scaled distance may sustain markedly different loads. Denny et al. [6] 
+numerically reproduced the trials of Gajewski and Sielicki [7] behind a building corner. With the corner 
+alone, the peak specific impulse at one gauge fell by 38% below the free-field value. Once a further 
+wall was added to the simulation, the impulse instead exceeded that value by 169%, for the same 
+charge standoff distance. The same reversal occurs at the scale of a whole array. Ratcliff et al. [8] 
+report two layouts of identical areal density that differ only in the arrangement of the blocks, one 
+reducing the central peak overpressure by 13.3% and the other increasing it by 35.5%, both relative to 
+the case with no buildings present.  
+A further departure arises where the charge lies within the street itself. The loading mechanism is 
+then altered: lateral expansion is inhibited, the reflected fronts travel with the incident wave, and 
+geometric attenuation is suppressed [9]. Hopkinson-Cranz scaling was found to hold in a wide street 
+and to break down as the street was narrowed [10]. Ripley et al. [11] termed the regime in which the 
+scaled-distance relations fail the extended near field. They also advanced one quantitative descriptor 
+of enclosure, the degree of confinement. However, it correlates with the average scaled impulse only 
+with appreciable scatter and was intended for ranking scenarios by severity rather than predicting 
+load. A descriptor common to different urban configurations remains unavailable [8]. 
+Computational Fluid Dynamics (CFD) resolves the governing physics, but each simulation returns 
+the load field for a given specific geometry and charge, and not a relation that can be transferred to 
+different cases. One of the fast-running models suggested by Hedhli et al. replaces the flow solution 
+with an analytical superposition of unit waves [12]. Machine-learning surrogates infer the load from a 
+database of computed cases [13]. Both surrender the explicit representation of the coupling between 
+the geometry and the wave. Solvers accelerated by the graphics processing unit (GPU) have been 
+developed in recent years. They can complete in minutes a simulation that requires hours on a CPU-
+based code [14]. A parametric study of many configurations is thereby brought within reach. This 
+paper reports such a study, conducted in ViperBlast [15] over an idealised periodic urban layout, 
+together with the engineering prediction framework distilled from it. 
+Methodology 
+Idealised urban model 
+The urban layout was idealised as a periodic array of identical rectangular buildings on a regular grid, 
+as shown in Figure 1. Three lengths describe it completely: the square building footprint B, the street 
+width s, and the building height H. The repeating unit cell is of side B+s. The buildings were treated as 
+rigid, fully reflecting and impermeable obstacles. This is the prevailing representation in the urban 
+blast literature, and it is conservative for the load channelled along a street [16, 17]. 
+Two detonation scenarios were modelled. In the street detonation (det1), the charge lies mid-street 
+between two parallel rows, feeding a single rectilinear canyon with two opposed propagation 
+directions. In the intersection detonation (det2), it lies at a four-way crossing and feeds two orthogonal 
+canyons with four such directions. The charge was specified as an equivalent TNT mass W, detonated 
+at ground level.  
+The charge occupies a point of two-fold symmetry in both scenarios, so one quadrant was 
+modelled. The two symmetry planes and on the ground were fully reflecting, and the remaining 
+
+
+=== page 3 ===
+3 
+ 
+boundaries transmitting. The measured quantities below are accordingly extracted over a 0 to 90 
+degree interval along the quarter model. The array was continued to the outer boundary of the 
+domain, so the measured field nowhere crosses an edge of the building array. A decay towards the 
+free-field values therefore reflects the weakening of the urban influence and not the end of the array.  
+ 
+Figure 1. Definition of the idealised urban model. (a) Plan of the periodic array. (b) Elevation. 
+The densest (c) and the sparsest (d) configurations. The charge is marked in red, and one 
+quadrant only is modelled, the two reflecting planes intersecting at it. 
+Numerical approach 
+No single grid can resolve both the detonation and the far field at an acceptable computational cost. 
+Each simulation was therefore advanced through a sequence of remapped stages, each solved in the 
+lowest dimensionality its symmetry permits and supplying the initial condition of the next. The 
+sequence comprised up to three stages. The detonation was first solved in one dimension, under 
+spherical symmetry, until the wave reached the nearest façade. For street detonations in the narrow 
+streets (s = 5 and 8 m), a two-dimensional axisymmetric stage followed, about an axis through the 
+charge normal to the two façades. It carried the wave along the street until it reached the end of the 
+block or the roof level. In all other configurations this stage was omitted. The solution was finally 
+remapped onto the three-dimensional quadrant model, which was solved on three successive grids of 
+increasing extent, the last reaching 500 m in plan. 
+The models were solved in ViperBlast, a GPU solver integrating the compressible Euler equations 
+explicitly on a structured Cartesian grid. The scheme is second-order accurate in space and in time. 
+The air was treated as an ideal gas. The free-field predictions of the solver agree with Kingery and 
+Bulmash to within approximately 10% in peak overpressure [18]. The impulse falls consistently some 
+10% below the empirical curves, an offset attributed to the conservatism of the relations themselves 
+rather than to the solver [18]. 
+The three-dimensional cell sizes of 15, 50 and 100 cm were fixed by a mesh convergence study on 
+the most demanding configuration. Tolerances of 10% on the peak overpressure and 5% on the 
+impulse were met at between 95.4 and 100% of 632 monitoring points. The discretisation was held 
+invariant across all configurations, and each reference run used the same grids as its urban run, so 
+any residual bias is shared by the two members of each pair. This mesh convergence is a property of 
+the discretisation and is not the convergence radius defined below. 
+
+
+=== page 4 ===
+4 
+ 
+Scaled parameter space 
+The problem was scaled in the manner of the free field, following the Hopkinson-Cranz law. The 
+charge weight enters solely through the Hopkinson length W1/3, and every distance is expressed in the 
+scaled form Z. The geometry is then defined by three parameters: 
+ρ=
+B2
+(B+s)2  ;
+s̃= s
+W
+1
+3
+ ;
+H
+s
+(1) 
+Two of the parameters, ρ and H/s, are dimensionless. The scaled street width s̃ carries the units of the 
+scaled distance, m/kg1/3. Each parameter corresponds to a physical mechanism. The plan-area 
+density ρ is the built fraction of the ground plane, and it governs the reflecting surface the wave 
+encounters. The scaled street width s̃ expresses the street width relative to the charge, in the same 
+way that Z expresses the standoff distance. At s̃ = 1 m/kg1/3, the street width in metres equals the cube 
+root of the charge mass in kilograms. This value is a candidate regime boundary between a street that 
+channels the blast and one that blocks it. The canyon aspect ratio H/s measures the depth of the 
+street channel. 
+Several street widths were considered (Table 1), where the two extreme street widths were 
+selected to bracket the regime boundary s̃ = 1 m/kg1/3: at s = 5 m the larger charges bring s̃ below this 
+value, whereas at s = 20 m it stays above it throughout the weight range. A configuration denotes one 
+simulation, defined by five inputs: B, s, H, W and the detonation scenario. A geometry denotes one 
+combination of B, s and H. The design comprises a balanced core block of 72 configurations, in which 
+every combination of two values of B, two of s, three of H, three of W and two detonation scenarios 
+was simulated once (2 × 2 × 3 × 3 × 2 = 72). The effects of the five inputs can therefore be separated 
+from one another. 
+A 24-configuration extension populates the interior of the ranges of the three parameters, with six 
+further geometries at two intermediate charge weights in both detonation scenarios (6 × 2 × 2 = 24). 
+The extension is not balanced, and it is excluded from the analyses that separate the effects of the 
+inputs. The two blocks jointly comprise 96 configurations and span 18 distinct geometries (12 in the 
+core block and 6 in the extension). Two configurations sharing the three parameters of Equation (1) 
+are geometrically similar, and under exact Hopkinson-Cranz scaling their fields coincide when 
+expressed in Z. For each detonation scenario, the four dimensional inputs B, s, H and W therefore 
+reduce to three parameters.  
+Table 1. Values of the five inputs and the resulting ranges of the three parameters of 
+Equation (1). Core and extension denote the two blocks of simulations. 
+Parameter 
+Symbol 
+Values 
+Blocks 
+TNT charge weight (kg) 
+W 
+50, 250, 500, 1000, 1500 
+Core 50, 500, 1500 
+Extension 250, 1000 
+Building footprint (m) 
+B 
+10, 15, 30 
+Core 15, 30 
+Extension 10 
+Street width (m) 
+s  
+5, 8, 12, 20 
+Core 5, 20  
+Extension 5, 8, 12 
+Building height (m) 
+H 
+4, 10, 12, 15, 24 
+Core 4, 12, 24 
+Extension 10, 15, 24 
+Detonation type 
+det 
+Street (det1), intersection (det2) 
+Both blocks 
+Plan-area density (-) 
+Ρ 
+0.184-0.735 
+ 
+Scaled street width 
+(m/kg1/3) 
+S̃ 
+0.44-5.4 
+ 
+Canyon aspect ratio (-) 
+H/s 
+0.20-4.8 
+ 
+Measured quantities 
+Every urban run was paired with a matched reference run with identical stages, grids and parameters, 
+but without the buildings, that is a free-field simulation of the same charge. A simulated reference was 
+preferred to the empirical relations so that the comparison reflects the buildings alone. In both runs, 
+the peak overpressure and the positive-phase impulse were recorded in every cell. The urban effect 
+
+
+=== page 5 ===
+5 
+ 
+was expressed as the ratio of the urban to the free-field value at the same point, written P/Pff and i/iff, 
+the subscript ff denoting the reference run throughout.  
+In each cell, the urban and the reference values were considered equivalent when their difference 
+fell below a prescribed tolerance. Smaller differences were regarded as insignificant for the 
+engineering purpose of this study. At fixed scaled distance Z, the reference peak overpressure is 
+nearly invariant across the five charge weights, whereas the impulse is invariant only in its scaled form 
+i/W1/3. The pressure tolerance was therefore set in absolute terms, so that it selects a single contour in 
+Z, and the impulse tolerance was set on the scaled impulse. Its value is the smallest for which a radius 
+was obtained in every configuration. In peak overpressure a second clause was added, a floor below 
+which the urban overpressure itself is too weak to matter structurally. The floor is anchored in the 
+quantity-distance scale of the International Ammunition Technical Guidelines (IATG) [19], the level 
+below which average damage to unstrengthened buildings remains limited. The two criteria were 
+applied independently, so every quantity below is obtained separately in peak overpressure and in 
+impulse. A cell was classified as equivalent in peak overpressure when Equation (2a) holds, and in 
+impulse when Equation (2b) holds: 
+|P-Pff|<10 kPa     or     P<10 kPa
+(2a) 
+|i-iff|
+W
+1
+3
+<20 kPa∙ms
+kg
+1
+3
+(2b) 
+Near the charge, the buildings alter both the peak overpressure and the impulse. Far from it, the 
+urban values approach those of the reference run. The convergence radius Rconv is the distance from 
+the charge beyond which the cells are, globally, equivalent under Equation (2). Beyond Rconv the urban 
+load may be taken as the free-field load. Free-field methods, and the safety distances derived from 
+them, may be applied there. Within Rconv they may not. The radius was determined separately in peak 
+overpressure and in impulse. It is reported in scaled form, Zconv = Rconv/W1/3, in m/kg1/3. 
+The convergence radius was extracted from the computed field in four steps. First, each cell was 
+classified as equivalent or non-equivalent by Equation (2). Cells within the first street, that is close to 
+the charge, were excluded, since the individual buildings dominate there and no radius is meaningful. 
+Second, the field was sampled along 91 directions, one degree apart, from 0 to 90 degrees, each cell 
+assigned to the nearest direction. Third, the cells of each direction were scanned from the outer 
+boundary towards the charge. The scan stopped at the first three consecutive non-equivalent cells, 
+and the radius of the direction was taken there. Three cells were required so that a single anomalous 
+cell could not set the radius. Fourth, the 91 radii ri, at angular spacing dθ = π/180 rad, were combined 
+into the radius of a quarter-circle enclosing the same area A:  
+A= ∑1
+2 ri
+2dθ ;
+i
+Rconv=√4A
+π
+(3) 
+In peak overpressure, the sharp tolerance of Equation (2a) made the radius unstable. Where a 
+region of amplification lies close to the tolerance, a small change in geometry moves its cells across 
+the threshold, and the radius jumps abruptly. The difference clause of Equation (2a) was therefore 
+replaced by a smooth transition. Each cell was assigned a probability of being non-equivalent, rising 
+with the pressure difference to one half at the 10 kPa tolerance and one at twice it. The radius of each 
+direction was taken as the expected stopping radius of the scan under these probabilities. The floor of 
+Equation (2a) and the impulse criterion of Equation (2b) were kept sharp. The smoothed criterion 
+returns a radius some 17% larger at the median, which is on the safe side for a protective radius. All 
+peak-overpressure radii reported below were obtained with it. 
+A second quantity states how far a prescribed level of peak overpressure or impulse is carried. For 
+a level occurring at scaled distance Zff in the free field, Rurban is the outermost radius at which the 
+urban field still delivers at least that level. It is extracted along the same directions and combined by 
+Equation (3). Its scaled form Zurban, the amplification factor Λ and the normalised progression ξ are 
+defined by Equations (4) and (5): 
+Zurban= Rurban
+W
+1
+3
+(4) 
+Λ= Zurban
+Zff
+ξ= Zff
+Zconv
+(5) 
+
+
+=== page 6 ===
+6 
+ 
+Λ > 1 denotes amplification and Λ < 1 denotes attenuation of the urban results with respect to the free 
+field case. The normalised progression ξ locates a level within the zone of urban influence, ξ = 1 being 
+the convergence radius itself. 
+Results and Discussion 
+The Urban Field and the Free Field 
+The measured quantities defined above were extracted for all 96 configurations. A comparison of the 
+peak overpressure and the impulse shows that the urban layout affects the two differently, and this 
+difference governs the form of every result reported below. The layout amplifies the peak overpressure 
+in some configurations and attenuates it in others, depending on the street width. Over the 96 
+configurations the two effects nearly cancel. The effect on the impulse does not cancel. It is an 
+amplification, and it is present in almost every configuration. Expressed through the amplification 
+factor of Equation (5), the median is 0.995 in peak overpressure against 1.261 in impulse. On 
+average, the urban layout alters the peak overpressure far less than the impulse.  
+The peak overpressure registers the single largest arrival. In most of the field this is the leading 
+front. The later reflections are attenuated and usually remain below it, although in a small number of 
+locations a later reflection was found to set the peak. In narrow streets the first reflections from the 
+façades travel with the leading front and raise it, which accounts for the amplification of the peak 
+reported below. The positive-phase impulse is the integration of the pressure, and every reflection 
+contributes to that integral.  
+Figure 2 presents the ratio fields P/Pff and i/iff for a narrow street and for a wide one up to 80 m 
+from the charge. Three mechanisms recur. The wave is channelled along the street axis, its lateral 
+expansion inhabited by the parallel façades. Shadowing develops behind the building blocks. Within 
+the layout, the wave reverberates between successive rows, at a more modest excess that is 
+sustained further. All three are pronounced in the impulse field. In the peak overpressure field, they 
+are considerably more local. In both fields the urban influence weakens with distance, until the urban 
+and the free-field values can no longer be distinguished. 
+ 
+ 
+Figure 2. Ratio fields of the urban to the free-field peak overpressure and impulse at ground 
+level, for a narrow and a wide street. Values above unity denote amplification. Cells close to 
+the charge, in the first street, are excluded from the convergence-radius measurement. 
+
+
+=== page 7 ===
+7 
+ 
+The Convergence Radius 
+The convergence radius defined above was obtained for all 96 configurations, separately in peak 
+overpressure and in impulse, and the two radii differ. The median scaled radius Zconv is 8.99 m/kg1/3 in 
+peak overpressure and 11.61 m/kg1/3 in impulse. At the median, the impulse radius is therefore about 
+1.3 times the peak overpressure radius (11.61/8.99). This ratio depends on the tolerances adopted 
+and is not a physical constant. This is a first engineering consequence of the different effect of the 
+layout on the two quantities: free-field methods become applicable at a larger distance for the impulse 
+than for the peak overpressure. Over all 96 configurations, the scaled radius in peak overpressure 
+does not exceed 13 m/kg1/3. In impulse it exceeds 16 m/kg1/3 in two configurations only, and its largest 
+value is 21.49 m/kg1/3. In peak overpressure this bound follows from the 10 kPa floor of Equation (2a), 
+which the free-field overpressure reaches at a slightly smaller scaled distance. No such floor applies in 
+impulse, and its radius extends farther. 
+The five inputs were ranked by the size of their effect on the scaled convergence radius, using the 
+core block, in which these effects can be separated. The street width ranks first or second in both 
+peak overpressure and impulse. Its effect is best described through the scaled street width s̃ of 
+Equation (1), that is, the street width relative to the charge, and not the street width in metres. In peak 
+overpressure the charge weight ranks first. In impulse it acts mainly through its interaction with the 
+street width, that is through s̃. 
+The scaled street width also marks a threshold. Where the street is narrow relative to the charge, 
+the canyon confines the wave and channels it along the street. Where it is wide, the blocks obstruct 
+the wave instead, and where it is very wide the building height only weakly affects the peak-
+overpressure radius. The transition lies near s̃ = 1 m/kg1/3, and it was measured rather than assumed. 
+This value was proposed in advance, and the results are consistent with it. Below it roughly three 
+configurations in four amplify the peak overpressure. Above it amplification ceases to be systematic, 
+and where it persists it is weak. In peak overpressure, the effect of the canyon aspect ratio on the 
+radius, measured by the slope dZconv/d(H/s), also reverses at this value: below it, taller buildings 
+increase the radius, and above it they reduce it in nearly every case. In impulse, no such reversal 
+occurs at any street width. Figure 3 presents the effect of building height on the radius and its reversal 
+at s̃ = 1 m/kg1/3. 
+The two quantities differ in a further respect. Among the three parameters of Equation (1), the 
+impulse radius depends mainly on the plan-area density ρ, and the dependence is a smooth power 
+law. A denser layout returns more reflection and gives a larger radius. In peak overpressure, the 
+interactions between the inputs, that is their combined effects, are as large as the effects of each input 
+alone, and no smooth power law describes the radius. 
+ 
+Figure 3. Effect of building height on the convergence radius, and its reversal at s̃ = 1 
+m/kg1/3. (a) to (f) Convergence radius against building height at three charge weights, only 
+
+
+=== page 8 ===
+8 
+ 
+the height varying along each line. (g, h) Height sensitivity dZconv/d(H/s) for the 24 series of 
+the core block in which only the height varies. 
+Closed-form prediction of the convergence radius 
+The difference between the peak overpressure and the impulse, described above, dictates the form of 
+the prediction. Closed-form expressions for the scaled convergence radius were fitted to the measured 
+values, separately for peak overpressure and impulse and for each detonation scenario. In peak 
+overpressure the radius is written as a sum of terms, two of which reverse at a stated geometry: 
+Zconv,P=C0+C1∙s̃+C2∙ρ∙(s̃-a)+C3∙√ρ∙(H
+s) ∙(W
+1
+3
+s -1)
+(6) 
+The density term, with coefficient C2, reverses at s̃ = a, a fixed constant of each detonation scenario. 
+The canyon term, with coefficient C3, reverses at s̃ = 1 m/kg1/3, the threshold identified above. In 
+impulse neither reversal occurs. The impulse radius is accordingly written as a power law in the three 
+parameters. A single logarithmic correction in s̃ is added, since the radius peaks at an intermediate 
+scaled street width: 
+Zconv,I=k∙ρp∙(H
+s)
+q
+∙s̃r∙er2∙(ln s̃)2
+(7) 
+The difference between the two forms is physical and not a fitting preference. Fitting either form to the 
+other quantity increases the prediction error by three to four percentage points, in both detonation 
+scenarios. The fitted coefficients are given in Table 2. Both equations are numerical-value 
+expressions, with s̃ entered in m/kg1/3 and Zconv returned in m/kg1/3. 
+The formulas were validated by leave-one-geometry-out (LOGO) cross-validation. All 
+configurations of one geometry were withheld in turn and the coefficients refitted on the remainder, so 
+the error reported is that of a geometry the fit has never seen. Figure 4 presents the outcome. The 
+mean absolute percentage error (MAPE) of the predicted radius remains below 10% in both quantities. 
+The largest errors occur at the corners of the sampled ranges, where a withheld geometry has no 
+neighbouring geometry from which to interpolate. A supporting test, with 500 random splits of the 
+configurations, returned median errors of 8.8% in peak overpressure and 7.2% in impulse. In most of 
+these splits, a withheld configuration has another configuration of the same geometry in the fitting set, 
+so this test checks mainly the effect of the charge weight. 
+The formulas interpolate within the ranges of Table 1 and are not to be applied outside them. A 
+narrower range can be delimited, with ρ between 0.31 and 0.56, s̃ between 0.50 and 5.4 m/kg1/3 and 
+H/s not exceeding 3. Within it every withheld prediction falls below 20% error, in both quantities. One 
+further condition applies. The periodic description becomes representative only over several blocks. A 
+prediction should accordingly be sought only at a radius exceeding roughly 1.5 unit cells, R ≥ 1.5(B+s). 
+This condition can be checked in advance. 
+ 
+Table 2. Fitted coefficients of the closed-form convergence radius. The upper block gives 
+Equation (6) in peak overpressure and the lower block Equation (7) in positive-phase 
+impulse, each row from one fit to all configurations of its detonation scenario. The coefficients 
+are specific to the tolerances of Equation (2). The value a, at which the C2 term reverses, is 
+fixed and not fitted. 
+Equation (6), Peak Overpressure 
+C0 
+C1 
+C2 
+C3 
+a 
+Street detonation, det1 
+9.063 
+-0.645 
+2.018 
+0.591 
+1 
+Intersection detonation, det2 
+11.858 
+-1.375 
+2.782 
+0.776 
+2 
+Equation (7), Positive-Phase Impulse 
+k 
+p 
+q 
+r 
+r2 
+Street detonation, det1 
+14.936 
+0.203 
+0.024 
+0.065 
+-0.101 
+Intersection detonation, det2 
+14.602 
+0.176 
+0.079 
+0.125 
+-0.089 
+
+
+=== page 9 ===
+9 
+ 
+ 
+Figure 4. Predicted against measured convergence radius under LOGO cross-validation, 
+one point per configuration. Only predictions for withheld geometries are shown. 
+With Equations (6) and (7), the convergence radius, which bounds the urban influence, is 
+predictable in closed form. The peak overpressure and impulse inside the radius are not yet 
+predictable in this way. Closed-form equations have been fitted there and are undergoing LOGO 
+validation. In terms of Λ and ξ of Equation (5), the amplification in peak overpressure is largest near 
+the charge and decays outwards. This is consistent with interference between the direct and the 
+reflected fronts. In impulse no such dependence was found. Each configuration sets a single 
+amplification factor that holds at every distance within the radius. 
+Summary 
+A parametric study of blast loading in an idealised urban environment has been reported. A total of 96 
+three-dimensional CFD simulations were conducted in ViperBlast over a periodic array of identical 
+rectangular buildings, each paired with a matched free-field reference run. The array was described by 
+three parameters, the plan-area density ρ, the scaled street width s̃ and the canyon aspect ratio H/s. 
+The charge weight enters the fitted relations through the Hopkinson length, so they may be applied to 
+charge weights between those simulated. 
+The principal finding is that the urban layout affects the peak overpressure and the impulse 
+differently. The layout alters the peak overpressure only modestly on average, and it amplifies the 
+positive-phase impulse in almost every configuration. The impulse is therefore the quantity most 
+affected by the urban environment. 
+The urban influence falls below the prescribed tolerances at a finite distance, the convergence 
+radius. This radius is predictable in closed form from the three parameters, but two structurally 
+different expressions are required. An additive form describes the peak overpressure and captures the 
+reversal from channelling to blocking at s̃ = 1 m/kg1/3. A power law describes the impulse, in which this 
+reversal does not occur. Under LOGO validation the mean absolute percentage error of the predicted 
+radius remains below 10% in both quantities. 
+The results are provisional and subject to several limitations. The predicted radius is a single value, 
+whereas the urban influence varies with direction. The idealised layout is uniform and effectively 
+unbounded, whereas real urban layouts are not. The coefficients are those of the tolerance of 
+Equation (2) alone, and a different tolerance would change them. Work now proceeds on the loads 
+within the radius, on the dependence of the amplification factor on direction, and on filling the corners 
+of the parameter space that the present design sampled sparsely. Experimental validation remains the 
+necessary complement to all three. 
+ 
+ 
+
+
+=== page 10 ===
+10 
+ 
+Acknowledgement 
+This work was supported by the PMRI – Peter Munk Research Institute – Technion. 
+References 
+[1] 
+Norville, H.S., Harvill, N., Conrath, E.J., Shariat, S., and Mallonee, S., Journal of Performance 
+of Constructed Facilities 13:50–56 (1999). 
+[2] 
+Hopkinson, B., “British Ordnance Board Minutes,” Ordnance Board Report No. 13565, 1915. 
+[3] 
+Cranz, C., Lehrbuch der Ballistik, Springer, 1926. 
+[4] 
+Kingery, C.N., and Bulmash, G., “Airblast parameters from TNT spherical air burst and 
+hemispherical surface burst,” US Army Armament Research and Development Center, Ballistic 
+Research Laboratory Report No. ARBRL-TR-02555, 1984. 
+[5] 
+Smith, P.D., and Rose, T.A., Progress in Structural Engineering and Materials 8:16–28 (2006). 
+[6] 
+Denny, J., Langdon, G., Rigby, S., Dickinson, A., and Batchelor, J., International Journal of 
+Protective Structures 15:3–22 (2024). 
+[7] 
+Gajewski, T., and Sielicki, P.W., Shock Waves 30:385–394 (2020). 
+[8] 
+Ratcliff, A., Rigby, S., Clarke, S., and Fay, S., Applied Sciences 13:5349 (2023). 
+[9] 
+Rose, T.A., and Smith, P.D., International Journal of Impact Engineering 27:359–376 (2002). 
+[10] 
+Fouchier, C., Laboureur, D., Youinou, L., Lapébie, E., and Buchlin, J.M., Journal of Loss 
+Prevention in the Process Industries 49:248–265 (2017). 
+[11] 
+Ripley, R.C., Cloney, C., Donahue, L., and Zhang, F., Proceedings of the 22nd International 
+Symposium on Military Aspects of Blast and Shock, Bourges, France, November 2012. 
+[12] 
+Hedhli, M., Lapébie, E., Marinasy, E., and Sochet, I., Structures Under Shock and Impact XVII, 
+Edinburgh, UK, June 2025, pp. 51–62. 
+[13] 
+Dennis, A.A., and Rigby, S.E., International Journal of Protective Structures 15:455–483 
+(2024). 
+[14] 
+Chester, A., Hazael, R., and Critchley, R., International Journal of Protective Structures 
+16:825–852 (2025). 
+[15] 
+Viper Applied Science, “VIPER::Blast,” 2024. 
+[16] 
+Smith, P.D., Rose, T.A., Krahe, S.L., and Franks, M.A., Proceedings of the Institution of Civil 
+Engineers - Structures and Buildings 156:359–365 (2003). 
+[17] 
+Dib, N., Zéhil, G.P., and Rigby, S., Journal of Fluids and Structures 115:103787 (2022). 
+[18] 
+Angelides, S.C., Morison, C., Burgan, B.A., Kyprianou, C., Rigby, S.E., and Tyas, A., 
+Structures 58:105619 (2023). 
+[19] 
+United Nations Office for Disarmament Affairs, “IATG 02.20: Quantity and Separation 
+Distances, 3rd Edition,” 2021. 
+  

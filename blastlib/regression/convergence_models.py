@@ -214,22 +214,23 @@ def fit_pi_all_groups(conv_df, target_col, weighting='ols'):
 def _fit_impulse_group(W, rho, H, s, R_target, model='legacy'):
     """Fit the RadiusI model for one det group via log-space OLS.
 
-    model='unified' (production since 2026-09-27, on the raw-mask store):
+    model='quad' (PRODUCTION since 2026-09-28) / 'legacy': the Pi power law
+        Z = A * rho^p * (H/s)^q * Pi2^r * exp(r2*ln(Pi2)^2)
+    with r2 fitted ('quad') or fixed to 0 ('legacy'). Under the
+    accurate-or-irrelevant impulse criterion (constants.IMPULSE_CRITERION)
+    the radius is a smooth transform of the amplification field and this
+    original form is the best-performing structure (decision suite,
+    2026-09-28; see impulse_criterion_change_note.md).
+
+    model='unified' (production 2026-09-27 only, under the superseded
+    scaled-band criterion; kept to reproduce those tables):
         Z = A * Pi2^(C4 + C5*ln(rho) + C3*ln(H/s))
               * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)
-    One functional form for both det groups, coefficients per group. The
-    separable power law fails structurally on the sentinel-free data: the
-    height effect saturates (ln^2 term) and couples to the scaled street
-    width (C3), and the trapping factor rho*sqrt(H/s) — the same construct
-    as the Z_urban canyon_trap model — carries the density dependence.
-    Selected by leave-one-geometry-out comparison under the constraint of
-    one shared term set; every coefficient significant in both groups.
-    See docs/audit/2026-09-27 (D2 follow-up) and ALGORITHM.md.
-
-    model='quad' / 'legacy' (history): the Pi power law
-        Z = A * rho^p * (H/s)^q * Pi2^r * exp(r2*ln(Pi2)^2)
-    with r2 fitted ('quad') or fixed to 0 ('legacy'). Kept so historical
-    tables and studies can be reproduced; not fitted in production.
+    One functional form for both det groups, coefficients per group. On the
+    scaled-band radii the separable power law failed structurally (the
+    radius tracked the |dI|/W^(1/3) = 20 contour, a function of W alone);
+    that failure was a property of the criterion, not of the field.
+    See docs/audit/2026-09-27 and ALGORITHM.md.
 
     Z = R/W^(1/3), Pi2 = s/W^(1/3).
     Returns a dict predict_impulse dispatches on ('C1'.. keys for unified,
@@ -277,11 +278,11 @@ def predict_impulse(W, rho, H, det, s, b, imp_coeffs):
     """Predict the impulse convergence radius.
 
     Dispatches on the coefficient dict:
-      unified ('C1'.. keys):
+      power law ('p'/'q'/'r' keys, production):
+        R = W^(1/3) * A * rho^p * (H/s)^q * Pi2^r * exp(r2*ln(Pi2)^2)
+      unified ('C1'.. keys, 2026-09-27 scaled-band tables):
         R = W^(1/3) * A * Pi2^(C4 + C5*ln(rho) + C3*ln(H/s))
               * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)
-      power law ('p'/'q'/'r' keys, historical tables):
-        R = W^(1/3) * A * rho^p * (H/s)^q * Pi2^r * exp(r2*ln(Pi2)^2)
     Dicts without an 'r2' key (older saved coefficients) predict with
     r2 = 0. Returns prediction array (NaN where group is missing).
     """
@@ -324,8 +325,9 @@ def predict_impulse(W, rho, H, det, s, b, imp_coeffs):
 def fit_impulse_all_groups(conv_df, target_col='RadiusI', model='legacy'):
     """Fit the RadiusI model for det=1 and det=2 groups.
 
-    model: 'unified' (production), 'quad' or 'legacy' (historical power
-    laws) — see _fit_impulse_group. Returns dict {det_val: coef_or_None}.
+    model: 'quad' (production), 'legacy', or 'unified' (the 2026-09-27
+    scaled-band form) — see _fit_impulse_group. Returns
+    dict {det_val: coef_or_None}.
     """
     W   = conv_df['ChargeWeight'].values.astype(float)
     H   = conv_df['Height'].values.astype(float)

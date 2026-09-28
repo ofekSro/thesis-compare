@@ -2,6 +2,12 @@
 
 Agents: read this file before any task. Match the task against "Use for" and "Keywords", then Grep the .txt sidecar and read only the relevant pages. Cite the document in code comments as given in "Cite as". If code and document disagree, report it; do not guess.
 
+## isiems-paper-v2
+- File: ISIEMS_Paper_v2.pdf (text: ISIEMS_Paper_v2.txt)
+- Covers: the owner's conference paper draft (ISIEMS 20) presenting the parametric study: idealised urban model, staged ViperBlast methodology, the three scaled parameters, the convergence-radius criteria (Eq. 2) and estimator (Eq. 3), closed-form R_conv fits (Eq. 6-7, Table 2), LOGO validation (Fig. 4). **Results quoted are from the pre-2026-09-27 record** (old mask, old impulse power law) — do not treat its numbers as current; the correction list is in the 2026-09-27 session worklog.
+- Use for: cross-checking thesis/paper claims against the current record; keeping paper and repo terminology aligned (s-tilde = Pi2, Λ, ξ).
+- Cite as: ISIEMS Paper v2 (draft), p. N
+- Keywords: ISIEMS, conference paper, convergence radius, scaled street width, canyon aspect, LOGO, ViperBlast, amplification factor
 ## ufc-3-340-02
 - File: ufc_3_340_02.pdf (text: ufc_3_340_02.txt; exact curve data:
   02_007.GRF = Fig. 2-7 free air, 02_015.GRF = Fig. 2-15 surface burst —
