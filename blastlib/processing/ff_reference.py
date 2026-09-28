@@ -80,7 +80,14 @@ def rebuild_impulse_ratio(processed, weight, ff_csv, thr_I_scaled=None):
             if thr_I_scaled is not None:      # explicit: historical rule
                 conv = impulse_converged_scaled(I, ref, W13, thr_I_scaled)
             else:
-                conv = impulse_converged(I, ref, W13)
+                # Relevance floor from the stored urban peak pressure. The
+                # v1/v2 stores keep only the FILLED pre-criterion peak
+                # (peakP*_orig), not the raw per-grid field the production
+                # path uses — a wall-skin cell may differ; the production
+                # measurement is grids.process_grids on the v3 store.
+                lowP = (processed[f'peakP{g}_orig']
+                        < constants.PARAMS['minPressure_kPa'])
+                conv = impulse_converged(I, ref, lowP)
         # Preserve the existing NaN mask: those cells carry no data at all.
         ratio = np.where(conv & ~np.isnan(ratio), 1.0, ratio)
         processed[f'ratioI{g}'] = np.where(
@@ -88,28 +95,41 @@ def rebuild_impulse_ratio(processed, weight, ff_csv, thr_I_scaled=None):
     return processed
 
 
-def impulse_converged(I_urban, I_ref, W13, rel_band=None, floor_scaled=None):
+def impulse_converged(I_urban, I_ref, low_pressure, rel_band=None):
     """Cells where the urban impulse counts as converged to free-field.
 
-    Production criterion (owner decision, 2026-09-28 — "accurate or
-    irrelevant"; see constants.IMPULSE_CRITERION for the full rationale):
+    Production criterion (owner decision, 2026-09-28 evening, on the physics
+    audit's verdict — docs/audit/2026-09-28/physics.md; full rationale in
+    constants.IMPULSE_CRITERION):
 
-        |I_urban - I_ref| / I_ref < rel_band      (free field is accurate)
-        or  I_urban / W^(1/3) < floor_scaled      (urban impulse irrelevant)
+        |I_urban - I_ref| / I_ref < rel_band     (free field is ACCURATE)
+        or  low_pressure                         (urban peak P < 10 kPa —
+                                                  damage-IRRELEVANT location)
 
-    The relevance floor is on the URBAN impulse, mirroring the pressure
-    floor's logic (audit D7): where the city itself delivers less than the
-    floor, the point is of no engineering interest. The floor's W^(1/3)
-    scaling keeps it Hopkinson-admissible; the accuracy clause is relative,
-    so it is scale-free by construction. Deliberately contains no pressure
-    term: gating the impulse ratio on a pressure threshold is what pinned
-    RadiusI to the 10 kPa contour. Cells with a non-positive reference can
-    only converge through the floor clause.
+    *low_pressure* is the boolean urban-pressure relevance floor — the SAME
+    `peakP_raw < minPressure_kPa` mask the pressure criterion uses (audit
+    D7), passed in by the caller so this function stays agnostic to where
+    the pressure field comes from. The floor is a pressure statement on
+    purpose: every P-I damage curve has a pressure asymptote, so below the
+    anchored 10 kPa (IATG 02.20 Table 8) no impulse magnitude can matter —
+    an impulse-only irrelevance level does not exist (audit physics-1, and
+    D8 before it). The accuracy clause is relative, hence scale-free; cells
+    with a non-positive reference converge only through the floor.
     """
     if rel_band is None:
         rel_band = constants.IMPULSE_CRITERION['rel_band']
-    if floor_scaled is None:
-        floor_scaled = constants.IMPULSE_CRITERION['floor_scaled']
+    with np.errstate(invalid='ignore', divide='ignore'):
+        accurate = (I_ref > 0) & (np.abs(I_urban - I_ref) / I_ref < rel_band)
+    return accurate | low_pressure
+
+
+def impulse_converged_ifloor(I_urban, I_ref, W13, rel_band=0.10,
+                             floor_scaled=20.0):
+    """The 2026-09-28-morning rule (production for one run), kept to
+    reproduce its committed tables: |dI|/I_ref < rel_band OR urban
+    I/W^(1/3) < floor_scaled. Superseded the same day: an impulse level is
+    not a relevance measure (physics-1), and the floor rode channelling
+    amplification to Z ~ 32."""
     with np.errstate(invalid='ignore', divide='ignore'):
         accurate = (I_ref > 0) & (np.abs(I_urban - I_ref) / I_ref < rel_band)
     return accurate | (I_urban / W13 < floor_scaled)

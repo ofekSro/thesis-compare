@@ -36,15 +36,18 @@ def process_grids(data, params, weight=None):
 
     params keys:
         thresholdP_kPa  — mask threshold (cells below this → NaN)
-        minPressure_kPa — pressure convergence band (kPa, absolute)
-        rel_band_I      — impulse relative-accuracy band (-), optional
-        floor_I_scaled  — impulse relevance floor (Pa.s/kg^(1/3)), optional;
-                          both default to constants.IMPULSE_CRITERION
+        minPressure_kPa — pressure convergence band AND the shared
+                          damage-relevance floor (kPa, absolute); the
+                          impulse criterion's floor clause reuses it
+        rel_band_I      — impulse relative-accuracy band (-), optional;
+                          defaults to constants.IMPULSE_CRITERION
 
-    weight : charge weight [kg], required for the impulse criterion. Passing
-        None falls back to the legacy pressure-gated impulse rule, which is
-        retained only so old callers keep working — it is not admissible under
-        Hopkinson-Cranz (see constants.IMPULSE_CRITERION).
+    weight : charge weight [kg]. Any non-None value selects the production
+        impulse criterion (which itself no longer needs W — both clauses are
+        scale-free / pressure-based). Passing None falls back to the legacy
+        pressure-gated |dI| < minPressure rule, retained only so old callers
+        keep working — its band is not admissible under Hopkinson-Cranz
+        (see constants.IMPULSE_CRITERION).
 
     Returns dict (out) with processed grids, ratios, and scale limits.
     """
@@ -52,8 +55,6 @@ def process_grids(data, params, weight=None):
     min_pressure = params['minPressure_kPa']
     rel_band_I   = params.get('rel_band_I',
                               constants.IMPULSE_CRITERION['rel_band'])
-    floor_I      = params.get('floor_I_scaled',
-                              constants.IMPULSE_CRITERION['floor_scaled'])
 
     out = {}
     for k in ('X1', 'Z1', 'X2', 'Z2', 'X3', 'Z3'):
@@ -198,11 +199,14 @@ def process_grids(data, params, weight=None):
     # (cross-weight spread 4.7%), so an absolute kPa band picks one contour
     # for every charge weight and is admissible.
     #
-    # IMPULSE (production since 2026-09-28): relative-accuracy band OR urban
-    # relevance floor — |dI|/I_ref < rel_band, or I_urban/W^(1/3) < floor —
-    # and NOT gated on pressure. See ff_reference.impulse_converged and
-    # constants.IMPULSE_CRITERION for the rationale and the criterion
-    # history (pressure-gated rule -> scaled band -> this).
+    # IMPULSE (production, 2026-09-28 evening — physics audit verdict):
+    # relative-accuracy band OR the SAME urban-pressure relevance floor the
+    # pressure criterion uses — |dI|/I_ref < rel_band, or peakP_raw <
+    # minPressure. One relevance quantum for both loads: below the anchored
+    # 10 kPa no impulse magnitude can matter (P-I pressure asymptote). See
+    # ff_reference.impulse_converged, constants.IMPULSE_CRITERION, and
+    # docs/audit/2026-09-28/physics.md for the criterion history
+    # (pressure-gated rule -> scaled band -> impulse floor, one run -> this).
     lowP1 = peakP1_raw < min_pressure
     lowP2 = peakP2_raw < min_pressure
     lowP3 = peakP3_raw < min_pressure
@@ -221,13 +225,12 @@ def process_grids(data, params, weight=None):
         conv_I2 = lowP2 | (np.abs(data['impulse2'] - data['refI2']) < min_pressure)
         conv_I3 = lowP3 | (np.abs(data['impulse3'] - data['refI3']) < min_pressure)
     else:
-        W13 = float(weight) ** (1 / 3)
-        conv_I1 = impulse_converged(data['impulse1'], data['refI1'], W13,
-                                    rel_band_I, floor_I)
-        conv_I2 = impulse_converged(data['impulse2'], data['refI2'], W13,
-                                    rel_band_I, floor_I)
-        conv_I3 = impulse_converged(data['impulse3'], data['refI3'], W13,
-                                    rel_band_I, floor_I)
+        conv_I1 = impulse_converged(data['impulse1'], data['refI1'], lowP1,
+                                    rel_band_I)
+        conv_I2 = impulse_converged(data['impulse2'], data['refI2'], lowP2,
+                                    rel_band_I)
+        conv_I3 = impulse_converged(data['impulse3'], data['refI3'], lowP3,
+                                    rel_band_I)
 
     for arr_name, conv_mask in (
         ('ratioP1', conv_P1), ('ratioP2', conv_P2), ('ratioP3', conv_P3),

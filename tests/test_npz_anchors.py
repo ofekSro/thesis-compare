@@ -19,14 +19,18 @@ ANCHORS = {
 }
 
 # Raw (v3) store under the RAW-FIELD building mask (2026-09-27, D2b) and
-# the accurate-or-irrelevant impulse criterion (2026-09-28; see
-# constants.IMPULSE_CRITERION). The v1/v2 anchors above keep guarding the
-# OLD baked-in criterion (those stores load verbatim); these guard the
-# current measurement, pressure and impulse. Previous impulse anchors
-# under the scaled-band criterion: 68.1610404157357 / 64.22452586218307.
+# the production impulse criterion (2026-09-28 evening: accurate to 10%
+# OR urban peak P below the 10 kPa relevance floor; see
+# constants.IMPULSE_CRITERION and docs/audit/2026-09-28/physics.md). The
+# v1/v2 anchors above keep guarding the OLD baked-in criterion (those
+# stores load verbatim); these guard the current measurement, pressure
+# and impulse. Pressure has been anchor-stable through every impulse
+# criterion change. Previous impulse anchors: scaled band
+# 68.1610404157357 / 64.22452586218307; impulse-floor rule (one run)
+# 133.187531219038 / 141.36036347261955.
 RAW_ANCHORS = {
-    'config_93_det2_b10_s5_h15_w250': (64.6464183290751, 133.187531219038),
-    'config_95_det2_b10_s5_h24_w250': (39.930952732324215, 141.36036347261955),
+    'config_93_det2_b10_s5_h15_w250': (64.6464183290751, 96.17837472056225),
+    'config_95_det2_b10_s5_h24_w250': (39.930952732324215, 89.06562858052732),
 }
 
 

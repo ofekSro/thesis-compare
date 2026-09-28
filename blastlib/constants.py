@@ -27,16 +27,20 @@ PARAMS = {
     # free field there is stronger. Hence shielding below the floor counts
     # as converged, and the free-field substitution beyond R_conv is
     # conservative for pressure in shielded zones.
-    # Damage-level anchor (audit D8a): IATG 02.20:2021[E] 3rd ed., Table 8
-    # ties its quantity-distance tiers to peak side-on overpressure. 10 kPa
-    # sits between the 9 kPa tier (acceptable protection for low-density
-    # areas: un-strengthened buildings suffer average damage up to ~20% of
-    # replacement cost; personnel in the open unlikely to be injured by
-    # blast) and the 11 kPa tier (damage to main structural members,
-    # repairs > 20% of replacement cost). I.e. the floor sits at the
-    # standard's boundary between repairable and structural damage. The
-    # IATG levels are free-field side-on values; the full CFD-vs-KB
-    # cross-check is still pending (PHY-06).
+    # Damage-level anchor (audit D8a; tier texts corrected 2026-09-28 per
+    # physics-6, owner confirmed 10 kPa is the intended boundary):
+    # IATG 02.20:2021[E] 3rd ed., Table 8 ties its quantity-distance tiers
+    # to peak side-on overpressure. 10 kPa sits between the 9 kPa tier
+    # (PTRD: un-strengthened buildings suffer average damage of the order
+    # of 10% of replacement cost) and the 11 kPa tier (Blue Line IBD: the
+    # acceptable protection level for low-density areas, damage up to ~20%
+    # of replacement cost; personnel in the open unlikely to be injured by
+    # blast). I.e. the floor sits at the standard's ~10%-repair to
+    # ~20%-repair boundary; the repairable-vs-structural-member boundary
+    # is the 16 kPa tier, deliberately NOT the anchor here. The IATG
+    # levels are free-field side-on values while this floor tests the
+    # urban CFD field — carry the PHY-06 caveat (CFD 10 kPa contour sits
+    # ~8-10% closer than KB's) on any standard-anchored statement.
     'minPressure_kPa': 10,
     'softBeta':        3.0,           # tanh projection sharpness
     'softCap_kPa':     20.0,          # |dP| mapping to weight 1 [kPa]
@@ -44,39 +48,59 @@ PARAMS = {
 
 # When the urban IMPULSE counts as converged to free-field.
 #
-# PRODUCTION CRITERION (owner decision, 2026-09-28 — the "accurate or
-# irrelevant" specification, replacing the scaled band below):
+# PRODUCTION CRITERION (owner decision, 2026-09-28 evening, adopting the
+# physics-audit verdict — docs/audit/2026-09-28/physics.md, candidate B):
 #
-#   |I_urban - I_ff| / I_ff < rel_band        (free field is ACCURATE here)
-#   or  I_urban / W^(1/3) < floor_scaled      (urban impulse IRRELEVANT here)
+#   |I_urban - I_ff| / I_ff < rel_band     (free field is ACCURATE here)
+#   or  peakP_urban_raw < minPressure_kPa  (location is damage-IRRELEVANT)
 #
-# Meaning: beyond R_conv,I, either free-field impulse prediction is correct
-# to within rel_band, or the charge's impulse no longer matters at all. The
-# floor is on the URBAN impulse — the same owner logic as the pressure
-# floor (audit D7): where the city itself delivers less than the floor, the
-# location is of no engineering interest. The scaled band it replaces was
-# rejected by the owner because its permitted RELATIVE deviation grows with
-# distance (beyond Z ~ 13.7 a cell at twice the free-field impulse counted
-# as converged), so "use free field beyond R_conv" could under-predict.
+# Meaning: beyond R_conv,I, at every point, either the free-field impulse
+# is correct to within rel_band, or the urban peak pressure is below the
+# 10 kPa damage floor — below which NO impulse magnitude can produce
+# damage in the anchored structural class, because every P-I damage curve
+# is bounded from below by a pressure asymptote (UFC 3-340-02 Fig. 1-2 is
+# the human-target instance; IATG 02.20 Table 8 states every structural
+# tier as a pressure). The floor clause is a PRESSURE statement on
+# purpose: an impulse-only irrelevance level does not exist (physics-1;
+# D8 said the same for damage criteria), which is also why the impulse-only
+# "mirror" criterion (|dI|/W^(1/3) < x OR I/W^(1/3) < y) was rejected —
+# measured, it collapses onto the rejected scaled band (physics-12) — and
+# why absolute Pa.s clauses are inadmissible (they vary as W^(1/3) across
+# charge weights and break the Z collapse; physics-16).
 #
-#   * rel_band = 0.10 — twice the impulse mesh-convergence tolerance (5%),
-#     fixed from the decision sweep over beta in {0.10..0.30} + floor-only
-#     (outputs/check_results/criterion_decision_suite.csv): the radius is
-#     floor-dominated, so tighter bands are strictly more stable and more
-#     predictable (LOGO of the production form 8.6% at 0.10 vs 16.2% at
-#     0.30); 0.10 keeps the accuracy semantics at near-floor-only cost.
-#   * floor_scaled = 20 Pa.s/kg^(1/3) — carried over from the previous
-#     band value; sits at Z ~ 13.7 on the free-field curve, the same
-#     engineering-relevance range as the pressure floor's Z ~ 12. Floor
-#     sensitivity (15/25 at beta=0.2): median Z_conv,I 23.5/15.1 —
-#     d ln R / d ln floor ~ -0.9 — with predictability flat (~11%), so the
-#     floor sets the radius scale, not its stability. K = 2/3/4 stable
-#     (median shift < 1%).
-#   * Under this criterion the impulse radius is the larger of the two
-#     (median Z_conv,I ~ 18.6 vs Z_conv,P ~ 9.9): amplified urban impulse
-#     stays RELEVANT far beyond the free-field relevance range (Z ~ 13.7)
-#     — a genuine urban effect, unlike the artefact-driven ordering of the
-#     pre-2026-09-27 record.
+# R_conv,I under this rule is a RELEVANCE-BOUNDED convergence radius: it
+# is floor-dominated (the accuracy clause trims the floor-only radius by
+# ~1.5% median), so it must never be presented as the radius where the
+# impulse field merges with the free field — the merging radius is larger
+# and, in channelling configs, beyond the validated Z <= 20 range. Both
+# radii now share ONE relevance quantum (minPressure_kPa, D7 + D8a), which
+# makes them commensurable for the safety-distance comparison (aim 4).
+#
+#   * rel_band = 0.10 — twice the impulse mesh-convergence tolerance (5%):
+#     the minimal band clearly above numerical noise, so it measures the
+#     physics, not the mesh (physics-9; the decision-suite stability sweep
+#     in criterion_decision_suite.csv confirms, as a consequence).
+#   * The floor value lives in PARAMS['minPressure_kPa'] — deliberately
+#     NOT duplicated here: one constant, one relevance quantum, both
+#     criteria. Floor sensitivity: 9/11 kPa (the neighbouring IATG tiers)
+#     move the median Z_conv,I by only about +-5% (elasticity ~ -0.5).
+#   * Measured record (pfloor_variant_suite, 2026-09-28): median Z_conv,I
+#     13.82, p90 15.55, max 17.48; 0/96 beyond the validated Z = 20;
+#     Z_conv,I > Z_conv,P in 96/96 (median ratio 1.40 vs Z_conv,P 9.88).
+#
+# ---- Historical: the impulse-floor rule (2026-09-28 morning, production
+#      for one run; reproduce via impulse_converged_ifloor) ----
+#
+#   |I_urban - I_ff| / I_ff < 0.10  or  I_urban / W^(1/3) < 20
+#
+# Same accuracy clause; relevance floor on the urban SCALED IMPULSE. It
+# fixed the scaled band's unbounded-error defect, but its floor treated an
+# impulse level as a relevance measure, which contradicts the P-I pressure
+# asymptote (physics-1: at its far radii the field is at 2-4 kPa, harmless
+# at any impulse), inherited the value 20 from the rejected band's
+# calibration, and rode channelling amplification to Z_conv,I up to 32.4 —
+# 33/96 radii beyond the validated range (physics-2). Its tables are the
+# 3400e26 record.
 #
 # ---- Historical: the 2026-07..2026-09-27 scaled band (kept for
 #      reproducing old tables via impulse_converged_scaled) ----
@@ -132,8 +156,8 @@ PARAMS = {
 # relevance level, not a damage level, and R_human stays a separate
 # product.]
 IMPULSE_CRITERION = {
-    'rel_band':     0.10,   # relative accuracy band (-)
-    'floor_scaled': 20.0,   # urban relevance floor [Pa.s/kg^(1/3)]
+    'rel_band': 0.10,   # relative accuracy band (-); floor = PARAMS
+                        # ['minPressure_kPa'] via the lowP mask in grids.py
 }
 
 # How a 91-element per-angle radius array collapses to one scalar radius.
