@@ -368,14 +368,15 @@ unstated.** The lower end is geometric: a row is admitted only when the
 free-field radius Z_free·W^⅓ clears the first-street exclusion radius that
 R_conv already excludes, and Z_free = 1 lies within one Hopkinson length of the
 charge. The upper end is a data limit — the model is only fitted where the row
-lies inside R_conv, and on the raw-mask tables the row count falls away beyond
+lies inside R_conv. On the final tables the row count falls away beyond
 Z_free ≈ 8 for pressure (75, 87, 90, 96, 96, 94, 80 rows at Z_free = 2…8,
-then 33, 12, 4, 1; 668 rows in all) and already beyond Z_free ≈ 6 for
-impulse (75, 87, 85, 66, 50 at Z_free = 2…6, then 24, 15, 9, 5, 2; 418
-rows) — the clean R_conv,I is a third smaller than the artefact one, so the
-impulse fit domain shrank with it. Predictions above those values are
-extrapolation in the one variable the pressure form is most sensitive to,
-since `range_switch` carries a 1/Z_free term.
+then 33, 12, 4, 1; 668 rows in all) and beyond Z_free ≈ 9 for impulse
+(75, 87, 90, 96, 96, 96, 95, 77 at Z_free = 2…9, then 49, 31, 17, 11, 8,
+3 out to Z_free = 15; 831 rows) — the impulse domain is now the larger of
+the two, because R_conv,I bounds it and the relevance-bounded R_conv,I
+exceeds R_conv,P in every configuration. Predictions above those values
+are extrapolation in the one variable the pressure form is most sensitive
+to, since `range_switch` carries a 1/Z_free term.
 
 ### The safe domain — where the error is bounded
 
