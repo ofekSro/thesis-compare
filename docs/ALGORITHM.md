@@ -680,7 +680,11 @@ without improving the model.
 > change and have not been re-run; the construction argument is unaffected.
 > On the clean store two complementary stability facts are on record: the
 > hard impulse scan is K-stable (median |Δln R| ≤ 1% for K = 2→3→4 across
-> the swept criteria, so it is deliberately NOT softened —
+> the swept criteria, INCLUDING the final relevance-bounded one — 0.83% /
+> 0.54% for K 2→3 / 3→4, `pfloor_K_suite.csv` — so it is deliberately NOT
+> softened; the softening need was specific to the pressure band's
+> threshold-grazing cliff, and the per-config floor response here is
+> smooth and monotone, with the 93/95 cliff pair at a 7 m gap —
 > `impulse_criterion_sensitivity_note.md`, `criterion_decision_suite.csv`),
 > and the relevance-bounded radius is floor-dominated with mild floor
 > sensitivity: the neighbouring IATG tiers (9 / 11 kPa) move the median
