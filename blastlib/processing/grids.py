@@ -203,7 +203,11 @@ def process_grids(data, params, weight=None):
     # relative-accuracy band OR the SAME urban-pressure relevance floor the
     # pressure criterion uses — |dI|/I_ref < rel_band, or peakP_raw <
     # minPressure. One relevance quantum for both loads: below the anchored
-    # 10 kPa no impulse magnitude can matter (P-I pressure asymptote). See
+    # 10 kPa no impulse magnitude can matter (P-I pressure asymptote).
+    # [Corrected 2026-09-29, D24 review: P-I curves also have an impulse
+    # asymptote; the rationale that holds is IATG 02.20 §8 — tiers calibrated
+    # on NEQ of thousands of kg, so for W <= 1500 kg the impulse accompanying
+    # 10 kPa is smaller and the floor is conservative.] See
     # ff_reference.impulse_converged, constants.IMPULSE_CRITERION, and
     # docs/audit/2026-09-28/physics.md for the criterion history
     # (pressure-gated rule -> scaled band -> impulse floor, one run -> this).

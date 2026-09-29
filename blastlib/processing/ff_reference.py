@@ -115,6 +115,17 @@ def impulse_converged(I_urban, I_ref, low_pressure, rel_band=None):
     an impulse-only irrelevance level does not exist (audit physics-1, and
     D8 before it). The accuracy clause is relative, hence scale-free; cells
     with a non-positive reference converge only through the floor.
+
+    [Corrected 2026-09-29, D24 review] "an impulse-only irrelevance level
+    does not exist" is wrong: every P-I curve also has an impulse asymptote,
+    but it is absolute and target-specific, and none is registered for the
+    anchored structural class. The rationale that holds is IATG 02.20 §8:
+    the tiers are stated as pressures although "the primary threat to
+    structures is blast impulse energy", because they were developed for
+    very large NEQ (thousands of kg) and scaled down. At a fixed scaled
+    distance the impulse accompanying 10 kPa grows as W^(1/3) (~0.17-0.53 of
+    a 10 t event's for W = 50-1500 kg), so the floor is conservative over
+    this study's charge range.
     """
     if rel_band is None:
         rel_band = constants.IMPULSE_CRITERION['rel_band']

@@ -117,13 +117,17 @@ median of −32%, RadiusP by +5%; see the change note in `check_results`).
   *accurate* there — **or** the urban raw peak pressure is below 10 kPa —
   the location is *damage-irrelevant*, by the SAME urban-pressure floor
   the pressure criterion uses (one relevance quantum for both loads). The
-  floor is a pressure statement on purpose: every P–I damage curve is
-  bounded from below by a pressure asymptote, so below the anchored
-  10 kPa no impulse magnitude can damage the anchored structural class
-  (UFC 3-340-02 Fig. 1-2 is the human-target instance: no lung damage
-  below ≈ 69 kPa at any impulse; IATG 02.20 Table 8 states every
-  structural tier as a pressure). An impulse-only irrelevance level does
-  not exist — the audit measured the alternatives and rejected them
+  floor is a pressure statement, and IATG 02.20 §8 explains why that
+  suffices for impulse: its tiers are stated as pressures although "the
+  primary threat to structures is blast impulse energy", because they were
+  developed for very large NEQ (thousands of kg) and scaled down. At a fixed
+  scaled distance the impulse that accompanies 10 kPa grows as W^⅓, so for
+  W = 50–1500 kg it is about 0.17–0.53 of a 10 t event's, and the floor is
+  conservative over this study's charge range. (An impulse irrelevance level
+  does exist for any given target — the P–I impulse asymptote — but it is
+  absolute and target-specific; none is registered for the anchored
+  structural class.) The audit measured the impulse-only alternatives and
+  rejected them
   (physics-11..17): an impulse-only mirror collapses onto the rejected
   scaled band, and absolute Pa·s clauses vary as W^⅓ across charge
   weights and break the Z collapse. rel_band = 10% is twice the impulse
@@ -278,8 +282,9 @@ converted back by R = Z·W^⅓.
   unaffected (bracketed by the IATG 02.20 Table 8 damage tiers — see Domain
   of validity), and the impulse criterion guarantees the free field is
   accurate to 10% or the location is below that SAME 10 kPa damage floor —
-  the P–I pressure asymptote makes this the only physical irrelevance
-  statement for impulse (see Step 1). Both clauses pick one scaled contour
+  IATG 02.20 §8 makes the pressure floor a conservative irrelevance
+  statement for impulse over W ≤ 1500 kg (the tiers were calibrated on much
+  larger charges; see Step 1). Both clauses pick one scaled contour
   at every charge weight, and the shared floor makes the two radii
   commensurable for the safety-distance comparison.
 - **The forms are mechanistic, not fitted noise.** Each term maps to a physical

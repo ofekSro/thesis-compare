@@ -68,6 +68,20 @@ PARAMS = {
 # why absolute Pa.s clauses are inadmissible (they vary as W^(1/3) across
 # charge weights and break the Z collapse; physics-16).
 #
+# [Corrected 2026-09-29, D24 review] The claim above that "an impulse-only
+# irrelevance level does not exist" is wrong: every P-I curve also has an
+# impulse asymptote, but it is absolute and target-specific, and none is
+# registered for the structural class this floor anchors. The rationale that
+# holds is IATG 02.20 §8: the QD tiers are stated as side-on pressures, yet
+# "the primary threat to structures is blast impulse energy, which is a
+# function of overpressure and event duration"; the tiers were developed for
+# very large NEQ (thousands of kg) and scaled down. Each tier sits at a fixed
+# scaled distance, so the impulse accompanying 10 kPa grows as W^(1/3): for
+# W = 50-1500 kg it is ~0.17-0.53 of a 10 t event's (illustrative mass; IATG
+# says only "thousands of kg"). Below the floor the structural threat is
+# therefore lower than the tier describes: the floor is conservative over
+# this study's charge range.
+#
 # R_conv,I under this rule is a RELEVANCE-BOUNDED convergence radius: it
 # is floor-dominated (the accuracy clause trims the floor-only radius by
 # ~1.5% median), so it must never be presented as the radius where the
@@ -86,7 +100,10 @@ PARAMS = {
 #     move the median Z_conv,I by only about +-5% (elasticity ~ -0.5).
 #   * Measured record (pfloor_variant_suite, 2026-09-28): median Z_conv,I
 #     13.82, p90 15.55, max 17.48; 0/96 beyond the validated Z = 20;
-#     Z_conv,I > Z_conv,P in 96/96 (median ratio 1.40 vs Z_conv,P 9.88).
+#     Z_conv,I > Z_conv,P in 96/96 (median ratio 1.40 vs Z_conv,P 9.88)
+#     (a property of the two criteria's forms — floor-only >= floor-or-band —
+#     not evidence that geometry affects impulse further; see
+#     docs/DECISIONS.md D24).
 #
 # ---- Historical: the impulse-floor rule (2026-09-28 morning, production
 #      for one run; reproduce via impulse_converged_ifloor) ----
