@@ -240,25 +240,26 @@
 // outputs/tables/final_production_*_coefficients_req_soft3.csv
 // =====================================================================
 const CONV_P = {
-  1:{C0:10.047152, C1:-0.962695, C2:3.096522, C3:0.531860, a:1},
-  2:{C0:11.766105, C1:-0.863179, C2:2.297510, C3:0.699936, a:2}
+  1:{C0:9.844992, C1:-0.764408, C2:2.571043, C3:0.520789, a:1},
+  2:{C0:11.610352, C1:-0.782647, C2:1.962672, C3:0.645310, a:2}
 };
 // Z = A * rho^p * (H/s)^q * pi2^r * exp(r2*ln(pi2)^2)
 const CONV_I = {
-  1:{A:17.409640, p:0.303090, q:-0.055761, r:0.034366, r2:0.007220},
-  2:{A:16.327480, p:0.164625, q:-0.012297, r:0.070116, r2:-0.013301}
+  1:{A:17.801042, p:0.319956, q:-0.052095, r:0.053800, r2:0.003145},
+  2:{A:17.835159, p:0.236925, q:-0.006675, r:0.126987, r2:-0.042515}
 };
 // Z_urban - PySR structured forms (final_production, req_soft3).
 // Pressure  (range_switch): lnL = C0 + C1*[(pi2 - A)/Zf - ln pi2] / (pi2*(s/H) + B)
 // Impulse   (canyon_trap):  lnL = C0 + C1*rho*(sqrt(H/s) - C2*rho) / (H/s + C3*sqrt(pi2))
 // The pressure block is untouched by the impulse-criterion changes; the
 // impulse block tracks the criterion through the fit domain (R_conv,I
-// bounds which rows the Lambda_I fit sees). Refit 2026-09-28 evening.
+// bounds which rows the Lambda_I fit sees). Refit 2026-09-29 after the
+// grid-cut fix (docs/DECISIONS.md D31).
 const ZU = {
-  P:{ 1:{C0:0.097357, C1:2.679750, A:3.018626, B:7.818822},
-      2:{C0:0.110828, C1:0.561888, A:2.107401, B:1.410824} },
-  I:{ 1:{C0:-0.092926,C1:3.019080, C2:0.895714, C3:1.423355},
-      2:{C0:0.027238, C1:2.638889, C2:1.114329, C3:0.899828} }
+  P:{ 1:{C0:0.095400, C1:2.622735, A:3.007675, B:7.677276},
+      2:{C0:0.113968, C1:0.606437, A:2.136508, B:1.610389} },
+  I:{ 1:{C0:-0.093116,C1:3.021967, C2:0.890652, C3:1.432386},
+      2:{C0:0.026303, C1:2.659625, C2:1.112587, C3:0.904680} }
 };
 
 const $=id=>document.getElementById(id);

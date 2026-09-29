@@ -25,17 +25,16 @@ from matplotlib import cm
 
 from blastlib import paths
 
-# HARDCODED production-fit coefficients (from the 2026-09-27 run on the
-# raw-field-mask store — see outputs/check_results/
-# raw_mask_and_unified_model_change_note.md).
+# HARDCODED production-fit coefficients (from the 2026-09-29 run after the
+# grid-cut fix — see docs/DECISIONS.md D31).
 # These are NOT read from disk — if you re-run the regression, these values
 # go stale silently. Compare against
 # outputs/tables/final_production_convergence_coefficients_req_soft3.csv
 # (rows with Target=RadiusP: C0, C1_sW13, C2_switch, C3_canyon, a_thresh)
 # and update this dict by hand if they differ.
 COEF = {
-    1: dict(C0=10.047, C1=-0.963, C2=3.097, C3=0.532, a=1),  # street
-    2: dict(C0=11.766, C1=-0.863, C2=2.298, C3=0.700, a=2),  # intersection
+    1: dict(C0=9.845, C1=-0.764, C2=2.571, C3=0.521, a=1),   # street
+    2: dict(C0=11.610, C1=-0.783, C2=1.963, C3=0.645, a=2),  # intersection
 }
 
 # axis sampling ranges (match dataset coverage)

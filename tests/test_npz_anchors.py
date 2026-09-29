@@ -28,9 +28,12 @@ ANCHORS = {
 # criterion change. Previous impulse anchors: scaled band
 # 68.1610404157357 / 64.22452586218307; impulse-floor rule (one run)
 # 133.187531219038 / 141.36036347261955.
+# 2026-09-29, D31 (coarse grid no longer re-enters the fine box): previous
+# anchors (64.6464183290751, 96.17837472056225) and
+# (39.930952732324215, 89.06562858052732).
 RAW_ANCHORS = {
-    'config_93_det2_b10_s5_h15_w250': (64.6464183290751, 96.17837472056225),
-    'config_95_det2_b10_s5_h24_w250': (39.930952732324215, 89.06562858052732),
+    'config_93_det2_b10_s5_h15_w250': (65.03267245093893, 96.78493203719493),
+    'config_95_det2_b10_s5_h24_w250': (40.48961749634096, 89.36129957152096),
 }
 
 

@@ -107,6 +107,13 @@ side, where they set the radius at the outermost building wall rather than
 in the streets. Masking the raw field removes them (RadiusI moved by a
 median of −32%, RadiusP by +5%; see the change note in `check_results`).
 
+Every location is represented by the finest grid that has valid data there;
+a coarser grid enters only outside the extent of the finer one. Until
+2026-09-29 the coarse grid re-entered the fine-grid box (0–100 m), so the
+scan saw fine and coarse cells at the same place (D31; fixing it moved
+RadiusP by a median of +0.16% and RadiusI by up to +26% in three dense
+W = 50 kg configurations).
+
 - **Convergence radius.** The first quadrant is split into 91 one-degree
   sectors. In each sector we scan inward from far to near and mark the point
   where the ratio first leaves a tolerance band and stays out (three consecutive
@@ -467,21 +474,21 @@ Two structural dependencies of the fit itself:
 
 ## The fitted coefficients
 
-Production values (2026-09-28 evening run: raw-field mask, soft β = 3
+Production values (2026-09-29 run: raw-field mask, soft β = 3
 pressure criterion, relevance-bounded impulse criterion, quad power-law
-impulse model).
+impulse model, grid-cut fix D31, re-exported W = 1000 coarse reference).
 
 Convergence radius:
 
 | det | target | C₀ | C₁ | C₂ | C₃ | a |
 |---|---|---|---|---|---|---|
-| 1 street | RadiusP | 10.047 | −0.963 | 3.097 | 0.532 | 1 |
-| 2 inters. | RadiusP | 11.766 | −0.863 | 2.298 | 0.700 | 2 |
+| 1 street | RadiusP | 9.845 | −0.764 | 2.571 | 0.521 | 1 |
+| 2 inters. | RadiusP | 11.610 | −0.783 | 1.963 | 0.645 | 2 |
 
 | det | target | A | p (ρ) | q (H/s) | r (Π₂) | r₂ (ln²Π₂) |
 |---|---|---|---|---|---|---|
-| 1 street | RadiusI | 17.410 | 0.3031 | −0.0558 | 0.0344 | +0.0072 |
-| 2 inters. | RadiusI | 16.327 | 0.1646 | −0.0123 | 0.0701 | −0.0133 |
+| 1 street | RadiusI | 17.801 | 0.3200 | −0.0521 | 0.0538 | +0.0031 |
+| 2 inters. | RadiusI | 17.835 | 0.2369 | −0.0067 | 0.1270 | −0.0425 |
 
 Density dominates (p is the only large exponent, same sign both groups);
 the height and street-width exponents are small — as they should be for a
@@ -496,10 +503,10 @@ Z_urban (Λ forms):
 
 | det | target | C₀ | C₁ | A | B | C₂ | C₃ |
 |---|---|---|---|---|---|---|---|
-| 1 | Pressure (range_switch) | 0.0974 | 2.6798 | 3.0186 | 7.8188 | — | — |
-| 2 | Pressure (range_switch) | 0.1108 | 0.5619 | 2.1074 | 1.4108 | — | — |
-| 1 | Impulse (canyon_trap) | −0.0929 | 3.0191 | — | — | 0.8957 | 1.4234 |
-| 2 | Impulse (canyon_trap) | 0.0272 | 2.6389 | — | — | 1.1143 | 0.8998 |
+| 1 | Pressure (range_switch) | 0.0954 | 2.6227 | 3.0077 | 7.6773 | — | — |
+| 2 | Pressure (range_switch) | 0.1140 | 0.6064 | 2.1365 | 1.6104 | — | — |
+| 1 | Impulse (canyon_trap) | −0.0931 | 3.0220 | — | — | 0.8907 | 1.4324 |
+| 2 | Impulse (canyon_trap) | 0.0263 | 2.6596 | — | — | 1.1126 | 0.9047 |
 
 (A is the switch threshold, stored positive: the near-field term reads
 (Π₂ − A)/Z_free. The impulse blocks track the criterion through the fit

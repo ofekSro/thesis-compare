@@ -151,10 +151,15 @@ def process_grids(data, params, weight=None):
     out['ratioP2'][cut_mask2]       = np.nan
     out['ratioI2'][cut_mask2]       = np.nan
 
-    # Smart cut: zero out coarse grid where medium grid has valid data
+    # Smart cut: zero out coarse grid where medium grid has valid data.
+    # Keyed on mask2 alone, NOT mask2 | cut_mask2: inside the fine box the
+    # medium grid is cut because the fine grid covers it, and treating that
+    # as "medium invalid" let the coarse grid back in there, so the scan saw
+    # fine and coarse cells at the same place. Each location must come from
+    # the finest grid with valid data. See DECISIONS.md D31.
     xMax2 = out['X2'].max();  zMax2 = out['Z2'].max()
     mask2_interp = _interp2_nearest(
-        out['X2'], out['Z2'], (mask2 | cut_mask2).astype(float),
+        out['X2'], out['Z2'], mask2.astype(float),
         out['X3'], out['Z3'], fill_value=1.0
     )
     cut_mask3 = (out['X3'] <= xMax2) & (out['Z3'] <= zMax2) & (mask2_interp == 0)
