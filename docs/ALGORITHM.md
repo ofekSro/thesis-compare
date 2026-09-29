@@ -179,11 +179,13 @@ W = 50 kg configurations).
   to 49.9 m as β → ∞ (config 58, θ = 0). Softness therefore buys
   cliff-robustness by paying in systematically longer radii wherever the field
   is amplified but weak — which is the same trade the band made in the other
-  direction. **β = 3 is the production setting**, selected by a
-  sensitivity scan over β ∈ {2, 3, 4, 6, 8, 12} as the only value satisfying
-  both rules fixed in advance: the threshold-cliff gap between the two
-  neighbouring configurations closes below 10 m (8.6 m), and the mean
-  out-of-sample error rises by no more than 0.5 pp (+0.24 pp). The impulse
+  direction. **β = 3 is the production setting**, adopted in August 2026
+  after the pre-set rule over β ∈ {4, 6, 8, 12} selected nothing (β = 3 was
+  added to the scan afterwards). It was re-checked on 2026-09-29 against the
+  same two rules applied ex post: the threshold-cliff gap between the two
+  neighbouring configurations closes below 10 m (8.51 m, against 24.54 m
+  hard), and the mean LOGO pressure error is no more than 0.5 pp above hard
+  (9.92% against 12.24%) (DECISIONS.md D4). The impulse
   criterion is untouched by all of this, and the soft tables carry the
   `req_soft3` suffix next to the hard `req` ones.
 
@@ -465,9 +467,11 @@ Two structural dependencies of the fit itself:
   Under the soft criterion the threshold is still centred at 10 kPa (the
   projection crosses ½ exactly there), but the measured radius no longer jumps
   discontinuously when a lobe peak grazes it — the criterion's *location* is
-  unchanged, only its knife edge is gone. The softening is conservative:
-  measured radii grow by ~17% at the median (β = 3), i.e. convergence is
-  declared slightly later, which is the safe direction for a protective radius.
+  unchanged, only its knife edge is gone. The softening is conservative in
+  most configurations: measured radii grow by ~10% at the median (β = 3,
+  2026-09-29 record), i.e. convergence is usually declared later, which is the
+  safe direction for a protective radius. In some configurations the soft
+  radius is shorter, by up to 13% (DECISIONS.md D4).
 - **Geometry family.** The formulas assume a uniform, effectively infinite
   rectangular grid of identical buildings. Real, heterogeneous urban fabric is
   outside the fitted family.

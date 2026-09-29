@@ -3,6 +3,25 @@
 **Adopted: β\* = 3** (production token `req_soft3`, set in
 `constants.RADIUS_ESTIMATOR`).
 
+## Correction (2026-09-29, DECISIONS.md D4)
+
+The rules below were not pre-registered for β = 3. The set fixed in advance
+was {4, 6, 8, 12}; none of it passed the gap rule, β = 4 was adopted with the
+rule relaxed (`cbb2312`), and β = 3 was added afterwards (`430d004`). The text
+below is kept as the August record. On 2026-09-29 the same two rules were
+re-applied as an ex-post criterion, fixed before measuring, on the record of
+`53b280c` (96 configs; β = 3 and hard only):
+
+| | hard | β = 3 | rule |
+|---|---|---|---|
+| gap 93↔95 [m] | 24.54 | 8.51 | < 10 m ✓ |
+| LOGO P mean / median / p90 / max [%] | 12.24 / 8.91 / 26.44 / 47.51 | 9.92 / 8.07 / 21.94 / 38.54 | ≤ hard + 0.5 pp ✓ |
+
+Median RadiusP inflation against hard is +10.05% (p90 +19.34%, max +66.84%,
+min −13.25%). β = 3 stays.
+
+## August 2026 justification (historical)
+
 β = 3 is the only tested sharpness that satisfies **both** rules fixed before
 the numbers were seen. The C4 selection rule — the largest β whose
 config_93↔config_95 Req gap falls under 10 m — is met at 8.6 m (β = 4 leaves

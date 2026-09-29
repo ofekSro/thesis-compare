@@ -188,6 +188,12 @@ IMPULSE_CRITERION = {
 # beta to satisfy both pre-registered rules — the config_93/95 threshold gap
 # below 10 m and the <=0.5 pp acceptance bound on mean LOGO error — and it
 # cuts the worst-case pressure error from 43.4% to 30.1%.
+# Correction (2026-09-29, DECISIONS.md D4): the rules above were not
+# pre-registered for beta = 3. The registered set was {4, 6, 8, 12}; none
+# passed the gap rule, beta = 4 was adopted with the rule relaxed, and
+# beta = 3 was added afterwards. The two rules were re-applied on 2026-09-29
+# as an ex-post criterion on the record of 53b280c: gap 8.51 m (hard 24.54 m),
+# mean LOGO P 9.92% (hard 12.24%). The 43.4% -> 30.1% figures are August's.
 #
 # The soft path needs the v2 NPZ superset (raw band fields), so a phase-1 run
 # under this default reads data/processed_npz_v2. Set 'req' here (or pass
