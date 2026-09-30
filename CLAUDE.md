@@ -202,6 +202,15 @@ python tools\check_formulas\check_formulas.py
 - Data: `data/*` is gitignored and lives on OneDrive as cloud placeholders.
   Mark `data\raw_npz\` "Always keep on this device" before a run.
 
+**Cloud sessions (claude.ai/code).** Linux VM, fresh clone of GitHub, no
+OneDrive and no `data/` unless the setup script downloads it.
+- Commit and push only to the session's own `claude/*` branch, never to
+  `compare-v7`. The owner merges, after reading the diff. §1 applies unchanged.
+- If `data/raw_npz/` is absent, say so at the start: anchor tests will skip
+  and no number produced in the session may be trusted (see above).
+- Agents and skills live in `.claude/`. User-level memory does not reach the
+  cloud; anything a cloud session must know belongs in this file.
+
 ---
 
 ## 6. Documentation and the worklog
