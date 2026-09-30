@@ -84,8 +84,12 @@ def test_criteria_act_on_filled_fields(out):
     assert out['peakP1_raw'][EMPTY] == pytest.approx(40.0)
     assert out['refP1'][EMPTY] == pytest.approx(55.0)
     assert out['ratioP1'][0, 0] == 1.0
-    # Impulse: |80 - 110| / 110 = 27% > 10% and P not below the floor.
-    assert out['ratioI1'][EMPTY] == pytest.approx(80.0 / 110.0)
+    # Impulse (D35): |80/110 - 1| = 27% > 10%, but 80 / 250^(1/3) = 12.7 is
+    # below the 23.6 Pa.s/kg^(1/3) floor, so the cell is pinned. Under D24
+    # (pressure floor, P = 40 > 10) it stayed at 80/110. The unforced ratio
+    # is still the filled one.
+    assert out['ratioI1'][EMPTY] == 1.0
+    assert out['ratioI1_raw'][EMPTY] == pytest.approx(80.0 / 110.0)
 
 
 @pytest.mark.parametrize('fine, coarse', [('1', '2'), ('2', '3')])

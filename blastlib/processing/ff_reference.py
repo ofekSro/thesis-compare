@@ -80,14 +80,11 @@ def rebuild_impulse_ratio(processed, weight, ff_csv, thr_I_scaled=None):
             if thr_I_scaled is not None:      # explicit: historical rule
                 conv = impulse_converged_scaled(I, ref, W13, thr_I_scaled)
             else:
-                # Relevance floor from the stored urban peak pressure. The
-                # v1/v2 stores keep only the FILLED pre-criterion peak
-                # (peakP*_orig), not the raw per-grid field the production
-                # path uses — a wall-skin cell may differ; the production
-                # measurement is grids.process_grids on the v3 store.
-                lowP = (processed[f'peakP{g}_orig']
-                        < constants.PARAMS['minPressure_kPa'])
-                conv = impulse_converged(I, ref, lowP)
+                # Production criterion (D35) on the stored filled impulse; the
+                # production measurement is grids.process_grids on the v3
+                # store. Until 2026-09-30 this branch applied the D24 rule
+                # with lowP from peakP*_orig (impulse_converged_pfloor).
+                conv = impulse_converged(I, ref, W13)
         # Preserve the existing NaN mask: those cells carry no data at all.
         ratio = np.where(conv & ~np.isnan(ratio), 1.0, ratio)
         processed[f'ratioI{g}'] = np.where(
@@ -95,10 +92,37 @@ def rebuild_impulse_ratio(processed, weight, ff_csv, thr_I_scaled=None):
     return processed
 
 
-def impulse_converged(I_urban, I_ref, low_pressure, rel_band=None):
+def impulse_converged(I_urban, I_ref, W13, rel_band=None, floor_scaled=None):
     """Cells where the urban impulse counts as converged to free-field.
 
-    Production criterion (owner decision, 2026-09-28 evening, on the physics
+    Production criterion since 2026-09-30 (DECISIONS.md D35 (c)):
+
+        |I_urban / I_ref - 1| <= rel_band   or   I_urban / W^(1/3) < floor_scaled
+
+    I_urban, I_ref : filled urban and reference impulse [Pa.s] (D34).
+    W13            : cube root of the charge weight [kg^(1/3)].
+    rel_band       : relative band (-); default IMPULSE_CRITERION['rel_band'].
+    floor_scaled   : scaled floor [Pa.s/kg^(1/3)]; default
+                     IMPULSE_CRITERION['floor_scaled'] (23.6, the reference
+                     scaled impulse where the reference overpressure is 10 kPa).
+    Returns a bool array. Cells with a non-positive reference converge only
+    through the floor.
+    """
+    if rel_band is None:
+        rel_band = constants.IMPULSE_CRITERION['rel_band']
+    if floor_scaled is None:
+        floor_scaled = constants.IMPULSE_CRITERION['floor_scaled']
+    with np.errstate(invalid='ignore', divide='ignore'):
+        accurate = (I_ref > 0) & (np.abs(I_urban / I_ref - 1.0) <= rel_band)
+        floor = I_urban / W13 < floor_scaled
+    return accurate | floor
+
+
+def impulse_converged_pfloor(I_urban, I_ref, low_pressure, rel_band=0.10):
+    """The D24 rule (production 2026-09-28 evening .. 2026-09-30), kept to
+    reproduce its committed tables. Superseded by D35 (impulse_converged).
+
+    D24 criterion (owner decision, 2026-09-28 evening, on the physics
     audit's verdict — docs/audit/2026-09-28/physics.md; full rationale in
     constants.IMPULSE_CRITERION):
 

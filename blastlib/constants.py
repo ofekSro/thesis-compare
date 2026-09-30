@@ -172,9 +172,28 @@ PARAMS = {
 # analysis above remains valid under the new criterion: the floor is a
 # relevance level, not a damage level, and R_human stays a separate
 # product.]
+#
+# ---- Production since 2026-09-30 (DECISIONS.md D35 (c), owner decision) ----
+#
+#   |I_urban / I_ff - 1| <= rel_band   or   I_urban / W^(1/3) < floor_scaled
+#
+# Supersedes the D24 rule above (reproduce via
+# ff_reference.impulse_converged_pfloor). Same accuracy clause; the relevance
+# floor moves from the urban PRESSURE to the urban SCALED IMPULSE. The value
+# 23.6 Pa.s/kg^(1/3) is the scaled free-field impulse of the reference runs
+# at the Z where their overpressure is 10 kPa (Z ~ 11.6, data/
+# free_field_data.csv): the same contour and the same IATG 02.20 level as the
+# pressure floor, stated in impulse. One value for all W (Hopkinson); the
+# per-W levels are 21.9-24.4 (D35 alternative (b)). The rule was set after
+# measurement, by the owner. Evidence (scratch evaluation, 2026-09-30):
+# LOGO I 9.03% (D24 9.46%), safe-box I max 10.3% (23.6%), CV R^2 0.934
+# (0.913); the floor sets R_I in 94/96; 8 configs have Z_conv,I > 20.
 IMPULSE_CRITERION = {
-    'rel_band': 0.10,   # relative accuracy band (-); floor = PARAMS
-                        # ['minPressure_kPa'] via the lowP mask in grids.py
+    'rel_band': 0.10,       # relative accuracy band (-), |I/I_ff - 1| <= rel_band
+    'floor_scaled': 23.6,   # Pa.s/kg^(1/3); scaled free-field impulse of the
+                            # reference runs at the Z where their overpressure
+                            # is 10 kPa (Z ~ 11.6); same contour and IATG level
+                            # as the pressure floor. D35.
 }
 
 # How a 91-element per-angle radius array collapses to one scalar radius.

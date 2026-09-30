@@ -65,17 +65,18 @@ def process_grids(data, params, weight=None):
          filled reference fields.
 
     params keys:
-        minPressure_kPa — pressure convergence band AND the shared
-                          damage-relevance floor (kPa, absolute); the
-                          impulse criterion's floor clause reuses it
+        minPressure_kPa — pressure convergence band AND the pressure
+                          damage-relevance floor (kPa, absolute). Since D35
+                          the impulse floor is on the scaled impulse
+                          (IMPULSE_CRITERION['floor_scaled']), not this.
         rel_band_I      — impulse relative-accuracy band (-), optional;
                           defaults to constants.IMPULSE_CRITERION
         thresholdP_kPa  — accepted, no longer used: the building mask is the
                           solver sentinel itself (D34)
 
     weight : charge weight [kg]. Any non-None value selects the production
-        impulse criterion (which itself no longer needs W — both clauses are
-        scale-free / pressure-based). Passing None falls back to the legacy
+        impulse criterion (D35), whose floor is I / W^(1/3), so W is needed.
+        Passing None falls back to the legacy
         pressure-gated |dI| < minPressure rule, retained only so old callers
         keep working — its band is not admissible under Hopkinson-Cranz
         (see constants.IMPULSE_CRITERION).
@@ -167,13 +168,19 @@ def process_grids(data, params, weight=None):
         # conservative.] See ff_reference.impulse_converged,
         # constants.IMPULSE_CRITERION, and docs/audit/2026-09-28/physics.md
         # for the criterion history.
+        # [Superseded 2026-09-30, DECISIONS.md D35 (c): the impulse floor is
+        # now the urban SCALED impulse, I / W^(1/3) < 23.6 Pa.s/kg^(1/3) — the
+        # reference scaled impulse where the reference overpressure is
+        # 10 kPa, the same contour and IATG level as the pressure floor. The
+        # D24 rule above is ff_reference.impulse_converged_pfloor.]
         lowP   = P[g] < min_pressure
         conv_P = lowP | (np.abs(P[g] - RP[g]) < min_pressure)
         if weight is None:
             # Legacy pressure-gated rule; kept only for backward compatibility.
             conv_I = lowP | (np.abs(I[g] - RI[g]) < min_pressure)
         else:
-            conv_I = impulse_converged(I[g], RI[g], lowP, rel_band_I)
+            conv_I = impulse_converged(I[g], RI[g], float(weight) ** (1 / 3),
+                                       rel_band_I)
 
         for name, conv in ((f'ratioP{g}', conv_P), (f'ratioI{g}', conv_I)):
             pin = conv & ~np.isnan(out[name])
