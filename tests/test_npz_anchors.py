@@ -31,9 +31,13 @@ ANCHORS = {
 # 2026-09-29, D31 (coarse grid no longer re-enters the fine box): previous
 # anchors (64.6464183290751, 96.17837472056225) and
 # (39.930952732324215, 89.06562858052732).
+# 2026-09-30, D34 (buildings-only mask, coarser grid always cut inside a
+# finer box, criteria on filled fields): previous anchors
+# (65.03267245093893, 96.78493203719493) and
+# (40.48961749634096, 89.36129957152096).
 RAW_ANCHORS = {
-    'config_93_det2_b10_s5_h15_w250': (65.03267245093893, 96.78493203719493),
-    'config_95_det2_b10_s5_h24_w250': (40.48961749634096, 89.36129957152096),
+    'config_93_det2_b10_s5_h15_w250': (65.1864661950623, 96.79195307749274),
+    'config_95_det2_b10_s5_h24_w250': (40.49157782798788, 89.38632616656507),
 }
 
 
@@ -80,7 +84,7 @@ def raw_npz_dir():
 
 @pytest.mark.parametrize('config_name', sorted(RAW_ANCHORS))
 def test_raw_store_radii(raw_npz_dir, config_name):
-    """The raw store under the raw-field mask reproduces both radii exactly."""
+    """The raw store under the D34 merge reproduces both radii exactly."""
     p, i = _radii(raw_npz_dir, config_name)
     anchor_p, anchor_i = RAW_ANCHORS[config_name]
     assert p == pytest.approx(anchor_p, rel=1e-12)

@@ -53,22 +53,28 @@ def test_expansion_matches_shipped_v2_bit_for_bit(raw_dir):
         the raw reference fields, and the raw pressure peaks.
     The criterion-dependent arrays are pinned by tests/test_npz_anchors.py
     (raw-store anchors) instead.
+
+    Since 2026-09-30 (D34) the expanded refP{g}, refI{g} and peakP{g}_raw
+    hold the FILLED fields the criteria act on, so the raw solver fields are
+    compared as the v3 store holds them on disk, against v2's raw keys.
     """
     _require_config(NPZ_V2_DIR, CONFIG)
     from_raw, ok_raw = load_processed_data(raw_dir, CONFIG)
     from_v2, ok_v2 = load_processed_data(NPZ_V2_DIR, CONFIG)
-    assert ok_raw and ok_v2
+    stored, ok_stored = raw_store.load_raw_data(raw_dir, CONFIG)
+    assert ok_raw and ok_v2 and ok_stored
 
     missing = set(from_v2) - set(from_raw)
     assert not missing, f'v3 lost keys the v2 store had: {sorted(missing)}'
 
-    criterion_free = (['X1', 'Z1', 'X2', 'Z2', 'X3', 'Z3']
-                      + [f'refP{g}' for g in '123']
-                      + [f'refI{g}' for g in '123']
-                      + [f'peakP{g}_raw' for g in '123'])
+    # (v3 array, v2 key)
+    pairs = ([(from_raw[k], k) for k in ('X1', 'Z1', 'X2', 'Z2', 'X3', 'Z3')]
+             + [(stored[f'refP{g}'], f'refP{g}') for g in '123']
+             + [(stored[f'refI{g}'], f'refI{g}') for g in '123']
+             + [(stored[f'peakP{g}'], f'peakP{g}_raw') for g in '123'])
     mismatched = []
-    for key in criterion_free:
-        a = np.asarray(from_raw[key])
+    for a, key in pairs:
+        a = np.asarray(a)
         b = np.asarray(from_v2[key])
         if a.shape != b.shape or not np.array_equal(a, b, equal_nan=True):
             mismatched.append(key)

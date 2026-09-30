@@ -75,12 +75,16 @@ def test_positive_slope_guard():
 # slope fit vs 19.6% for the crossing; the full-data test below checks the
 # median claim). At dr=2 the kernel quirk (Q3) disables smoothing, so the
 # 2 m number is a RAW slope fit by construction.
+# 2026-09-30, D34 (refP{g} holds the filled reference): E_peak, L_decay
+# and R_half_slope moved by 4e-9..1.3e-7 relative; previous values
+# 0.5: 2.1382381088898073 / 21.69532474629278 / 29.78805317922525,
+# 2.0: 2.1510517261644613 / 23.982629069734468 / 31.62349172210143.
 GOLDEN_93 = {
-    0.5: dict(R_peak=14.75, E_peak=2.1382381088898073,
-              L_decay=21.69532474629278, R_half_slope=29.78805317922525,
+    0.5: dict(R_peak=14.75, E_peak=2.1382380170800803,
+              L_decay=21.695324925239113, R_half_slope=29.7880533032614,
               R_half_cross=42.25, n_fit=36, span_fit=17.5),
-    2.0: dict(R_peak=15.0, E_peak=2.1510517261644613,
-              L_decay=23.982629069734468, R_half_slope=31.62349172210143,
+    2.0: dict(R_peak=15.0, E_peak=2.1510519742356853,
+              L_decay=23.982632152542237, R_half_slope=31.623493858940943,
               R_half_cross=43.0, n_fit=13, span_fit=24.0),
 }
 

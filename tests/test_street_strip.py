@@ -75,28 +75,34 @@ def test_min_cells_and_grid_precedence():
 # config_93_det2_b10_s5_h15_w250 at dr=0.5 — the gate-A contract. The new
 # strip reproduced the reference bit-for-bit at capture time (2026-08-06);
 # rel 1e-15 leaves room only for a numpy reduction-order change.
+# 2026-09-30, D34: refP{g} now holds the FILLED reference, so free_field
+# and ratio moved. Rows 0-198 by 1e-8..1e-7 relative (float64 fill in place
+# of the float32 raw field); row 199 (r = 99.75 m, the fine-grid edge,
+# where the raw fine reference is deficient, PHY-04) by +7.5% in
+# free_field: 5.862224102020264 -> 6.304926104475472, ratio
+# 1.3598606347465994 -> 1.2643776717289998. Urban columns unchanged.
 GOLDEN_93 = {
     0: dict(r=0.25, n=51, urban=377154.05206418503, urban_p10=7078.6845703125,
-            urban_p90=2892133.0, free_field=377180.78125,
-            ratio=0.9999291342848212),
+            urban_p90=2892133.0, free_field=377180.80242800247,
+            ratio=0.999929078140655),
     1: dict(r=0.75, n=68, urban=17128.971378102022, urban_p10=6909.70537109375,
-            urban_p90=29139.434765625036, free_field=17221.384765625,
-            ratio=0.9946338004300652),
+            urban_p90=29139.434765625036, free_field=17221.385375976562,
+            ratio=0.994633765178761),
     2: dict(r=1.25, n=51, urban=8465.987898284313, urban_p10=5536.59130859375,
-            urban_p90=10814.54296875, free_field=8619.279296875,
-            ratio=0.9822152881568341),
+            urban_p90=10814.54296875, free_field=8619.279181985294,
+            ratio=0.9822153012491617),
     100: dict(r=50.25, n=68, urban=21.503369415507596,
               urban_p10=19.213640213012695, urban_p90=24.529907417297363,
-              free_field=18.34432601928711, ratio=1.1722082017567224),
+              free_field=18.344323971692255, ratio=1.172208332598692),
     101: dict(r=50.75, n=51, urban=20.970911250394934,
               urban_p10=18.328617095947266, urban_p90=24.081554412841797,
-              free_field=18.049667358398438, ratio=1.1618447494899264),
+              free_field=18.049666947009516, ratio=1.1618447759707506),
     198: dict(r=99.25, n=51, urban=8.471305304882573,
               urban_p10=8.244070053100586, urban_p90=8.701703071594238,
-              free_field=6.65484094619751, ratio=1.2729538351661083),
+              free_field=6.654840871399524, ratio=1.2729538494736454),
     199: dict(r=99.75, n=68, urban=7.971807788400089,
               urban_p10=7.697517919540405, urban_p90=8.24845609664917,
-              free_field=5.862224102020264, ratio=1.3598606347465994),
+              free_field=6.304926104475472, ratio=1.2643776717289998),
 }
 
 

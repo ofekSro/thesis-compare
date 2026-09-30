@@ -6,6 +6,14 @@ from scipy.interpolate import RegularGridInterpolator
 from blastlib import constants
 from blastlib.processing.ff_reference import impulse_converged
 
+# The solver writes exactly 1 Pa (0.001 kPa, float32) inside building
+# footprints. Only that value marks a building; a cell the fine stage left
+# empty (raw == 0) is not a building and keeps its filled value. DECISIONS.md
+# D34, anchor 3.
+BUILDING_SENTINEL_KPA = np.float32(0.001)
+
+_GRIDS = ('1', '2', '3')
+
 
 def _interp2_linear(X2, Z2, V2, X1, Z1, fill_value=None):
     """Bilinear resampling of grid (X2, Z2, V2) onto points (X1, Z1)."""
@@ -31,16 +39,39 @@ def _interp2_nearest(X2, Z2, V2, X1, Z1, fill_value=1.0):
     return rgi(pts).reshape(Z1.shape)
 
 
+def building_mask(peakP_raw):
+    """True on building-footprint cells: raw urban peak == the 0.001 kPa sentinel.
+
+    peakP_raw : raw solver peak overpressure [kPa], any float dtype.
+    Returns a bool array of the same shape. Compared in float32, the dtype
+    the solver wrote, so a float64 copy of the field gives the same mask.
+    """
+    return np.asarray(peakP_raw).astype(np.float32) == BUILDING_SENTINEL_KPA
+
+
 def process_grids(data, params, weight=None):
-    """Merge 3 grids, apply threshold masks, compute urban/free-field ratios.
+    """Merge 3 grids, mask buildings, compute urban/free-field ratios.
+
+    DECISIONS.md D34 (adopted 2026-09-30). Each location takes the true peak
+    of whichever stage captured the wave there, separately for the urban and
+    the reference run, and the ratio compares those two:
+      1. max-fill coarse -> fine (2 -> 1, then 3 -> 2), urban and reference
+         separately, so a fine cell the wave never reached (raw == 0) takes
+         the coarser, true value;
+      2. mask building cells only (raw == 0.001 kPa sentinel);
+      3. grid 1 inside its box (100 m), grid 2 inside its box (250 m), grid 3
+         beyond; a coarser cell inside a finer box is always cut;
+      4. ratios and every convergence criterion on the filled urban and
+         filled reference fields.
 
     params keys:
-        thresholdP_kPa  — mask threshold (cells below this → NaN)
         minPressure_kPa — pressure convergence band AND the shared
                           damage-relevance floor (kPa, absolute); the
                           impulse criterion's floor clause reuses it
         rel_band_I      — impulse relative-accuracy band (-), optional;
                           defaults to constants.IMPULSE_CRITERION
+        thresholdP_kPa  — accepted, no longer used: the building mask is the
+                          solver sentinel itself (D34)
 
     weight : charge weight [kg]. Any non-None value selects the production
         impulse criterion (which itself no longer needs W — both clauses are
@@ -49,217 +80,113 @@ def process_grids(data, params, weight=None):
         keep working — its band is not admissible under Hopkinson-Cranz
         (see constants.IMPULSE_CRITERION).
 
-    Returns dict (out) with processed grids, ratios, and scale limits.
+    Returns dict (out) with processed grids, ratios, and scale limits. The
+    keys peakP{g}_raw, refP{g}, refI{g} keep their historical names but hold
+    the FILLED fields, the operands the criteria (hard and soft) act on.
     """
-    threshold_p  = params['thresholdP_kPa']
     min_pressure = params['minPressure_kPa']
     rel_band_I   = params.get('rel_band_I',
                               constants.IMPULSE_CRITERION['rel_band'])
 
-    out = {}
-    for k in ('X1', 'Z1', 'X2', 'Z2', 'X3', 'Z3'):
-        out[k] = data[k]
+    out = {k: data[k] for k in ('X1', 'Z1', 'X2', 'Z2', 'X3', 'Z3')}
 
-    peakP1   = data['peakP1'].copy()
-    peakP2   = data['peakP2'].copy()
-    peakP3   = data['peakP3'].copy()
-    impulse1 = data['impulse1'].copy()
-    impulse2 = data['impulse2'].copy()
-    impulse3 = data['impulse3'].copy()
-    refP1    = data['refP1'].copy()
-    refP2    = data['refP2'].copy()
-    refP3    = data['refP3'].copy()
-    refI1    = data['refI1'].copy()
-    refI2    = data['refI2'].copy()
-    refI3    = data['refI3'].copy()
+    P  = {g: data[f'peakP{g}'].copy()   for g in _GRIDS}
+    I  = {g: data[f'impulse{g}'].copy() for g in _GRIDS}
+    RP = {g: data[f'refP{g}'].copy()    for g in _GRIDS}
+    RI = {g: data[f'refI{g}'].copy()    for g in _GRIDS}
 
-    # Save raw pressure for threshold check (before any modification)
-    peakP1_raw = data['peakP1'].copy()
-    peakP2_raw = data['peakP2'].copy()
-    peakP3_raw = data['peakP3'].copy()
+    # 1. Max-fill, finer from coarser: medium into fine first, then coarse
+    # into medium. np.maximum propagates NaN.
+    for gf, gc in (('1', '2'), ('2', '3')):
+        src = (out[f'X{gc}'], out[f'Z{gc}'])
+        tgt = (out[f'X{gf}'], out[f'Z{gf}'])
+        P[gf]  = np.maximum(P[gf],  _interp2_linear(*src, P[gc],  *tgt))
+        I[gf]  = np.maximum(I[gf],  _interp2_linear(*src, I[gc],  *tgt))
+        RP[gf] = np.maximum(RP[gf], _interp2_linear(*src, RP[gc], *tgt))
+        RI[gf] = np.maximum(RI[gf], _interp2_linear(*src, RI[gc], *tgt))
 
-    # Fill missing values: fine grid filled from medium grid
-    peakP2_interp   = _interp2_linear(out['X2'], out['Z2'], peakP2,   out['X1'], out['Z1'])
-    impulse2_interp = _interp2_linear(out['X2'], out['Z2'], impulse2, out['X1'], out['Z1'])
-    refP2_interp    = _interp2_linear(out['X2'], out['Z2'], refP2,    out['X1'], out['Z1'])
-    refI2_interp    = _interp2_linear(out['X2'], out['Z2'], refI2,    out['X1'], out['Z1'])
+    # 2. Buildings only, from the RAW field. Masking the filled field let
+    # wall-skin cells (raised by the coarser grid's interpolation across the
+    # wall) into both scans: docs/audit/2026-09-27 ALG-01/PHY-01, D2. The old
+    # test raw <= thresholdP_kPa also masked empty and partial fine cells,
+    # which then let the coarser cell back in against its residual reference
+    # (docs/audit/2026-09-30/merge.md MRG-01, D34).
+    building = {g: building_mask(data[f'peakP{g}']) for g in _GRIDS}
 
-    # np.maximum propagates NaN (if either operand is NaN → NaN)
-    peakP1   = np.maximum(peakP1,   peakP2_interp)
-    impulse1 = np.maximum(impulse1, impulse2_interp)
-    refP1    = np.maximum(refP1,    refP2_interp)
-    refI1    = np.maximum(refI1,    refI2_interp)
+    # 3. A coarser grid never re-enters a finer grid's box, whatever the
+    # finer grid holds there. Supersedes the D31 cut keyed on the finer
+    # mask, which re-admitted the coarser cell wherever the nearest finer
+    # cell was masked: empty (MRG-01) or a wall (MRG-02). D34.
+    cut = {'1': np.zeros_like(building['1'])}
+    for gf, gc in (('1', '2'), ('2', '3')):
+        cut[gc] = ((out[f'X{gc}'] <= out[f'X{gf}'].max())
+                   & (out[f'Z{gc}'] <= out[f'Z{gf}'].max()))
 
-    # Fill missing values: medium grid filled from coarse grid
-    peakP3_interp   = _interp2_linear(out['X3'], out['Z3'], peakP3,   out['X2'], out['Z2'])
-    impulse3_interp = _interp2_linear(out['X3'], out['Z3'], impulse3, out['X2'], out['Z2'])
-    refP3_interp    = _interp2_linear(out['X3'], out['Z3'], refP3,    out['X2'], out['Z2'])
-    refI3_interp    = _interp2_linear(out['X3'], out['Z3'], refI3,    out['X2'], out['Z2'])
+    for g in _GRIDS:
+        drop = building[g] | cut[g]
+        Pm = P[g].astype(float)
+        Im = I[g].astype(float)
+        Pm[drop] = np.nan
+        Im[drop] = np.nan
+        out[f'peakP{g}_orig']   = Pm.copy()
+        out[f'impulse{g}_orig'] = Im.copy()
 
-    peakP2   = np.maximum(peakP2,   peakP3_interp)
-    impulse2 = np.maximum(impulse2, impulse3_interp)
-    refP2    = np.maximum(refP2,    refP3_interp)
-    refI2    = np.maximum(refI2,    refI3_interp)
+        # Filled over filled; the reference is 0 only where the reference
+        # run never saw the wave, which the ratio reports as inf/NaN.
+        with np.errstate(divide='ignore', invalid='ignore'):
+            out[f'ratioP{g}'] = Pm / RP[g]
+            out[f'ratioI{g}'] = Im / RI[g]
 
-    # Save for Figure 1 (absolute values plot, before mask)
-    out['peakP1_orig']   = peakP1.copy()
-    out['peakP2_orig']   = peakP2.copy()
-    out['peakP3_orig']   = peakP3.copy()
-    out['impulse1_orig'] = impulse1.copy()
-    out['impulse2_orig'] = impulse2.copy()
-    out['impulse3_orig'] = impulse3.copy()
-
-    # Create pressure threshold masks — on the RAW solver field, before the
-    # cross-grid max-fill. The solver writes a ~1 Pa sentinel inside building
-    # footprints; masking the FILLED field let wall-skin cells (raised above
-    # threshold_p by the coarser grid's interpolation across the wall) enter
-    # both convergence scans. docs/audit/2026-09-27 ALG-01/PHY-01, decision D2.
-    mask1 = peakP1_raw <= threshold_p
-    mask2 = peakP2_raw <= threshold_p
-    mask3 = peakP3_raw <= threshold_p
-
-    # Apply masks to orig arrays (for Figure 1)
-    out['peakP1_orig'][mask1]   = np.nan
-    out['peakP2_orig'][mask2]   = np.nan
-    out['peakP3_orig'][mask3]   = np.nan
-    out['impulse1_orig'][mask1] = np.nan
-    out['impulse2_orig'][mask2] = np.nan
-    out['impulse3_orig'][mask3] = np.nan
-
-    # Apply masks for ratio calculation
-    peakP1[mask1]   = np.nan;  impulse1[mask1] = np.nan
-    peakP2[mask2]   = np.nan;  impulse2[mask2] = np.nan
-    peakP3[mask3]   = np.nan;  impulse3[mask3] = np.nan
-
-    # Calculate urban / free-field ratios
-    out['ratioP1'] = peakP1   / refP1
-    out['ratioP2'] = peakP2   / refP2
-    out['ratioP3'] = peakP3   / refP3
-    out['ratioI1'] = impulse1 / refI1
-    out['ratioI2'] = impulse2 / refI2
-    out['ratioI3'] = impulse3 / refI3
-
-    # Smart cut: zero out medium grid where fine grid has valid data
-    xMax1 = out['X1'].max();  zMax1 = out['Z1'].max()
-    mask1_interp = _interp2_nearest(
-        out['X1'], out['Z1'], mask1.astype(float), out['X2'], out['Z2'], fill_value=1.0
-    )
-    cut_mask2 = (out['X2'] <= xMax1) & (out['Z2'] <= zMax1) & (mask1_interp == 0)
-
-    out['peakP2_orig'][cut_mask2]   = np.nan
-    out['impulse2_orig'][cut_mask2] = np.nan
-    out['ratioP2'][cut_mask2]       = np.nan
-    out['ratioI2'][cut_mask2]       = np.nan
-
-    # Smart cut: zero out coarse grid where medium grid has valid data.
-    # Keyed on mask2 alone, NOT mask2 | cut_mask2: inside the fine box the
-    # medium grid is cut because the fine grid covers it, and treating that
-    # as "medium invalid" let the coarse grid back in there, so the scan saw
-    # fine and coarse cells at the same place. Each location must come from
-    # the finest grid with valid data. See DECISIONS.md D31.
-    xMax2 = out['X2'].max();  zMax2 = out['Z2'].max()
-    mask2_interp = _interp2_nearest(
-        out['X2'], out['Z2'], mask2.astype(float),
-        out['X3'], out['Z3'], fill_value=1.0
-    )
-    cut_mask3 = (out['X3'] <= xMax2) & (out['Z3'] <= zMax2) & (mask2_interp == 0)
-
-    out['peakP3_orig'][cut_mask3]   = np.nan
-    out['impulse3_orig'][cut_mask3] = np.nan
-    out['ratioP3'][cut_mask3]       = np.nan
-    out['ratioI3'][cut_mask3]       = np.nan
-
-    # ---- Raw fields (v2 superset keys, consumed by the soft criterion) ----
-    #
-    # The convergence band below operates on the PRE-fill raw urban peak and
-    # raw reference — not on the filled/masked fields the ratios are built
-    # from. A soft (tanh-projected) criterion must see those same operands to
-    # reduce to the hard band exactly, so they are persisted together with the
-    # unforced ratios (same masks, before the pinning to 1.0).
-    out['peakP1_raw'] = peakP1_raw
-    out['peakP2_raw'] = peakP2_raw
-    out['peakP3_raw'] = peakP3_raw
-    for g in ('1', '2', '3'):
-        out[f'refP{g}'] = data[f'refP{g}']
-        out[f'refI{g}'] = data[f'refI{g}']
+        # 4. Operands of every criterion, hard here and soft downstream
+        # (soft_criterion reads peakP{g}_raw, refP{g}, ratioP{g}_raw), are
+        # the filled fields; the unforced ratios are kept before pinning.
+        out[f'peakP{g}_raw']  = P[g]
+        out[f'refP{g}']       = RP[g]
+        out[f'refI{g}']       = RI[g]
         out[f'ratioP{g}_raw'] = out[f'ratioP{g}'].copy()
         out[f'ratioI{g}_raw'] = out[f'ratioI{g}'].copy()
+        # MaxR level reads the filled reference (PHY-04 option (a)).
+        out[f'refP{g}_fill']  = RP[g]
+        out[f'refI{g}_fill']  = RI[g]
 
-    # Reference field max-filled across grids exactly as the urban field is.
-    # The per-direction MaxR level must compare like with like: near the
-    # fine-grid edge the raw fine reference is deficient (outer boundary
-    # effect; time truncation in the W=1500 corner), which inflated MaxR_I
-    # there. docs/audit/2026-09-27 PHY-04, decision option (a).
-    out['refP1_fill'] = refP1
-    out['refI1_fill'] = refI1
-    out['refP2_fill'] = refP2
-    out['refI2_fill'] = refI2
-    out['refP3_fill'] = refP3
-    out['refI3_fill'] = refI3
+        # ---- Force ratio = 1 where the field counts as converged ----
+        #
+        # PRESSURE: below minPressure, or within minPressure of the
+        # reference. Free-field pressure is a function of scaled distance
+        # alone (cross-weight spread 4.7%), so an absolute kPa band picks one
+        # contour for every charge weight and is admissible.
+        #
+        # IMPULSE (production, 2026-09-28 evening — physics audit verdict):
+        # relative-accuracy band OR the SAME urban-pressure relevance floor
+        # the pressure criterion uses — |dI|/I_ref < rel_band, or peakP <
+        # minPressure. One relevance quantum for both loads.
+        # [Corrected 2026-09-29, D24 review: P-I curves also have an impulse
+        # asymptote; the rationale that holds is IATG 02.20 §8 — tiers
+        # calibrated on NEQ of thousands of kg, so for W <= 1500 kg the
+        # impulse accompanying 10 kPa is smaller and the floor is
+        # conservative.] See ff_reference.impulse_converged,
+        # constants.IMPULSE_CRITERION, and docs/audit/2026-09-28/physics.md
+        # for the criterion history.
+        lowP   = P[g] < min_pressure
+        conv_P = lowP | (np.abs(P[g] - RP[g]) < min_pressure)
+        if weight is None:
+            # Legacy pressure-gated rule; kept only for backward compatibility.
+            conv_I = lowP | (np.abs(I[g] - RI[g]) < min_pressure)
+        else:
+            conv_I = impulse_converged(I[g], RI[g], lowP, rel_band_I)
 
-    # ---- Force ratio = 1 where the field counts as converged ----
-    #
-    # PRESSURE: unchanged — below minPressure, or within minPressure of the
-    # reference. Free-field pressure is a function of scaled distance alone
-    # (cross-weight spread 4.7%), so an absolute kPa band picks one contour
-    # for every charge weight and is admissible.
-    #
-    # IMPULSE (production, 2026-09-28 evening — physics audit verdict):
-    # relative-accuracy band OR the SAME urban-pressure relevance floor the
-    # pressure criterion uses — |dI|/I_ref < rel_band, or peakP_raw <
-    # minPressure. One relevance quantum for both loads: below the anchored
-    # 10 kPa no impulse magnitude can matter (P-I pressure asymptote).
-    # [Corrected 2026-09-29, D24 review: P-I curves also have an impulse
-    # asymptote; the rationale that holds is IATG 02.20 §8 — tiers calibrated
-    # on NEQ of thousands of kg, so for W <= 1500 kg the impulse accompanying
-    # 10 kPa is smaller and the floor is conservative.] See
-    # ff_reference.impulse_converged, constants.IMPULSE_CRITERION, and
-    # docs/audit/2026-09-28/physics.md for the criterion history
-    # (pressure-gated rule -> scaled band -> impulse floor, one run -> this).
-    lowP1 = peakP1_raw < min_pressure
-    lowP2 = peakP2_raw < min_pressure
-    lowP3 = peakP3_raw < min_pressure
-
-    small_diff_P1 = np.abs(peakP1_raw  - data['refP1']) < min_pressure
-    small_diff_P2 = np.abs(peakP2_raw  - data['refP2']) < min_pressure
-    small_diff_P3 = np.abs(peakP3_raw  - data['refP3']) < min_pressure
-
-    conv_P1 = lowP1 | small_diff_P1
-    conv_P2 = lowP2 | small_diff_P2
-    conv_P3 = lowP3 | small_diff_P3
-
-    if weight is None:
-        # Legacy pressure-gated rule; kept only for backward compatibility.
-        conv_I1 = lowP1 | (np.abs(data['impulse1'] - data['refI1']) < min_pressure)
-        conv_I2 = lowP2 | (np.abs(data['impulse2'] - data['refI2']) < min_pressure)
-        conv_I3 = lowP3 | (np.abs(data['impulse3'] - data['refI3']) < min_pressure)
-    else:
-        conv_I1 = impulse_converged(data['impulse1'], data['refI1'], lowP1,
-                                    rel_band_I)
-        conv_I2 = impulse_converged(data['impulse2'], data['refI2'], lowP2,
-                                    rel_band_I)
-        conv_I3 = impulse_converged(data['impulse3'], data['refI3'], lowP3,
-                                    rel_band_I)
-
-    for arr_name, conv_mask in (
-        ('ratioP1', conv_P1), ('ratioP2', conv_P2), ('ratioP3', conv_P3),
-        ('ratioI1', conv_I1), ('ratioI2', conv_I2), ('ratioI3', conv_I3),
-    ):
-        mask = conv_mask & ~np.isnan(out[arr_name])
-        out[arr_name][mask] = 1.0
+        for name, conv in ((f'ratioP{g}', conv_P), (f'ratioI{g}', conv_I)):
+            pin = conv & ~np.isnan(out[name])
+            out[name][pin] = 1.0
 
     # Scale for Figure 1 (80th percentile of absolute values)
-    all_P = np.concatenate([out['peakP1_orig'].ravel(),
-                             out['peakP2_orig'].ravel(),
-                             out['peakP3_orig'].ravel()])
-    all_I = np.concatenate([out['impulse1_orig'].ravel(),
-                             out['impulse2_orig'].ravel(),
-                             out['impulse3_orig'].ravel()])
+    all_P = np.concatenate([out[f'peakP{g}_orig'].ravel()   for g in _GRIDS])
+    all_I = np.concatenate([out[f'impulse{g}_orig'].ravel() for g in _GRIDS])
     out['maxP'] = float(np.nanpercentile(all_P, 80))
     out['maxI'] = float(np.nanpercentile(all_I, 80))
 
-    # Combined peak arrays for convergence radius calculation
-    out['peakP_all'] = np.concatenate([peakP1.ravel(), peakP2.ravel(), peakP3.ravel()])
-    out['peakI_all'] = np.concatenate([impulse1.ravel(), impulse2.ravel(), impulse3.ravel()])
+    # Combined peak arrays for convergence radius calculation (masked and cut)
+    out['peakP_all'] = all_P
+    out['peakI_all'] = all_I
 
     return out
