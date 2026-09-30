@@ -105,6 +105,10 @@ def impulse_converged(I_urban, I_ref, W13, rel_band=None, floor_scaled=None):
     floor_scaled   : scaled floor [Pa.s/kg^(1/3)]; default
                      IMPULSE_CRITERION['floor_scaled'] (23.6, the reference
                      scaled impulse where the reference overpressure is 10 kPa).
+                     23.6 is the mean over the five charge weights (per-W
+                     values 21.9–24.4, spread from free-field pressure
+                     noise); Hopkinson-Cranz implies one value, so the mean
+                     is used.
     Returns a bool array. Cells with a non-positive reference converge only
     through the floor.
     """

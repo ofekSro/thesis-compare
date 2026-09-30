@@ -157,22 +157,18 @@ def process_grids(data, params, weight=None):
         # alone (cross-weight spread 4.7%), so an absolute kPa band picks one
         # contour for every charge weight and is admissible.
         #
-        # IMPULSE (production, 2026-09-28 evening — physics audit verdict):
-        # relative-accuracy band OR the SAME urban-pressure relevance floor
-        # the pressure criterion uses — |dI|/I_ref < rel_band, or peakP <
-        # minPressure. One relevance quantum for both loads.
-        # [Corrected 2026-09-29, D24 review: P-I curves also have an impulse
-        # asymptote; the rationale that holds is IATG 02.20 §8 — tiers
-        # calibrated on NEQ of thousands of kg, so for W <= 1500 kg the
-        # impulse accompanying 10 kPa is smaller and the floor is
-        # conservative.] See ff_reference.impulse_converged,
-        # constants.IMPULSE_CRITERION, and docs/audit/2026-09-28/physics.md
-        # for the criterion history.
-        # [Superseded 2026-09-30, DECISIONS.md D35 (c): the impulse floor is
-        # now the urban SCALED impulse, I / W^(1/3) < 23.6 Pa.s/kg^(1/3) — the
+        # IMPULSE — PRODUCTION: D35 (2026-09-30). |I/I_ref - 1| <= rel_band,
+        # or the urban SCALED impulse I / W^(1/3) < 23.6 Pa.s/kg^(1/3) — the
         # reference scaled impulse where the reference overpressure is
-        # 10 kPa, the same contour and IATG level as the pressure floor. The
-        # D24 rule above is ff_reference.impulse_converged_pfloor.]
+        # 10 kPa (mean over the five weights), the same contour and IATG
+        # level as the pressure floor. See ff_reference.impulse_converged
+        # and constants.IMPULSE_CRITERION.
+        #
+        # Historical (D24, 2026-09-28 → 2026-09-30): relative-accuracy band
+        # OR the urban-pressure relevance floor, |dI|/I_ref < rel_band or
+        # peakP < minPressure (IATG 02.20 §8 rationale, D24 review
+        # 2026-09-29). Reproduce via ff_reference.impulse_converged_pfloor;
+        # criterion history in docs/audit/2026-09-28/physics.md.
         lowP   = P[g] < min_pressure
         conv_P = lowP | (np.abs(P[g] - RP[g]) < min_pressure)
         if weight is None:

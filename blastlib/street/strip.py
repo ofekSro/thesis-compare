@@ -31,10 +31,7 @@ the reference SIMULATION on the Cartesian mesh is anisotropic by 9.6%
 between directions (high on the diagonal, low on the axes) and suffers
 grid-seam corruption past Z = 100/W^(1/3). Dividing cell-by-cell by refP{g}
 cancels the anisotropy for free; any scalar or table reference does not.
-Note refP{g} is stored raw (pre-fill) while peakP{g}_orig is max-filled
-across grids — the asymmetry is a no-op only within grid 1, i.e. inside
-RMAX = 100 m, which is one of the two reasons for that cap (the other:
-one resolution, no grid handoff).
+refP{g} holds the FILLED reference since D34 (coarse→fine max-fill). RMAX = 100 m is kept as the fine-box limit.
 
 WHY NO BUILDING-FOOTPRINT MASK
 ------------------------------

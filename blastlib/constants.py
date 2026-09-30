@@ -19,7 +19,8 @@ MAX_HEIGHT = 24
 # |dP| = minPressure_kPa, 1 at |dP| >= softCap_kPa; beta -> inf reproduces
 # the hard band exactly. softBeta = None (or 0) disables the soft path.
 PARAMS = {
-    'thresholdP_kPa':  1.01 / 1000,  # mask threshold [kPa]
+    # Legacy mask threshold; unused since D34 (buildings are masked by the 0.001 kPa sentinel).
+    'thresholdP_kPa':  1.01 / 1000,  # [kPa]
     # Convergence band / relevance floor [kPa]. The floor clause tests the
     # URBAN peak (grids.py: lowP = peakP_raw < minPressure) — an owner
     # decision (2026-09-27, audit D7/CHO-03): where the city itself delivers
@@ -48,8 +49,28 @@ PARAMS = {
 
 # When the urban IMPULSE counts as converged to free-field.
 #
-# PRODUCTION CRITERION (owner decision, 2026-09-28 evening, adopting the
-# physics-audit verdict — docs/audit/2026-09-28/physics.md, candidate B):
+# ---- PRODUCTION: D35 (2026-09-30) (DECISIONS.md D35 (c), owner decision) ----
+#
+#   |I_urban / I_ff - 1| <= rel_band   or   I_urban / W^(1/3) < floor_scaled
+#
+# Supersedes the D24 rule below (reproduce via
+# ff_reference.impulse_converged_pfloor). Same accuracy clause; the relevance
+# floor moves from the urban PRESSURE to the urban SCALED IMPULSE. The value
+# 23.6 Pa.s/kg^(1/3) is the scaled free-field impulse of the reference runs
+# at the Z where their overpressure is 10 kPa (Z ~ 11.6, data/
+# free_field_data.csv): the same contour and the same IATG 02.20 level as the
+# pressure floor, stated in impulse. 23.6 is the mean over the five charge
+# weights (per-W values 21.9–24.4, spread from free-field pressure noise);
+# Hopkinson-Cranz implies one value, so the mean is used (D35 alternative
+# (b) was the per-W levels). The rule was set after measurement, by the
+# owner. Evidence (scratch evaluation, 2026-09-30): LOGO I 9.03% (D24
+# 9.46%), safe-box I max 10.3% (23.6%), CV R^2 0.934 (0.913); the floor sets
+# R_I in 94/96; 8 configs have Z_conv,I > 20.
+#
+# ---- Historical (D24, 2026-09-28 → 2026-09-30) ----
+# (owner decision, 2026-09-28 evening, adopting the physics-audit verdict —
+# docs/audit/2026-09-28/physics.md, candidate B; reproduce via
+# ff_reference.impulse_converged_pfloor):
 #
 #   |I_urban - I_ff| / I_ff < rel_band     (free field is ACCURATE here)
 #   or  peakP_urban_raw < minPressure_kPa  (location is damage-IRRELEVANT)
@@ -86,21 +107,17 @@ PARAMS = {
 # is floor-dominated (the accuracy clause trims the floor-only radius by
 # ~1.5% median), so it must never be presented as the radius where the
 # impulse field merges with the free field — the merging radius is larger
-# and, in channelling configs, beyond the validated Z <= 20 range. Both
-# radii now share ONE relevance quantum (minPressure_kPa, D7 + D8a), which
-# makes them commensurable for the safety-distance comparison (aim 4).
+# and, in channelling configs, beyond the validated Z <= 20 range.
 #
 #   * rel_band = 0.10 — twice the impulse mesh-convergence tolerance (5%):
 #     the minimal band clearly above numerical noise, so it measures the
 #     physics, not the mesh (physics-9; the decision-suite stability sweep
 #     in criterion_decision_suite.csv confirms, as a consequence).
-#   * The floor value lives in PARAMS['minPressure_kPa'] — deliberately
-#     NOT duplicated here: one constant, one relevance quantum, both
-#     criteria. Floor sensitivity: 9/11 kPa (the neighbouring IATG tiers)
+#   * Floor sensitivity under D24: 9/11 kPa (the neighbouring IATG tiers)
 #     move the median Z_conv,I by only about +-5% (elasticity ~ -0.5).
-#   * Measured record (pfloor_variant_suite, 2026-09-28): median Z_conv,I
-#     13.82, p90 15.55, max 17.48; 0/96 beyond the validated Z = 20;
-#     Z_conv,I > Z_conv,P in 96/96 (median ratio 1.40 vs Z_conv,P 9.88)
+#   * Measured record (historical, D24; pfloor_variant_suite, 2026-09-28):
+#     median Z_conv,I 13.82, p90 15.55, max 17.48; 0/96 beyond the validated
+#     Z = 20; Z_conv,I > Z_conv,P in 96/96 (median ratio 1.40 vs Z_conv,P 9.88)
 #     (a property of the two criteria's forms — floor-only >= floor-or-band —
 #     not evidence that geometry affects impulse further; see
 #     docs/DECISIONS.md D24).
@@ -172,28 +189,13 @@ PARAMS = {
 # analysis above remains valid under the new criterion: the floor is a
 # relevance level, not a damage level, and R_human stays a separate
 # product.]
-#
-# ---- Production since 2026-09-30 (DECISIONS.md D35 (c), owner decision) ----
-#
-#   |I_urban / I_ff - 1| <= rel_band   or   I_urban / W^(1/3) < floor_scaled
-#
-# Supersedes the D24 rule above (reproduce via
-# ff_reference.impulse_converged_pfloor). Same accuracy clause; the relevance
-# floor moves from the urban PRESSURE to the urban SCALED IMPULSE. The value
-# 23.6 Pa.s/kg^(1/3) is the scaled free-field impulse of the reference runs
-# at the Z where their overpressure is 10 kPa (Z ~ 11.6, data/
-# free_field_data.csv): the same contour and the same IATG 02.20 level as the
-# pressure floor, stated in impulse. One value for all W (Hopkinson); the
-# per-W levels are 21.9-24.4 (D35 alternative (b)). The rule was set after
-# measurement, by the owner. Evidence (scratch evaluation, 2026-09-30):
-# LOGO I 9.03% (D24 9.46%), safe-box I max 10.3% (23.6%), CV R^2 0.934
-# (0.913); the floor sets R_I in 94/96; 8 configs have Z_conv,I > 20.
 IMPULSE_CRITERION = {
     'rel_band': 0.10,       # relative accuracy band (-), |I/I_ff - 1| <= rel_band
     'floor_scaled': 23.6,   # Pa.s/kg^(1/3); scaled free-field impulse of the
                             # reference runs at the Z where their overpressure
                             # is 10 kPa (Z ~ 11.6); same contour and IATG level
-                            # as the pressure floor. D35.
+                            # as the pressure floor. Mean over the five
+                            # weights (per-W 21.9-24.4). D35.
 }
 
 # How a 91-element per-angle radius array collapses to one scalar radius.

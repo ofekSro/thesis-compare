@@ -5,9 +5,9 @@ Two on-disk generations are read here, transparently:
 * **v1 / v2 (processed)** — the arrays process_grids() returned, written at
   preprocessing time. Loaded verbatim.
 * **v3 (raw)** — only the solver's own fields (see io/raw_store.py). The
-  criteria are applied on load by calling process_grids(), which is the same
-  function that produced the v1/v2 files, so the dict handed back is
-  identical either way. Costs ~0.3 s per config.
+  criteria are applied on load by calling process_grids(). Costs ~0.3 s per
+  config. v1/v2 reproduce the pre-D34 record only; current numbers come from
+  raw_npz.
 
 Callers do not need to know which generation they are reading. Pass *params*
 / *weight* only to override the criteria a v3 file is expanded with; both are
@@ -15,6 +15,8 @@ ignored for v1/v2 files, where the criteria are already baked in.
 """
 
 import os
+import warnings
+
 import numpy as np
 
 
@@ -66,6 +68,12 @@ def load_processed_data(npz_folder, config_name, params=None, weight=None):
         except Exception as e:
             print(f'  Warning: Error expanding raw NPZ - {e}')
             return {}, False
+
+    if params is not None or weight is not None:
+        warnings.warn(
+            'v1/v2 stores carry the convergence criteria baked in at write '
+            'time (pre-D34 merge, pre-D35 impulse); params/weight are ignored. '
+            'Use data/raw_npz for the current criteria.', stacklevel=2)
 
     try:
         npz = np.load(npz_file, allow_pickle=True)

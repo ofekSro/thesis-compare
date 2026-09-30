@@ -220,7 +220,8 @@ def _fit_impulse_group(W, rho, H, s, R_target, model='legacy'):
     accurate-or-irrelevant impulse criterion (constants.IMPULSE_CRITERION)
     the radius is a smooth transform of the amplification field and this
     original form is the best-performing structure (decision suite,
-    2026-09-28; see impulse_criterion_change_note.md).
+    2026-09-28; see impulse_criterion_change_note.md). The quad form was
+    selected under D24 (LOGO); it was not re-selected under D35.
 
     model='unified' (production 2026-09-27 only, under the superseded
     scaled-band criterion; kept to reproduce those tables):

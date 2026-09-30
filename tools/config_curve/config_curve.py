@@ -81,9 +81,11 @@ TARGETS = {
 def criterion_band(target, W13):
     """Convergence criterion for one target, in the plot's y-units.
 
-    Returns (half_width, band_label, floor, floor_label). *floor* is the level
-    below which a cell converges automatically regardless of the difference,
-    or None when the criterion has no such clause.
+    Returns (half_width, relative, band_label, floor, floor_label). The band
+    is ff ± half_width when *relative* is False and ff·(1 ± half_width) when
+    it is True. *floor* is the level below which a cell converges
+    automatically regardless of the difference, or None when the criterion
+    has no such clause.
 
     Pressure (grids.py: conv_P = lowP | small_diff_P) is a two-clause OR:
 
@@ -94,22 +96,25 @@ def criterion_band(target, W13):
     here as the drawn proxy, since the urban curve is a reconstruction and has
     no value at a given x to threshold. The two cross within a Z of each other.
 
-    Impulse has NO floor clause: it is |I_urban - I_ref| / W^(1/3) <
-    thr_I_scaled and nothing else. The pressure floor that used to be OR-ed in
-    made 94.5% of impulse decisions and pinned RadiusI to the 10 kPa contour,
-    so it was removed deliberately (see constants.IMPULSE_CRITERION and the
-    comment above lowP1 in grids.py). Drawing one here would misrepresent the
-    rule, so impulse gets a band and no floor.
+    Impulse criterion D35: a cell is free-field in impulse if |I/I_ff − 1| ≤ 0.10 or I/W^(1/3) < 23.6 Pa·s/kg^(1/3).
+    The floor is the scaled free-field impulse at the Z where the reference overpressure is 10 kPa (Z ≈ 11.6), i.e. the same
+    contour and IATG level as the pressure floor.
+
+    The plot's impulse unit, kPa·ms, equals Pa·s, so the floor is drawn at
+    floor_scaled·W^(1/3) directly. As for pressure, the floor clause tests the
+    URBAN impulse and the free-field curve is its drawn proxy.
     """
     if target == 'pressure':
         half = float(constants.PARAMS['minPressure_kPa'])
-        return (half, f'±{half:g} kPa convergence band',
+        return (half, False, f'±{half:g} kPa convergence band',
                 half, f'{half:g} kPa relevance floor — everything below converges')
 
-    thr = float(constants.IMPULSE_CRITERION['thr_I_scaled'])
-    half = thr * W13
-    return (half, f'±{thr:g}·W$^{{1/3}}$ = ±{half:.0f} convergence band',
-            None, None)
+    rel = float(constants.IMPULSE_CRITERION['rel_band'])
+    thr = float(constants.IMPULSE_CRITERION['floor_scaled'])
+    floor = thr * W13
+    return (rel, True, f'±{rel * 100:g}% of I$_{{ff}}$ convergence band',
+            floor, f'{thr:g}·W$^{{1/3}}$ = {floor:.0f} relevance floor — '
+                   'everything below converges')
 
 
 def resolve_config(token, known):
@@ -616,13 +621,14 @@ def main(config, *, target='pressure', x_axis='Z', context=None, maxr_csv=None,
     # Convergence band around free field. Anything inside it counts as
     # converged, which is why the two curves can stay visibly apart past
     # Z_conv and still satisfy the criterion.
-    half, band_label, floor, floor_label = criterion_band(target, pi['W13'])
+    half, relative, band_label, floor, floor_label = criterion_band(
+        target, pi['W13'])
+    band_lo = ff * (1 - half) if relative else ff - half
+    band_hi = ff * (1 + half) if relative else ff + half
 
     # The level below which the criterion stops discriminating, and so the
-    # level the plot is cropped to. For pressure that is the floor clause of
-    # the OR (10 kPa). Impulse has no floor clause, but below its half-width
-    # the band spans everything down to zero, so the test is equally idle
-    # there — the same crop applies, just without a floor line to draw.
+    # level the plot is cropped to: the floor clause of the OR (10 kPa for
+    # pressure, 23.6·W^(1/3) Pa·s for impulse, D35).
     cut = floor if floor is not None else half
     band = ff >= cut
 
@@ -633,8 +639,8 @@ def main(config, *, target='pressure', x_axis='Z', context=None, maxr_csv=None,
     if band.any():
         # lower edge clipped at the cut: below it there is nothing left to
         # satisfy, so the band would only run away toward zero
-        ax.fill_between(x_free[band], np.maximum(ff[band] - half, cut),
-                        ff[band] + half,
+        ax.fill_between(x_free[band], np.maximum(band_lo[band], cut),
+                        band_hi[band],
                         color='tab:blue', alpha=0.15, linewidth=0, zorder=1,
                         label=band_label)
 

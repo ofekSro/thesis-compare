@@ -110,7 +110,8 @@ Three stages, one package:
 
 - `run_preprocess.py`: raw VTK fields -> `data/raw_npz/` (schema v3, no
   criterion baked in). Older `processed_npz` (v1/v2) stores are read
-  transparently and give identical numbers (`tests/test_raw_store.py`).
+  transparently; v1/v2 reproduce the pre-D34 record only; current numbers
+  come from raw_npz.
 - `run_analysis.py --phase 1`: NPZ -> convergence radii, MaxR per Z, tables
   under `outputs/tables/`, figures under `outputs/figures/<method>/`.
 - `run_analysis.py --phase 2`: cross-validated regression over those tables
