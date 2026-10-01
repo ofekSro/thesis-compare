@@ -483,4 +483,27 @@
 **יומן:** —
 **ביקורת:** טרם נבדק.
 
+## D36 - מודל הרחוב אחרי הרשומה המלאה (D34, D35, ‏30–36/62)
+**סטטוס:** פתוח (הבעלים יכריע אחרי המאמר)
+**תאריך:** 2026-10-01
+**הרקע:** הרשומה המלאה נוצרה מחדש ב־2026-10-01 (‏`raw_npz` נבנה מחדש עם 30–36 ו־62; ‏`--phase all --n-iter 500`; ‏`logo_cv`; ‏`street_pipeline`). טבלאות הרשומה שאינן של הרחוב נשמרו ב־`27211b3`. קובצי הרחוב (`street_anchors.csv`, ‏`master_curve_g.csv`, ‏`e_profile_validation_88.csv`) נשארו מחוץ ל־commit, ובדיקות הרחוב לא הוצמדו מחדש.
+**הממצאים (`pytest -q` מלא, 96 קבצים ב־`data/raw_npz`, אף בדיקה לא דולגה: 130 עברו, 7 נכשלו):** כל השוואות ה־CSV של הרחוב עוברות מול קובצי עץ העבודה. הכישלונות כולם בערכים קשיחים. ישן→חדש, מפלט בפועל:
+1. `test_street_anchors::test_anchors_match_pinned`: מספר ה־NaN ב־L_decay ‏21→17.
+2. `test_street_master_curve::test_cloud_gate_uses_floor`: slope/cross ‏75/71→79/77.
+3. `test_street_master_curve::test_constants_match_pinned`: פרופילים/נקודות ‏75/11545→79/12185; ‏G: ‏A ‏59.884→72.001, ‏p ‏2.4838→2.6402, ‏q ‏4.7467→4.9072; ‏R_half: ‏C ‏1.28498→1.28421, ‏p_sq ‏−1.0700→−1.0205, ‏p_hs ‏0.2721→0.2780; ‏collapse IQR ‏0.2218→0.2452.
+4. `test_street_validation::test_gate_classification`: נכונים 92/96→94/96; ‏false alarms ‏{78, 80}→אין; ‏misses ללא שינוי (67, 70).
+5. `test_street_validation::test_membership_is_computed`: חברים (E_peak ≥ 1.2) ‏88→92; מוחרגים 10, 11, 13, 16, 77–80 → 10, 11, 13, 16.
+6. `test_street_validation::test_validation_matches_pinned`: ‏MAPE mean/median/p90/max ‏9.7364/8.50/17.34/31.0 → 9.6109/8.45/17.09/31.0.
+7. `test_street_validation::test_envelope_true_stats`: ‏coverage ‏96.34→96.47; ‏exceed>0.15 ‏0.73→0.71; ‏mean overpred ‏27.2→26.84; ‏worst ‏0.723→0.7233 (config_26 בשניהם); ‏n_slices ‏10531→10907.
+**סתירות פתוחות:**
+- ‏G מותאם מחדש ל־A=72.001, והמודל עדיין משתמש ב־59.9 (`blastlib/street/constants.py`). ‏`docs/STREET_CHANNELLING_MODEL.md` (טבלת הקבועים) מתאר את G כ־"refit-reproducible", וזה כבר לא נכון.
+- החברות 88→92: תצורות 77–80 מצטרפות. "88" קשיח בהערות הבדיקות, ב־docstrings של `blastlib/street/*`, בשם הקובץ `e_profile_validation_88.csv` ובטבלאות של `STREET_CHANNELLING_MODEL.md` (9.7%, ‏96.34%, ‏0.73%, ‏27.2%).
+- ‏`tools/street/street_parity.py:66-71` מחזיק את `EXPECT_G`, ‏`EXPECT_RHALF`, ‏`EXPECT_HEADLINE`, ‏`EXPECT_ENVELOPE` ואת הבדיקה `/88` כקשיחים, ואינו מכוסה בבדיקות.
+**השערה לבדיקה (לא נבדקה):** השינוי נובע מ־D34, מה־reference הממולא בשפת התיבה העדינה (עוגן 5 של D34), שמודל הרחוב עבר אליו (`street/strip.py`, אפשרות a). ב־D34 נמדד לפני ההרצות החוזרות A ‏59.884→60.199 בלבד, ולכן יש להפריד את תרומת D34 מתרומת 30–36/62.
+**כלל ההכרעה:** לא נקבע.
+**ההכרעה:** —
+**ראיות:** פלט `pytest` של 2026-10-01; חישוב חוזר ב־scratchpad של הסשן (`pins.py`).
+**יומן:** —
+**ביקורת:** טרם נבדק.
+
 </div>
