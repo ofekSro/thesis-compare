@@ -34,4 +34,6 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+# Per-machine Claude Code permissions; the shared config is .claude/settings.json.
+.claude/settings.local.json
 !outputs/check_results/*.md
