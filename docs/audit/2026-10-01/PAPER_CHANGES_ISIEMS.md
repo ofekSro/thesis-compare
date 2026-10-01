@@ -5,7 +5,57 @@
 תאריך: 2026-10-01. הרשומה: commit `27211b3` (טבלאות `outputs/tables/*_req_soft3.csv`, ‏`outputs/check_results/logo_*_req_soft3_relwls_quad.csv`, ‏`cfd_vs_kb_ufc215.csv`, ‏`data/free_field_data.csv`) ו־`7b8fb1a` (`validation_comparison_req_soft3.csv`). כל הערכים נקראו ב־`git show <commit>:<path>`.
 המאמר: `isiems_paper/ISIEMS Paper v3.pdf` (קריאה בלבד). בסיס: `TRACEABILITY_ISIEMS_v3.md` (אותה תיקייה), 18 קבוצות משפטים לא נתמכים.
 **הצעות בלבד.** שום קובץ מלבד זה לא נערך. המשפטים המוצעים באנגלית, במשלב המאמר; הבעלים מחליט.
-סקריפטים (מחוץ לריפו): scratchpad `claims/claims.py`, ‏`claims/claims2.py`, פלט ב־`claims_out.txt`, ‏`claims2_out.txt`. LOGO צולב ותיבה בטוחה: scratchpad `logo_check/cross_logo.py`, ‏`logo_check/safe_box.py`.
+סקריפטים (מחוץ לריפו): scratchpad `claims/claims.py`, ‏`claims/claims2.py`, פלט ב־`claims_out.txt`, ‏`claims2_out.txt`. LOGO צולב ותיבה בטוחה: scratchpad `logo_check/cross_logo.py`, ‏`logo_check/safe_box.py`. הפלטים הועתקו ל־`scratch_reports/claims_410a3fbc/`.
+
+## סנכרון מול הגרסה שהוגשה (2026-10-01)
+
+הגרסה שהוגשה: `isiems_paper/ISIEMS Paper v3updated.pdf` (‏2026-10-01 18:13). הטקסט נלקח ב־`pdftotext -layout`, וב־Table 1 נקרא גם `ISIEMS Paper v3updated.docx` (‏18:16).
+אימות 72 הטענות (`scratch_reports/verify_b312d7cd/VERIFY_ISIEMS_final.md`) רץ על גרסה קודמת של אותו קובץ (14:47). ההבדלים בין 14:47 ל־18:13 נבדקו ב־diff של הטקסט, ונכללו בטבלה.
+הטבלה הראשית למטה נשארת כפי שנכתבה, כרשומת ההצעות. העמודה "בגרסה שהוגשה" אומרת מה נכנס בפועל.
+
+| # | בגרסה שהוגשה | הנוסח שהודפס (עמ') |
+|---|---|---|
+| 1, 2 | יושם | "9.9 … 16.2 m/kg1/3 … about 1.6 times … (16.2/9.9)" (7) |
+| 3 | יושם, בלי "(largest value 14.7)" | "does not exceed 15 m/kg1/3" (7) |
+| 4 | יושם | "exceeds 20 m/kg1/3 in eight configurations only, and its largest value is 29.2" (7) |
+| 5, 6, F | יושם בנוסח אחר | "In peak overpressure the radius is set mainly by the difference clause of Equation (2), and lies inside the 10 kPa free-field contour in most configurations. In impulse, the amplification persists beyond this contour, so the radius extends farther." (7) |
+| 7 | יושם | Eq.(3): ‏\|i−iff\|/iff ≤ 10% or i/W^1/3 < 23.6 kPa·ms/kg^1/3 (5) |
+| 8, 9, 19 | יושם בנוסח אחר | "the impulse tolerance as a relative band … Its value, 10%, is twice the impulse tolerance of the mesh study. In both quantities, a second clause was added … The impulse floor is the scaled free-field impulse at the scaled distance where the free-field overpressure falls to this level." (4–5). ‏23.6 מופיע רק ב־Eq.(3). ההסבר שלו כממוצע על חמשת המשקלים לא מופיע. |
+| 10 | יושם חלקית | "approximately 10% larger at the median, which is on the safe side for protective design" (5–6). ה־p90 וששת המקרים השליליים לא נכנסו, ו"on the safe side" נשאר. |
+| 11 | יושם, בלי "within the convergence radius" | "the median is 1.01 in peak overpressure against 1.28 in impulse" (6) |
+| 12 | יושם בנוסח אחר (לא נוסח הבעלים) | "The street width was ranked first for both … The building height was ranked second for both, and the charge weight third for the peak overpressure and fourth for the impulse … so this ranking is indicative only." (7) |
+| 13 | יושם בנוסח אחר (פותר את #44 של האימות) | "depends most strongly on the plan-area density ρ" (7) |
+| 14a–d | יושם | Table 2 = `final_production_convergence_coefficients_req_soft3.csv` (8) |
+| 15, 16a–b | יושם | Fig.4 = `PS_Fig3_16x9_v2.png`, ‏Fig.5 = `PS_Fig4.png`, שתיהן מהרשומה (אימות #70, #71) |
+| 17 | יושם | "9.6% … and 6.8%" (8) |
+| **18** | **לא יושם** | "agree with Kingery and Bulmash to within approximately 10% in peak overpressure [18]" (2), ללא שינוי |
+| 20 | יושם בנוסח אחר | "Its effect on the peak overpressure radius is best described through the scaled street width s̃" (7); המשפט על W×s באימפולס הוסר |
+| 21 | יושם בנוסח אחר (לא נוסח הבעלים) | "amplified in 89% of the configurations" (7); ‏32/36 = 88.9% (אימות #40) |
+| 22, 26 | יושם בנוסח אחר | "In impulse, the reversal is absent in most series." (7); "For the impulse these reversals are largely absent." (8) |
+| 23 | יושם | "A single logarithmic correction in s̃ is added:" (8) |
+| 24 | יושם בנוסח אחר (פותר את #50 של האימות) | "by two to three percentage points, and … by five to seven" (8) |
+| 25 | ללא שינוי | הקריאה המילולית נכונה: N = 16, מקסימום 15.21% / 13.20% (אימות #61) |
+| I | Fig.2 חודש; Fig.3 חודש מ־grid 1 גולמי | אימות #68, #69 |
+| — | **R ≥ 1.5(B+s) הוסר** | המשפט "A prediction should accordingly be sought only at a radius exceeding roughly 1.5 unit cells, R ≥ 1.5(B+s)" לא מופיע בגרסה שהוגשה (אימות #62; ‏`docs/ALGORITHM.md` §"The continuum limit") |
+
+### הצעות שבוטלו
+
+ההצעות האלה הועלו בסשן של 2026-10-01 כנוסח לפסקאות המנגנון (עמ' 6–7), על סמך סבב 2 של חיפוש התבניות (`scratch_reports/patterns_47efb153/CLAIMS.md`). **כולן בוטלו, ולא נכנסו לגרסה שהוגשה.** הנוסח המקורי של ההצעות לא נשמר בקובץ.
+
+| הצעה | נשענה על | למה בוטלה |
+|---|---|---|
+| החזרה מהקירות (wall-reflection): לסייג את "In narrow streets, the first reflections from the façades travel with the leading front and raise it" | CL-31, ‏CL-22: "יתרון הקיר" גדל עם רוחב הרחוב ויורד עם הצפיפות | בדיקת wall מול פתוח אינה תקפה כפי שתוכננה. ברחוב צר החזית אחידה לרוחבו, ולכן ניגוד קיר/מרכז גדל עם הרוחב גם תחת מנגנון ההחזרה עצמו. |
+| החזרה ותלות בצפיפות (density-reflection): לסייג את "A denser layout returns more reflection and gives a larger radius" | CL-22 (מגמת ρ אינה סופרפוזיציה של החזרות ליד קירות) | אותה סיבה: הבדיקה היא ניגוד wall/פתוח. |
+| ריכוך התיעול (channelling softening): להחליש את "The wave is channelled along the street axis" ואת ייחוס המגמות בצפיפות וברוחב לתיעול | CL-20, ‏CL-21, ‏CL-30 (המגמה חזקה יותר בתאים בלי קו ראייה); "93–99% מהעודף בשפת R_conv בתאי S" | בדיקות שכבת הערוץ אינן תקפות כפי שתוכננו. בנוסף, שיעור ה־93–99% הוא הרכב שטח: אחרי נרמול בשטח היחס בתאי S הוא 1.028 (P) ו־1.040 (I) (‏`scratch_reports/patterns_47efb153/out3/item5_edge_normalised.csv`). |
+
+### ארבעה פריטים שעדיין חסרים בגרסה שהוגשה
+
+| # | עמוד | המשפט שהודפס | מה חסר | מקור |
+|---|---|---|---|---|
+| 1 | 2 | "The free-field predictions of the solver agree with Kingery and Bulmash to within approximately 10% in peak overpressure [18]." | ריצות ה־reference של המחקר נמוכות מ־KB ב־7–9% (Z 2–8), ‏14% (8–12) ו־26% (12–20). נוסח הבעלים בשורה 18. | `outputs/check_results/cfd_vs_kb_ufc215.csv`; אימות #14 |
+| 2 | 8 | "The value a, at which the C2 term reverses, was fixed in advance and not fitted." | a נבחר ב־CV מתוך {1, √2, 2} ואז הוקפא. הוא לא נקבע מראש. | `blastlib/regression/convergence_models.py:40`; אימות #56 |
+| 3 | 3 | Table 1: "Scaled street width (m/kg1/3) S̃" | הסמל בטבלה הוא S̃ (אות גדולה). ב־Eq.(1) ובגוף הטקסט הסמל הוא s̃. | `ISIEMS Paper v3updated.docx` (Table 1) |
+| 4 | 6 | "The effect on the impulse does not cancel." | המשפט הקודם שונה ל־"Over all configurations, the two occur nearly equally often", ולכן "does not cancel" כבר לא מתייחס לשום דבר. הנוסח המבוקש: "is different". | diff בין 14:47 ל־18:13 |
 
 ## שיטות (שיטה אחת לכל בדיקה)
 
@@ -152,8 +202,8 @@ Z שבו P_ff=10 kPa (אינטרפולציה log-log) ו־I_ff/W^1/3 שם: ‏W=
 - "In peak overpressure, the interactions between the inputs ... are as large as the effects of each input alone, and no smooth power law describes the radius.": ‏38.6% מול 36.1%; ‏R² של חוק חזקה 0.30/0.27 (מול 0.83/0.82 באימפולס). ב־trace סומן "cannot verify"; עכשיו נבדק.
 - "The impulse falls consistently some 10% below the empirical curves": ‏−9.9% (Z 2–8), ‏−11.6%, ‏−12.4% (סעיף 4); "some 10–12%" מדויק יותר.
 - "The mean absolute percentage error (MAPE) of the predicted radius remains below 10% in both quantities." (וכן בסיכום): ‏9.37 / 7.11. הערה: ‏det2 בלחץ 10.53.
-- "The value a, at which the C2 term reverses, was fixed in advance and not fitted.": ‏`a_thresh` 1, 2.
-- "A prediction should accordingly be sought only at a radius exceeding roughly 1.5 unit cells": תנאי מתועד (ALGORITHM).
+- "The value a, at which the C2 term reverses, was fixed in advance and not fitted.": ‏`a_thresh` 1, 2. **עודכן 2026-10-01:** "in advance" סותר את `convergence_models.py:40` (a נבחר ב־CV מתוך {1, √2, 2}; אימות #56). הפריט עדיין חסר בגרסה שהוגשה.
+- "A prediction should accordingly be sought only at a radius exceeding roughly 1.5 unit cells": תנאי מתועד (ALGORITHM). **עודכן 2026-10-01:** התנאי נגזר ל־Z_urban על רשומה שלפני 27.9, ולא נמדד מחדש על `27211b3`. הוא לא חל על R_conv (‏R_conv,P < 1.5(B+s) ב־22/96). **הוסר מהגרסה שהוגשה.**
 - "The floor of Equation (2) and the impulse criterion of Equation (3) were kept as a sharp transition.": תואם D27.
 - "This ratio depends on the tolerances adopted and is not a physical constant." ו־"The coefficients are specific to the tolerances of Equations (2) and (3).": נכונים, ומקבלים משקל נוסף אחרי D35.
 

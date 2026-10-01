@@ -1,0 +1,15 @@
+target,check,value,detail
+Z_I,Z_conv > Z_remap (all 96),True,min ratio 3.70
+Z_I,A2b: beta_lnW,-0.0249,"95% CI [-0.0413, -0.0084], p=0.0053"
+Z_I,A2b + ln Z_remap: beta_lnW,-0.0245,"95% CI [-0.0415, -0.0076], p=0.00727"
+Z_I,A2b + ln Z_remap: beta_lnZremap,0.0387,"95% CI [+0.0021, +0.0752], p=0.0394"
+Z_I,"Spearman(residual of A2b without W, Z_remap)",-0.02,"95% CI [-0.268, +0.232]"
+Z_I,"Spearman(residual of A2b without W, ln W)",-0.121,"95% CI [-0.408, +0.150]"
+Z_I,"Spearman(ln Z_remap, ln W)",-0.569,collinearity
+Z_P,Z_conv > Z_remap (all 96),True,min ratio 1.96
+Z_P,A2b: beta_lnW,0.0196,"95% CI [-0.0201, +0.0593], p=0.312"
+Z_P,A2b + ln Z_remap: beta_lnW,0.0194,"95% CI [-0.0210, +0.0598], p=0.324"
+Z_P,A2b + ln Z_remap: beta_lnZremap,-0.024,"95% CI [-0.0659, +0.0178], p=0.243"
+Z_P,"Spearman(residual of A2b without W, Z_remap)",-0.029,"95% CI [-0.203, +0.137]"
+Z_P,"Spearman(residual of A2b without W, ln W)",-0.027,"95% CI [-0.322, +0.245]"
+Z_P,"Spearman(ln Z_remap, ln W)",-0.569,collinearity

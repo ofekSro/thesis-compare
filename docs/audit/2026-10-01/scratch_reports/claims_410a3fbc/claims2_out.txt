@@ -1,0 +1,8 @@
+ZP>11.6 13 ZI>11.6 95 ZI>15 61
+unique rho [np.float64(0.1837), np.float64(0.2066), np.float64(0.3086), np.float64(0.36), np.float64(0.4444), np.float64(0.5625), np.float64(0.7347)] unique st [np.float64(0.437), np.float64(0.5), np.float64(0.63), np.float64(0.794), np.float64(0.8), np.float64(1.2), np.float64(1.27), np.float64(1.357), np.float64(1.747), np.float64(1.905), np.float64(2.52), np.float64(5.429)]
+det 1: s~ at peak = 3.63 (range 0.44-5.43)
+det 2: s~ at peak = 43.67 (range 0.44-5.43)
+paper det 1: s~ at peak = 1.38
+paper det 2: s~ at peak = 2.02
+literal N 16 rho [np.float64(0.36), np.float64(0.444)] st [np.float64(0.5), np.float64(0.794), np.float64(1.747), np.float64(2.52)] P max 15.21 cfg 29 >=20: [] mean 7.28 I max 13.2 cfg 30 >=20: [] mean 5.6
+rounded (2 sig. fig.) N 38 rho [np.float64(0.309), np.float64(0.36), np.float64(0.444), np.float64(0.562)] st [np.float64(0.5), np.float64(0.63), np.float64(0.794), np.float64(0.8), np.float64(1.27), np.float64(1.357), np.float64(1.747), np.float64(2.52), np.float64(5.429)] P max 23.66 cfg 70 >=20: [67, 70, 83] mean 8.35 I max 28.27 cfg 70 >=20: [64, 70] mean 6.03

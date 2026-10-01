@@ -691,6 +691,17 @@ below it, so this is a statement about where the formulas are trustworthy — no
 a filter that was applied to the fit, which would inflate the reported accuracy
 without improving the model.
 
+> **Status note (2026-10-01).** The R ≥ 1.5 (b + s) condition was derived for
+> **Z_urban** target points (errors of Z_urban / Λ against MaxR / (b+s)) on a
+> record from before the 2026-09-27 mask change. It has **not been re-measured
+> on record `27211b3`**, and the tables above are from that older record. It
+> does **not** apply to R_conv: on `27211b3`, R_conv,P < 1.5 (b + s) in 22/96
+> configurations (R_conv,I in 9/96), so as a condition on the convergence
+> radius it would exclude configurations the R_conv fit uses. It was removed
+> from the ISIEMS paper (submitted version, 2026-10-01). Sources:
+> `docs/audit/2026-10-01/scratch_reports/verify_b312d7cd/VERIFY_ISIEMS_final.md`
+> #62; `docs/audit/2026-10-01/PAPER_CHANGES_ISIEMS.md`.
+
 ## Limitations
 
 > The coarsening measurements in this section predate the 2026-09-27 mask

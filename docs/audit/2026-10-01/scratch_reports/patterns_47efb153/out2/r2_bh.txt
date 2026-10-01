@@ -1,0 +1,1 @@
+m=103 R=48 alpha_fcr=0.0233 use_fallback_G7=False n_both_CL_Z5=70

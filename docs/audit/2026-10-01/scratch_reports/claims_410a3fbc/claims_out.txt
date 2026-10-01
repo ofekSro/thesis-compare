@@ -1,0 +1,112 @@
+============================== 3a ranking (core = configs 1-72)
+core N 72 levels {'det': [np.int64(1), np.int64(2)], 'b': [np.int64(15), np.int64(30)], 's': [np.int64(5), np.int64(20)], 'H': [np.int64(4), np.int64(12), np.int64(24)], 'W': [np.int64(50), np.int64(500), np.int64(1500)]} unique combos 72 full factorial 72
+
+ZP: SST=1.5681 SSE(main-effects model)=0.9623 dfE=64 R2_main=0.386
+input  npairs  med_absdlnZ  mean_absdlnZ  SS_share  eta2p       F  rank_step  rank_eta
+    s      36       0.1528        0.1747    0.1321 0.1771 13.7764          1         2
+    H      72       0.1231        0.1326    0.0054 0.0087  0.2798          2         5
+    W      72       0.1011        0.1320    0.0426 0.0649  2.2212          3         4
+  det      36       0.0866        0.1004    0.0627 0.0928  6.5430          4         3
+    b      36       0.0714        0.1288    0.1436 0.1896 14.9713          5         1
+  W x s interaction SS share = 0.0158  (eta2p vs main-effects SSE: 0.0257)
+  two-way SS shares: {'sxH': np.float64(0.142), 'bxW': np.float64(0.126), 'HxW': np.float64(0.034), 'detxH': np.float64(0.024), 'sxW': np.float64(0.016), 'bxH': np.float64(0.011), 'bxs': np.float64(0.006), 'detxW': np.float64(0.002), 'detxs': np.float64(0.0), 'detxb': np.float64(0.0)}
+  sum of main shares 0.386 sum of two-way shares 0.361
+
+ZI: SST=3.2223 SSE(main-effects model)=0.6452 dfE=64 R2_main=0.800
+input  npairs  med_absdlnZ  mean_absdlnZ  SS_share  eta2p        F  rank_step  rank_eta
+    s      36       0.2435        0.2583    0.3727 0.6505 119.1305          1         1
+    H      72       0.1472        0.1656    0.1652 0.4520  26.3983          2         2
+    b      36       0.1215        0.1378    0.0954 0.3227  30.4890          3         4
+    W      72       0.1110        0.1464    0.1462 0.4221  23.3721          4         3
+  det      36       0.0489        0.0848    0.0203 0.0921   6.4961          5         5
+  W x s interaction SS share = 0.0167  (eta2p vs main-effects SSE: 0.0833)
+  two-way SS shares: {'sxH': np.float64(0.044), 'bxW': np.float64(0.021), 'sxW': np.float64(0.017), 'detxs': np.float64(0.016), 'bxH': np.float64(0.014), 'detxW': np.float64(0.013), 'HxW': np.float64(0.01), 'bxs': np.float64(0.008), 'detxH': np.float64(0.003), 'detxb': np.float64(0.001)}
+  sum of main shares 0.8 sum of two-way shares 0.145
+
+============================== 3b dZ/d(H/s) series (core, fixed det,b,s,W)
+series 24 heights per series [(4, 12, 24)]
+st<1 ZP: series n=8 neg=0 pos=8 median slope=0.712 [min 0.230, max 0.934] | steps n=16 neg=1 pos=15 median step slope=0.627
+st<1 ZI: series n=8 neg=0 pos=8 median slope=1.099 [min 0.796, max 1.865] | steps n=16 neg=0 pos=16 median step slope=1.335
+st>1 ZP: series n=16 neg=14 pos=2 median slope=-0.904 [min -2.561, max 0.491] | steps n=32 neg=27 pos=5 median step slope=-0.541
+st>1 ZI: series n=16 neg=4 pos=12 median slope=1.998 [min -2.835, max 4.055] | steps n=32 neg=8 pos=24 median step slope=1.659
+ det  b  s   W    st  slope_ZI
+   1 15 20  50 5.429    -2.835
+   1 15 20 500 2.520    -0.452
+   2 15 20  50 5.429    -1.323
+   2 30 20  50 5.429    -2.741
+ det  b  s  W    st  slope_ZP
+   2 30  5 50 1.357     0.142
+   2 30 20 50 5.429     0.491
+st values [np.float64(0.437), np.float64(0.63), np.float64(1.357), np.float64(1.747), np.float64(2.52), np.float64(5.429)]
+
+============================== 3c Lambda_P amplification share
+rows total 1920 valid P 685 valid I 1020 beyond-only P 841 beyond-only I 1156
+NaN LP in valid 0
+-- valid_mask P: median Lambda_P (rows) = 1.0136; configs with rows: 96
+   st<1: rows 267 share Lambda_P>1 = 78.7% | configs 36: median-rule 32/36 = 88.9%, majority-rule (>50% rows) 32/36 = 88.9%; median of config medians 1.182
+   st>1: rows 418 share Lambda_P>1 = 40.4% | configs 60: median-rule 25/60 = 41.7%, majority-rule (>50% rows) 23/60 = 38.3%; median of config medians 0.976
+-- beyond_only P: median Lambda_P (rows) = 1.0116; configs with rows: 96
+   st<1: rows 304 share Lambda_P>1 = 72.0% | configs 36: median-rule 32/36 = 88.9%, majority-rule (>50% rows) 32/36 = 88.9%; median of config medians 1.161
+   st>1: rows 537 share Lambda_P>1 = 43.0% | configs 60: median-rule 26/60 = 43.3%, majority-rule (>50% rows) 26/60 = 43.3%; median of config medians 0.970
+-- valid_mask I: median Lambda_I rows 1.2766; configs median>1: 91/96
+-- beyond_only I: median Lambda_I rows 1.2841; configs median>1: 92/96
+valid P rows median Lambda_P 1.0136 all rows 1.0664
+
+============================== 3d standardized beta, ln Z_conv,I on Eq.(8) regressors
+det 1 ZI N=48 R2=0.825 beta=ln_rho +0.723, ln_Hs +0.567, ln_st +0.488, ln2_st -0.213 | dR2 drop: rho 0.280, Hs 0.193, st(both) 0.072
+det 1 ZP N=48 R2=0.304 beta=ln_rho +0.563, ln_Hs -0.186, ln_st +0.025, ln2_st -0.198 | dR2 drop: rho 0.170, Hs 0.021, st(both) 0.029
+   (raw regressors) det 1 ZI R2=0.814 beta=rho +0.720, Hs +0.516, st +0.839, ln2_st -0.698
+det 2 ZI N=48 R2=0.815 beta=ln_rho +0.773, ln_Hs +0.696, ln_st +0.862, ln2_st -0.128 | dR2 drop: rho 0.321, Hs 0.291, st(both) 0.292
+det 2 ZP N=48 R2=0.266 beta=ln_rho +0.502, ln_Hs +0.031, ln_st +0.050, ln2_st -0.078 | dR2 drop: rho 0.135, Hs 0.001, st(both) 0.003
+   (raw regressors) det 2 ZI R2=0.809 beta=rho +0.695, Hs +0.686, st +1.386, ln2_st -0.872
+det pooled ZI N=96 R2=0.778 beta=ln_rho +0.743, ln_Hs +0.627, ln_st +0.670, ln2_st -0.169 | dR2 drop: rho 0.296, Hs 0.236, st(both) 0.154
+det pooled ZP N=96 R2=0.251 beta=ln_rho +0.507, ln_Hs -0.063, ln_st +0.037, ln2_st -0.126 | dR2 drop: rho 0.138, Hs 0.002, st(both) 0.010
+   (raw regressors) det pooled ZI R2=0.770 beta=rho +0.702, Hs +0.597, st +1.104, ln2_st -0.780
+
+============================== 3e Fig.4 panels (make_fig3_16x9_v2.m logic)
+-- PDF/430d004
+  (a-c) P W=50: s5B15:28.3/28.3/24.3  s5B30:31.3/36.7/30.5  s20B15:26.1/26.1/26.1  s20B30:32.7/32.5/31.7
+  (a-c) P W=500: s5B15:69.0/80.5/92.0  s5B30:66.5/72.4/93.4  s20B15:78.4/64.9/60.6  s20B30:73.8/61.7/59.5
+  (a-c) P W=1500: s5B15:103.2/100.4/113.9  s5B30:91.7/96.2/119.8  s20B15:106.1/102.8/92.3  s20B30:105.1/96.2/99.5
+  (d-f) I W=50: s5B15:51.1/53.1/51.6  s5B30:49.2/53.7/56.2  s20B15:32.9/33.0/33.0  s20B30:36.7/36.7/37.6
+  (d-f) I W=500: s5B15:101.6/103.0/107.6  s5B30:112.4/113.8/119.6  s20B15:79.7/80.7/80.8  s20B30:84.1/86.5/85.6
+  (d-f) I W=1500: s5B15:109.2/111.6/122.2  s5B30:153.6/153.9/162.2  s20B15:120.7/121.2/120.8  s20B30:139.6/140.2/140.5
+  (g) RadiusP: range [-2.56, 0.87]; st<1 pos 8/8 range [0.26,0.87]; st>1 neg 15/16 range [-2.56,0.78]; argmax [1, 30, 5, 500] argmin [2, 15, 20, 500]
+  (h) RadiusI: range [0.00, 2.48]; st<1 pos 8/8 range [0.19,0.61]; st>1 neg 0/16 range [0.00,2.48]; argmax [2, 30, 5, 50] argmin [2, 15, 20, 50]
+-- record 27211b3
+  (a-c) P W=50: s5B15:33.0/33.1/29.5  s5B30:45.5/43.8/38.7  s20B15:29.9/29.8/29.7  s20B30:35.9/35.4/34.4
+  (a-c) P W=500: s5B15:72.3/83.7/94.6  s5B30:76.7/83.2/99.6  s20B15:83.0/67.9/61.8  s20B30:88.2/71.2/68.8
+  (a-c) P W=1500: s5B15:106.0/104.0/115.7  s5B30:100.4/104.8/128.8  s20B15:111.5/106.0/93.1  s20B30:119.9/104.6/104.6
+  (d-f) I W=50: s5B15:60.2/72.3/71.7  s5B30:71.4/89.3/107.6  s20B15:53.9/47.1/43.1  s20B30:54.4/59.9/62.3
+  (d-f) I W=500: s5B15:123.7/142.7/154.3  s5B30:132.5/149.6/173.9  s20B15:94.5/102.7/92.1  s20B30:103.0/118.2/120.9
+  (d-f) I W=1500: s5B15:171.6/195.9/209.3  s5B30:173.3/206.9/223.6  s20B15:123.1/160.2/162.1  s20B30:141.2/175.1/180.4
+  (g) RadiusP: range [-2.56, 0.93]; st<1 pos 8/8 range [0.23,0.93]; st>1 neg 14/16 range [-2.56,0.49]; argmax [2, 30, 5, 500] argmin [1, 15, 20, 500]
+  (h) RadiusI: range [-2.83, 4.06]; st<1 pos 8/8 range [0.80,1.87]; st>1 neg 4/16 range [-2.83,4.06]; argmax [2, 30, 20, 500] argmin [1, 15, 20, 50]
+
+============================== Fig.5 inset (metres, make_fig4.py logic)
+P: N=96 R2=0.924 MAPE=9.37 median=6.72 p90=20.86 <=10%: 59 <=20%: 85 max=38.46 actual max=141.3 pred max=141.9
+I: N=96 R2=0.951 MAPE=7.11 median=4.77 p90=17.91 <=10%: 78 <=20%: 86 max=31.13 actual max=224.7 pred max=222.8
+CV500 median conv_P 9.596 conv_I 6.843 n rows 500
+Det,Location,Target,Formula,C0,C1_sW13,C2_switch,C3_canyon,a_thresh,has_H_term,A,C1_trap,C2_sat,C3_hs_pi2,C4_pi2,C5_rho_pi2,p_rho,q_HoverS,r_sW13,r2_sW13sq
+1,Street,RadiusP,additive,10.138969366432788,-0.762454593847395,2.422964571910512,0.41808870654213237,1.0,1.0,,,,,,,,,,
+2,Intersection,RadiusP,additive,11.605258666683836,-0.7763100968989431,1.92560723516555,0.6475927685244853,2.0,1.0,,,,,,,,,,
+1,Street,RadiusI,power,,,,,,,20.48616609838266,,,,,,0.2743261589575031,0.11189098609534298,0.11874590248533376,-0.04610005733205473
+2,Intersection,RadiusI,power,,,,,,,20.92615959073484,,,,,,0.2922121956480226,0.13683961507672515,0.2087767267926044,-0.027640533216424804
+
+============================== Z_conv summary
+median ZP 9.907 ZI 16.226 ratio 1.638 max ZP 14.695 58 max ZI 29.21 25 ZI>16 51 ZI>20 8 ZP>13 3 ZP>11.6 13 p90 ZP 11.92 p90 ZI 19.81
+
+============================== 4 CFD vs KB bands (gap = CFD/KB - 1)
+Z 2-8 (Z points 2..8, n=7): P gap -9.4..-7.0% median -8.0% (per-W extremes -20.3..-2.7%) | I gap -16.7..-8.5% median -9.9%
+Z 8-12 (Z points 8..12, n=5): P gap -18.1..-8.2% median -14.0% (per-W extremes -23.1..-3.7%) | I gap -12.3..-10.8% median -11.6%
+Z 12-20 (Z points 12..20, n=9): P gap -30.5..-18.1% median -26.0% (per-W extremes -35.0..-11.1%) | I gap -12.6..-12.0% median -12.4%
+Z 20-30 (Z points 20..20, n=1): P gap -30.5..-30.5% median -30.5% (per-W extremes -35.0..-26.4%) | I gap -12.6..-12.6% median -12.6%
+KB table max Z 20
+
+============================== D35 floor: scaled ff impulse at Z where ff P = 10 kPa
+W=50: Z(P=10kPa)=11.33  I/W^1/3=24.33 Pa.s/kg^1/3
+W=250: Z(P=10kPa)=11.97  I/W^1/3=22.99 Pa.s/kg^1/3
+W=500: Z(P=10kPa)=12.13  I/W^1/3=21.87 Pa.s/kg^1/3
+W=1000: Z(P=10kPa)=11.27  I/W^1/3=24.32 Pa.s/kg^1/3
+W=1500: Z(P=10kPa)=11.27  I/W^1/3=24.41 Pa.s/kg^1/3
+mean scaled 23.58 mean Z 11.59

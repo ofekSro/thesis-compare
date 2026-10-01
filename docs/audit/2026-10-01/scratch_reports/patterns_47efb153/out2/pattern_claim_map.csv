@@ -1,0 +1,140 @@
+fam,target,input,type,passed_in,cls,claims
+A1,R_I,"a-1/3 (common a, geometry FE)",scaling,"pooled,det2,delta",general; det-specific (det2); det interaction (delta),"CL-02, CL-03"
+A2b,Z_I,beta_lnW | Pi groups (quad+products),scaling,pooled,general,"CL-02, CL-03"
+B1,Z_P,W,main,pooled,general,"CL-04b, CL-05"
+B1,Z_P,b:W,interaction,pooled,general,CL-07
+B1,Z_P,s:H:W,interaction,"pooled,det2",general,CL-08
+B1,Z_I,det,main,pooled,general (pooled-only test),"CL-13, CL-14, CL-15"
+B1,Z_I,s,det interaction,delta,det interaction (delta),"CL-30, CL-31, CL-90"
+B1,Z_I,W,main,"pooled,det2",general; det interaction (delta),"CL-02, CL-03, CL-90"
+B1,Z_I,b:W,interaction,"pooled,det2",general; det-specific (det2),CL-07
+B1,Z_I,s:W,interaction,det2,det-specific (det2),CL-09
+B1,Z_I,s:H:W,interaction,det2,det-specific (det2),CL-09
+B1,R_P,W,main,"pooled,det1,det2",general,CL-01
+B1,R_I,W,main,"pooled,det1,det2",general,CL-01
+B3,Z_P,det,main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+B3,Z_P,l_rhoc,main,"pooled,det1,det2",general,"CL-20, CL-22"
+B3,Z_P,l_rhoc*l_stc,interaction,"pooled,det1,det2",general,CL-53
+B3,Z_P,l_rhoc*l_hsc,interaction,pooled,general,CL-54
+B3,Z_I,det,main,pooled,general (pooled-only test),"CL-13, CL-14, CL-15"
+B3,Z_I,l_rhoc,main,"pooled,det1,det2",general,"CL-21, CL-22"
+B3,Z_I,l_stc,main,"pooled,det2,delta,delta_term",general; det-specific (det2); det interaction (delta); det interaction (delta_term),"CL-30, CL-31, CL-90"
+B3,Z_I,l_hsc,main,"pooled,det1,det2",general,CL-42
+B3,Z_I,l_rhoc*l_stc,interaction,"pooled,det2",general; det-specific (det2),CL-52
+B3,Lam_P,det,main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+B3,Lam_P,l_stc,main,"pooled,det1,det2",general,"CL-30, CL-31"
+B3,Lam_P,l_hsc,main,"det1,delta,delta_term",det-specific (det1); det interaction (delta); det interaction (delta_term),"CL-42, CL-90"
+B3,Lam_I,det,main,pooled,general (pooled-only test),"CL-13, CL-14, CL-15"
+B3,Lam_I,l_stc,main,"det1,delta,delta_term",det-specific (det1); det interaction (delta); det interaction (delta_term),"CL-30, CL-31, CL-90"
+B3,Lam_I,l_hsc,main,"pooled,det1,det2,delta,delta_term",general; det interaction (delta); det interaction (delta_term),"CL-42, CL-90"
+B3,Lam_I,l_rhoc*l_stc,interaction,"pooled,det1,det2",general,CL-52
+B3,Lam_I,l_rhoc*l_hsc,interaction,pooled,general,CL-54
+C1,R_P,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,R_P,W,main,"pooled,det1,det2",general,CL-01
+C1,R_P,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,R_I,rho,main,"pooled,det1,det2",general,"CL-21, CL-22"
+C1,R_I,s~,main,"pooled,det1,det2",general; det interaction (delta),"CL-30, CL-31, CL-90"
+C1,R_I,H/s,main,"pooled,det1,det2",general,CL-42
+C1,R_I,W,main,"pooled,det1,det2",general,CL-01
+C1,R_I,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,R_I,H,main,"pooled,det2",general; det-specific (det2),"CL-40, CL-41"
+C1,R_I,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-13, CL-14, CL-15"
+C1,Z_P,rho,main,"pooled,det1,det2",general,"CL-20, CL-22"
+C1,Z_P,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,Z_I,rho,main,"pooled,det1,det2,delta",general; det interaction (delta),"CL-21, CL-22, CL-90"
+C1,Z_I,s~,main,"pooled,det1,delta",general; det-specific (det1); det interaction (delta),"CL-30, CL-31, CL-90"
+C1,Z_I,H/s,main,"pooled,det1,det2",general,CL-42
+C1,Z_I,s,main,"pooled,det1,delta",general; det interaction (delta),"CL-30, CL-31, CL-90"
+C1,Z_I,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-13, CL-14, CL-15"
+C1,Lam_P,rho,main,"pooled,det1",general; det-specific (det1),"CL-20, CL-22"
+C1,Lam_P,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,Lam_P,W,main,"pooled,det1,det2",general,"CL-04b, CL-05"
+C1,Lam_P,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,Lam_P,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,Lam_I,rho,main,"pooled,det1",general; det-specific (det1),"CL-21, CL-22"
+C1,Lam_I,s~,main,"pooled,det1,det2,delta",general; det interaction (delta),"CL-30, CL-31, CL-90"
+C1,Lam_I,H/s,main,"pooled,det1,det2",general,CL-42
+C1,Lam_I,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,Lam_I,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-13, CL-14, CL-15"
+C1,Slope_P,s~,main,"pooled,det1",general; det-specific (det1),"CL-30, CL-31, CL-80"
+C1,Slope_P,s,main,"pooled,det1",general; det-specific (det1),"CL-30, CL-31, CL-80"
+C1,Slope_P,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12, CL-80"
+C1,rP_med_Z2,rho,main,"pooled,det2,delta",general; det-specific (det2); det interaction (delta),"CL-20, CL-22, CL-90"
+C1,rP_med_Z2,s~,main,"det2,delta",det-specific (det2); det interaction (delta),"CL-30, CL-31, CL-90"
+C1,rP_med_Z2,H/s,det interaction,delta,det interaction (delta),"CL-42, CL-90"
+C1,rP_med_Z2,b,main,"pooled,det1",general; det-specific (det1),CL-23
+C1,rP_med_Z2,s,main,"det2,delta",det-specific (det2); det interaction (delta),"CL-30, CL-31, CL-90"
+C1,rP_med_Z2,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,rP_P5_Z2,H/s,main,"pooled,det1",general; det-specific (det1),CL-42
+C1,rP_P5_Z2,b,main,"pooled,det1,det2,delta",general; det interaction (delta),"CL-23, CL-90"
+C1,rP_P5_Z2,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,rP_P95_Z2,rho,main,"pooled,det1,det2",general,"CL-20, CL-22"
+C1,rP_P95_Z2,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rP_P95_Z2,H/s,main,"pooled,det2",general; det-specific (det2),CL-42
+C1,rP_P95_Z2,W,main,"pooled,det1,det2",general,"CL-04b, CL-05"
+C1,rP_P95_Z2,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rI_med_Z2,rho,main,"pooled,det1,det2",general,"CL-21, CL-22"
+C1,rI_med_Z2,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rI_med_Z2,H/s,main,"pooled,det2",general; det-specific (det2),CL-42
+C1,rI_med_Z2,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rI_med_Z2,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-13, CL-14, CL-15"
+C1,rI_P5_Z2,b,main,"pooled,det2,delta",general; det-specific (det2); det interaction (delta),"CL-23, CL-90"
+C1,rI_P95_Z2,rho,main,"pooled,det1,det2",general,"CL-21, CL-22"
+C1,rI_P95_Z2,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rI_P95_Z2,H/s,main,"pooled,det1,det2",general,CL-42
+C1,rI_P95_Z2,W,main,"pooled,det1,det2",general; det interaction (delta),"CL-06, CL-90"
+C1,rI_P95_Z2,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rP_med_Z5,rho,main,"pooled,det1,det2",general,"CL-20, CL-22"
+C1,rP_med_Z5,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rP_med_Z5,b,main,"pooled,det2",general; det-specific (det2),CL-23
+C1,rP_med_Z5,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rP_med_Z5,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,rP_P5_Z5,rho,main,"pooled,det2",general; det-specific (det2),"CL-20, CL-22"
+C1,rP_P5_Z5,W,det interaction,delta,det interaction (delta),"CL-04b, CL-05, CL-90"
+C1,rP_P5_Z5,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,rP_P95_Z5,rho,main,"pooled,det1,det2",general,"CL-20, CL-22"
+C1,rP_P95_Z5,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rP_P95_Z5,H/s,main,"pooled,det1",general; det-specific (det1),CL-42
+C1,rP_P95_Z5,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rP_P95_Z5,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,rI_med_Z5,rho,main,"pooled,det1,det2",general,"CL-21, CL-22"
+C1,rI_med_Z5,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rI_med_Z5,H/s,main,"pooled,det1,det2",general,CL-42
+C1,rI_med_Z5,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rI_med_Z5,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-13, CL-14, CL-15"
+C1,rI_P5_Z5,rho,main,"pooled,det1,det2",general,"CL-21, CL-22"
+C1,rI_P5_Z5,s~,main,"pooled,det1,delta",general; det-specific (det1); det interaction (delta),"CL-30, CL-31, CL-90"
+C1,rI_P5_Z5,H/s,main,"pooled,det1",general; det-specific (det1),CL-42
+C1,rI_P5_Z5,s,main,"pooled,det1,delta",general; det-specific (det1); det interaction (delta),"CL-30, CL-31, CL-90"
+C1,rI_P95_Z5,rho,main,"pooled,det1,det2",general,"CL-21, CL-22"
+C1,rI_P95_Z5,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rI_P95_Z5,H/s,main,"pooled,det1",general; det-specific (det1),CL-42
+C1,rI_P95_Z5,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rP_med_Z10,rho,main,"pooled,det1,det2",general,"CL-20, CL-22"
+C1,rP_med_Z10,s~,main,"pooled,det1,det2,delta",general; det interaction (delta),"CL-30, CL-31, CL-90"
+C1,rP_med_Z10,W,main,"pooled,det1",general; det-specific (det1),"CL-04b, CL-05"
+C1,rP_med_Z10,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rP_med_Z10,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,rP_P5_Z10,rho,main,det1,det-specific (det1),"CL-20, CL-22"
+C1,rP_P5_Z10,s~,main,det1,det-specific (det1),"CL-30, CL-31"
+C1,rP_P5_Z10,W,main,det1,det-specific (det1),"CL-04b, CL-05"
+C1,rP_P5_Z10,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,rP_P95_Z10,rho,main,"pooled,det1,det2",general,"CL-20, CL-22"
+C1,rP_P95_Z10,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rP_P95_Z10,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rP_P95_Z10,det (paired det2-det1),main,pooled,general (pooled-only test),"CL-10, CL-11, CL-12"
+C1,rI_med_Z10,rho,main,"pooled,det1,det2,delta",general; det interaction (delta),"CL-21, CL-22, CL-90"
+C1,rI_med_Z10,s~,main,"pooled,det1,delta",general; det-specific (det1); det interaction (delta),"CL-30, CL-31, CL-90"
+C1,rI_med_Z10,H/s,main,"pooled,det1,det2",general,CL-42
+C1,rI_med_Z10,s,main,"pooled,det1,delta",general; det-specific (det1); det interaction (delta),"CL-30, CL-31, CL-90"
+C1,rI_P5_Z10,rho,main,"pooled,det1",general; det-specific (det1),"CL-21, CL-22"
+C1,rI_P5_Z10,s~,main,"pooled,det1",general; det-specific (det1),"CL-30, CL-31"
+C1,rI_P5_Z10,H/s,main,"pooled,det1",general,CL-42
+C1,rI_P5_Z10,s,main,"pooled,det1,delta",general; det-specific (det1); det interaction (delta),"CL-30, CL-31, CL-90"
+C1,rI_P95_Z10,rho,main,"pooled,det1,det2,delta",general; det interaction (delta),"CL-21, CL-22, CL-90"
+C1,rI_P95_Z10,s~,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C1,rI_P95_Z10,H/s,main,"pooled,det1,det2",general,CL-42
+C1,rI_P95_Z10,b,det interaction,delta,det interaction (delta),"CL-23, CL-90"
+C1,rI_P95_Z10,s,main,"pooled,det1,det2",general,"CL-30, CL-31"
+C2,Lam_P,break in ln s~,breakpoint,"pooled,det2",general; det-specific (det2),CL-60
+C3,Z_I,collapse vs best single Pi,collapse,pooled,general,CL-70

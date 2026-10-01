@@ -1,0 +1,76 @@
+reproduction of record MaxR: max rel diff P 3.33e-16  I 2.22e-16
+NaN record P/I: 4 0
+urban finite cells inside finer box (cut), summed over configs: 0
+theta-max from coarse-in-box cell, rows with >0 [P]: 0
+ring cut fraction P: median 0.1021  rows R_free<100 median 0.1013
+level rel diff (cut ref vs fill ref) P: median 0.1597% p95 1.2348% max 2.4611%
+theta-max from coarse-in-box cell, rows with >0 [I]: 0
+ring cut fraction I: median 0.1017  rows R_free<100 median 0.1011
+level rel diff (cut ref vs fill ref) I: median 0.1038% p95 0.3198% max 0.6456%
+valid rows P 685  s~<1: 267
+valid rows I 1020  s~<1: 381
+
+== item 2: reference cut vs production ==
+P rows >1%: 83  >5%: 2  (valid mask: >1% 34  >5% 1 )  max 13.12%
+P beyond flips: 4
+I rows >1%: 61  >5%: 6  (valid mask: >1% 36  >5% 0 )  max 26.31%
+I beyond flips: 1
+
+== medians ==
+     def  P_all  P_valid  P_valid_st<1  I_all  I_valid  I_valid_st<1
+    prod  1.066    1.014         1.171  1.287    1.277         1.482
+  refcut  1.066    1.011         1.163  1.284    1.273         1.482
+  contig  0.886    0.848         0.947  1.065    1.042         1.183
+contigIn  1.042    0.998         1.141  1.269    1.259         1.463
+    area  0.766    0.786         0.738  0.982    0.983         0.990
+     cov  1.000    1.000         1.000  1.000    1.000         1.000
+
+== s~<1 Z-bin profile (median, valid mask; n) ==
+P n = {'2-3': 36, '3-4': 36, '4-5': 36, '5-7': 72, '7-10': 81}
+     def   2-3   3-4   4-5   5-7  7-10
+    prod 0.937 1.031 1.169 1.241 1.229
+  refcut 0.929 1.027 1.168 1.240 1.229
+  contig 0.769 0.793 0.920 1.007 1.026
+contigIn 0.913 1.003 1.113 1.203 1.207
+    area 0.740 0.719 0.735 0.764 0.743
+     cov 0.978 1.000 1.000 1.000 1.000
+I n = {'2-3': 36, '3-4': 36, '4-5': 36, '5-7': 72, '7-10': 108}
+     def   2-3   3-4   4-5   5-7  7-10
+    prod 1.445 1.387 1.418 1.520 1.514
+  refcut 1.444 1.381 1.417 1.520 1.514
+  contig 1.101 1.026 1.067 1.093 1.213
+contigIn 1.417 1.366 1.406 1.509 1.496
+    area 1.048 0.963 0.942 1.032 1.028
+     cov 1.000 1.000 1.000 1.000 1.000
+
+== s~<1 Z-bin profile (median, all rows) ==
+P
+     def   2-3   3-4   4-5   5-7  7-10
+    prod 0.937 1.031 1.169 1.241 1.215
+  refcut 0.929 1.027 1.168 1.240 1.214
+  contig 0.769 0.793 0.920 1.007 1.011
+contigIn 0.913 1.003 1.113 1.203 1.190
+    area 0.740 0.719 0.735 0.764 0.752
+     cov 0.978 1.000 1.000 1.000 1.000
+I
+     def   2-3   3-4   4-5   5-7  7-10
+    prod 1.445 1.387 1.418 1.520 1.514
+  refcut 1.444 1.381 1.417 1.520 1.514
+  contig 1.101 1.026 1.067 1.093 1.213
+contigIn 1.417 1.366 1.406 1.509 1.496
+    area 1.048 0.963 0.942 1.032 1.028
+     cov 1.000 1.000 1.000 1.000 1.000
+
+== contig with its own beyond flag ==
+contig P rows 764 median 0.859 s~<1 median 0.971
+contig I rows 1175 median 1.051 s~<1 median 1.202
+contigIn P rows 704 median 1.002 s~<1 median 1.141
+contigIn I rows 1037 median 1.26 s~<1 median 1.466
+
+== variants vs prod: rows changed ==
+refcut P >1%: 83 >5%: 2  valid >1%: 34 >5%: 1  NaN: 4
+refcut I >1%: 61 >5%: 6  valid >1%: 36 >5%: 0  NaN: 0
+contig P >1%: 1838 >5%: 1681  valid >1%: 643 >5%: 567  NaN: 10
+contig I >1%: 1850 >5%: 1617  valid >1%: 960 >5%: 852  NaN: 3
+contigIn P >1%: 1510 >5%: 95  valid >1%: 470 >5%: 40  NaN: 4
+contigIn I >1%: 1044 >5%: 37  valid >1%: 496 >5%: 3  NaN: 0
