@@ -41,9 +41,9 @@ Constants (all in `blastlib/street/constants.py`, frozen by test):
 
 | block | values | provenance |
 |---|---|---|
-| `EPK` | 2.69 / 1.81 / −0.50 / 4.56 / 7.07 | **PINNED-heritage** — the original fitter was a one-off script never kept. Formula-level parity is proven (reproduces the pinned validation table's `E_peak_pred` at 3 dp, all 88 rows); a verification refit exists (§5) but is never adopted. |
-| `RHALF` | 1.28 / −1.07 / 0.27 | refit-reproducible: `fitting.fit_r_half` re-derives 1.2850 / −1.0700 / 0.2721 from the pinned anchors (log-space OLS, `(b+s)` exponent pinned at 1) |
-| `G` | 59.9 / 2.48 / 4.75 | refit-reproducible: `fitting.fit_master_curve` re-derives 59.8843 / 2.4838 / 4.7467 (unit-peak constrained, 75 profiles / 11,545 points, rms 0.206). The 1-dp rounding of A overshoots the exact unit peak by 0.1% (max g = 1.00096) — accepted and frozen. |
+| `EPK` | 2.69 / 1.81 / −0.50 / 4.56 / 7.07 | **PINNED-heritage** — the original fitter was a one-off script never kept. Formula-level parity is proven (reproduces the pinned validation table's `E_peak_pred` at 3 dp, all rows — 92 since D36); a verification refit exists (§5) but is never adopted. |
+| `RHALF` | 1.28 / −1.07 / 0.27 | **PINNED, refit reported** (D36): fitted on the 88-config record, where `fitting.fit_r_half` re-derived 1.2850 / −1.0700 / 0.2721 (log-space OLS, `(b+s)` exponent pinned at 1). On the 92-config record the refit gives 1.2842 / −1.0205 / 0.2780 — verification only, like `EPK`. |
+| `G` | 59.9 / 2.48 / 4.75 | **PINNED, refit reported** (D36): fitted on the 88-config record, where `fitting.fit_master_curve` re-derived 59.8843 / 2.4838 / 4.7467 (unit-peak constrained, 75 profiles / 11,545 points, rms 0.206). The 1-dp rounding of A overshoots the exact unit peak by 0.1% (max g = 1.00096) — accepted and frozen. On the 92-config record (79 profiles / 12,185 points, rms 0.213) the refit gives 72.001 / 2.6402 / 4.9072 — verification only: it does not improve the profile (mean MAPE 9.68% vs 9.61% shipped) and raises the worst envelope exceedance 0.723 → 0.874. |
 | `ENV` | S=1.35, f=1.20 | PINNED-heritage; true calibration stats in §7 (corrected 2026-08-06) |
 
 (Constants updated 2026-08-04, when the decay anchor moved from a crossing
@@ -105,20 +105,22 @@ it returns (§8, "a better decay model does not exist").
 strong local zone exists and the profile formula is not meaningful (below
 E ≈ 1.2 the measured "peak" is a noise floor, not channelling).
 
-The honest truth table under the shipped constants (measured 2026-08-06;
-`validation.gate_table`, truth = measured anchors `E_peak >= 1.5`):
+The honest truth table under the shipped constants (92-config record,
+D36; `validation.gate_table`, truth = measured anchors `E_peak >= 1.5`):
 
 | | count | configs |
 |---|---|---|
-| correct | **92/96** | |
+| correct | **94/96** | |
 | misses (predicted weak, measured strong) | 2 | config_67, config_70 (b30_s20 det2 at W=50: predicted 1.43/1.46, measured 1.65) |
-| false alarms (predicted strong, measured weak) | 2 | config_78, config_80 (b10_s12 det1 at W=1000: predicted 1.58/1.59, measured 1.18) |
+| false alarms (predicted strong, measured weak) | 0 | — (before D36: config_78, config_80, b10_s12 det1 at W=1000, predicted 1.58/1.59, measured 1.18 on the faulty original runs; the rerun measures 1.56) |
 
 An earlier revision of this document claimed "zero false alarms"; that was
 measured against the pre-2026-08-04 constants and is wrong under the
 shipped ones. The false alarms are at least the conservative direction
 (predicting danger where none was measured), and both sit in the b10_s12
-family whose streets attenuate outright (§8).
+family whose streets attenuate outright (§8). **D36 (2026-10-07):** both
+came from the faulty original runs of configs 77–80; on the rerun the gate
+classifies them correctly and there are no false alarms.
 
 **Domain**: channelling regime only (gate first); `x = r/R_half <= 1.6`
 (envelope: 2.16); the simulated envelope of geometries (b 10–30, s 5–20,
@@ -232,7 +234,9 @@ All in `blastlib/street/fitting.py`, reproducible from
 constant on every run.
 
 - **Master curve `g`** — fitted to the pooled point cloud of the 75
-  slope-anchored channelling profiles (11,545 normalized points,
+  slope-anchored channelling profiles of the 88-config record (11,545
+  normalized points; 79 / 12,185 on the 92-config record, refit reported
+  only — D36;
   `0 < x <= 1.65`), NOT to the pointwise median: the median of misaligned
   peaks never reaches 1, so a median-fitted g under-attains every measured
   peak by ~9%. The **unit-peak constraint** (`A = (q/p)^p e^p`, two free
@@ -254,14 +258,19 @@ constant on every run.
   therefore PINNED: canonical as published, frozen by test, provenance
   documented rather than re-derivable. `fitting.fit_e_peak` +
   `fitting.logo_e_peak` implement the fit as best it can be reconstructed
-  (log-space least squares on the excess, 88 channelling configs, LOGO
-  over (det, b, s, H) families) as **verification only**: the refit lands
-  at C=2.52, a=1.67, b=−0.52, k_hs=4.90, k_hw=5.00 with in-sample MAPE
-  6.8% and LOGO 7.7% over 34 families — close to, and never replacing, the
+  (log-space least squares on the excess, the channelling members, LOGO
+  over (det, b, s, H) families) as **verification only**: on the pre-D36
+  88 the refit landed at C=2.52, a=1.67, b=−0.52, k_hs=4.90, k_hw=5.00 with
+  in-sample MAPE 6.8% and LOGO 7.7% over 34 families; on the 92-config
+  record it lands at C=2.53, a=1.71, b=−0.54, k_hs=5.83, k_hw=4.48, MAPE
+  6.8%, LOGO 7.7% over 36 families — close to, and never replacing, the
   pinned 2.69/1.81/−0.50/4.56/7.07 (published LOGO 6.7% over "36 geometry
-  families", from the lost fitter and a slightly different family roster).
+  families", from the lost fitter; the 88 span 34 families, not 36).
   Fitting on all 96 instead of the channelling 88 was the source of a fake
-  ±8% structured residual at s = 8/12 (§8); the 88-membership is computed
+  ±8% structured residual at s = 8/12 (§8) — **D36:** measured on the
+  faulty original runs of configs 77–80. Out of sample, the pinned EPK
+  (fitted without b10_s12) predicts the rerun 77–80 within 1–5% and the
+  faulty originals off by ~35%. The membership (92 since D36) is computed
   (`anchors E_peak >= 1.2`), never hardcoded.
 
 ---
@@ -278,13 +287,15 @@ are selected but not scored.
 |---|---|
 | `E_peak` | LOGO MAPE **6.7%** (published; verification refit 7.7%, §5) |
 | `R_half` | MAPE **16.5%** against the slope anchor |
-| `g` vs the pooled normalized cloud (75 profiles, 11,545 points) | rms 0.206 |
-| full profile `E(r)`, channelling zone, 88 configs | mean **9.7%**, median **8.5%**, p90 17.3%, max 31.0% |
-| the crossing-anchor pipeline on the same slices | mean 10.4%, median 9.4%, p90 18.0%, max 28.5% |
-| attained-peak bias | **−0.4%** (the unit-peak constraint removes a −9% built-in bias) |
+| `g` vs the pooled normalized cloud (75 profiles, 11,545 points; 88-config record) | rms 0.206 |
+| full profile `E(r)`, channelling zone, 92 configs (D36) | mean **9.61%**, median **8.45%**, p90 17.09%, max 31.0% |
+| the same on the pre-D36 88 | mean 9.7%, median 8.5%, p90 17.3%, max 31.0% |
+| the crossing-anchor pipeline on the same slices (pre-D36) | mean 10.4%, median 9.4%, p90 18.0%, max 28.5% |
+| attained-peak bias (pre-D36) | **−0.4%** (the unit-peak constraint removes a −9% built-in bias) |
 
 (The headline row is recomputed from the pinned
-`e_profile_validation_88.csv`; earlier text rounded it to 9.8 / 17.4.)
+`e_profile_validation.csv`, named `e_profile_validation_88.csv` before D36;
+earlier text rounded the 88 row to 9.8 / 17.4.)
 
 Worst cases: config_56 (31.0% — the plateau top), then the `Pi2 = 0.44`
 corner (config_03/06/57, 25–26%) — the same corner where every formula
@@ -296,14 +307,14 @@ The clean-room parity work recomputed every published number; four did not
 survive. Tests now lock the measured values so code and document cannot
 drift apart again.
 
-| claim | earlier text | measured now |
-|---|---|---|
-| envelope in-sample coverage | 95.0% | **96.34%** |
-| slices exceeding the envelope by > 0.15 | 1.5% | **0.73%** |
-| envelope mean overprediction | 24% | **27.2%** |
-| largest single exceedance | 0.96 at config_03 | **0.723 at config_26** |
-| gate false alarms | zero | **2** (config_78/80, conservative direction) |
-| `g(1)` | 0.48 | **0.518** |
+| claim | earlier text | measured 2026-08-06 (88) | D36, 92-config record |
+|---|---|---|---|
+| envelope in-sample coverage | 95.0% | 96.34% | **96.47%** |
+| slices exceeding the envelope by > 0.15 | 1.5% | 0.73% | **0.71%** |
+| envelope mean overprediction | 24% | 27.2% | **26.84%** |
+| largest single exceedance | 0.96 at config_03 | 0.723 at config_26 | **0.7233 at config_26** |
+| gate false alarms | zero | 2 (config_78/80, conservative direction) | **0** |
+| `g(1)` | 0.48 | 0.518 | **0.518** (G unchanged) |
 
 Root cause: f and S (and the prose around them) were calibrated against the
 pre-2026-08-04 crossing-era constants and never re-measured after the
@@ -324,10 +335,11 @@ E_env(r) = 1 + 1.20 * (E_peak - 1) * max{ g(x*t) : t in [1/1.35, 1.35] }
 dilation `S = 1.35` absorbs location scatter (late peaks, slow tails) and
 extends the domain to `1.6*S = 2.16*R_half`. The central curve is a best
 estimate — measurements exceed it about half the time by construction; the
-envelope is the bounding version. True in-sample calibration on the 88
-(§6 table): coverage 96.34% of channelling-zone slices, 0.73% exceed by
-more than 0.15 in E, mean overprediction 27.2% (the price of a bound),
-worst single exceedance 0.723 at config_26. The calibration is in-sample;
+envelope is the bounding version. True in-sample calibration on the 92
+(D36; §6 table): coverage 96.47% of channelling-zone slices, 0.71% exceed
+by more than 0.15 in E, mean overprediction 26.84% (the price of a bound),
+worst single exceedance 0.7233 at config_26 (on the pre-D36 88: 96.34%,
+0.73%, 27.2%, 0.723). The calibration is in-sample;
 expect somewhat less coverage on new geometry.
 
 ---
@@ -391,6 +403,13 @@ street *attenuates*)**, so their "peaks" are noise floors. Fitting on the
 channelling regime only (E ≥ 1.2, 88 configs) collapsed the residual to
 ≤ 2.5% and improved LOGO 8.7% → 6.7%. (Two of the excluded family are
 nonetheless gate false alarms under the shipped constants — §2.)
+**Correction (D36, 2026-10-07):** the b10_s12 numbers in this paragraph
+come from the faulty original runs of configs 77–80 (pressure 18–36% and
+impulse 24–50% low over ~78% of cells). On the rerun det1_b10_s12 channels
+(E_peak 1.39/1.56), sits inside the det1/det2 excess ratio of the other
+families (0.79/0.88 vs 0.55–1.45), and is predicted by the pinned EPK
+within 1–5%. It is a member since D36; the "not physics" reading of the
+s = 8/12 residual stands, its cause was the faulty runs.
 
 **Negative results worth keeping.**
 
@@ -436,17 +455,17 @@ nonetheless gate false alarms under the shipped constants — §2.)
 | anchor measurement (slope-fit decay; batch, all 96) | `blastlib/street/anchors.py` |
 | master-curve + R_half refitter; E_peak verification refit | `blastlib/street/fitting.py` |
 | the closed-form model, gate, envelope (pure, no I/O) | `blastlib/street/model.py` |
-| 88-config scoring, gate table, envelope stats | `blastlib/street/validation.py` |
+| members' scoring, gate table, envelope stats | `blastlib/street/validation.py` |
 | every figure writer (shared with the GUI preview) | `blastlib/street/figures.py` |
 | batch pipeline (anchors → fit → validate → figures) | `tools/street/street_pipeline.py` |
 | single-config / free-geometry figure CLI | `tools/street/street_figure.py` |
 | **parity harness** (permanent regression net) | `tools/street/street_parity.py` |
 | per-config anchors, all 96 (production) | `outputs/check_results/street_anchors.csv` |
 | master curve (x-binned table) | `outputs/check_results/master_curve_g.csv` |
-| full-profile validation, 88 configs | `outputs/check_results/e_profile_validation_88.csv` |
+| full-profile validation, the members (92 since D36) | `outputs/check_results/e_profile_validation.csv` |
 | parity report (regenerated by the harness) | `outputs/check_results/street_parity_report.md` |
 | collapse figure | `outputs/figures/e_profile/master_curve_collapse.png` |
-| per-config figures (+ all88/, env/, pressure_check/) | `outputs/figures/e_profile/` |
+| per-config figures (+ all_figures/, env/, pressure_check/) | `outputs/figures/e_profile/` |
 | per-config scalars, crossing-era (legacy, kept) | `outputs/check_results/r_peak_all96.csv` |
 | intersection diagnosis of the old marker | `outputs/check_results/rlocal_diagnosis.csv` |
 | GUI | "Street Model" (batch) and "Street Preview" (live) tabs |
@@ -487,3 +506,13 @@ reconstructed from the shipped PNGs — structural parity, by design).
   (ring mode, impulse target, raw-field variants, derivative panels
   included) live on in git history at that commit. Four stale claims
   corrected (§6) and locked by tests.
+- **92-config record** (2026-10-07, D36): configs 77–80 rerun (the
+  original runs were faulty, cause unknown); `raw_npz` is the record.
+  Membership 88 → 92 (excluded: config_10, 11, 13, 16); gate 92/96 →
+  94/96, no false alarms. `EPK`, `RHALF`, `G` and `ENV` stay pinned;
+  the `G`/`RHALF` refit (72.001/2.6402/4.9072; 1.2842/−1.0205/0.2780) is
+  reported as verification only. Renamed `e_profile_validation_88.csv` →
+  `e_profile_validation.csv`, `all88/` → `all_figures/`,
+  `figures.all88_figures` → `figures.all_figures`; membership counts in
+  the parity harness are computed from `FLOOR`. Pinned street artefacts
+  re-pinned on the 92-config record. See `docs/DECISIONS.md` D36.

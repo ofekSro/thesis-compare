@@ -472,7 +472,7 @@ TABS = [
         'name': 'Street Model',
         'blurb': 'Street-channelling E(r): measure the strip anchors on all '
                  '96 configs, refit the master curve, validate the '
-                 'closed-form model on the 88 channelling configs, and draw '
+                 'closed-form model on the channelling configs, and draw '
                  'the figure sets. Stages run alone or as the full chain.',
         'target': _call('street_pipeline'),
         'requirements_fn': lambda values: [

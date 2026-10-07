@@ -7,10 +7,10 @@ Layers, in dependency order — each importable on its own:
                   exclusion cuts — accidents and conventions, preserved
     strip         the measurement: mean/mean slices of the first-street strip
     anchors       R_peak / E_peak / slope-fit decay per config, batch to CSV
-    fitting       master curve g(x) + R_half constants refit (reproducible),
-                  E_peak verification refit (pinned constants stay canonical)
+    fitting       master curve g(x), R_half and E_peak verification refits
+                  (pinned constants stay canonical, D36)
     model         the closed-form E(r), gate and design envelope — pure, no I/O
-    validation    the 88-config scoring, gate table, envelope stats
+    validation    the members' scoring, gate table, envelope stats
     figures       every figure writer (imports matplotlib — import explicitly)
 
 Thin CLIs live in tools/street/; the parity harness that ties every layer to

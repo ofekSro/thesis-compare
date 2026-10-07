@@ -8,10 +8,16 @@ verbatim — a refactor that nudges any of them fails loudly.
 
 PROVENANCE, in two classes:
 
-* REFIT-REPRODUCIBLE — RHALF and G: blastlib.street.fitting re-derives them
-  from street_anchors.csv + the NPZ stores; the full-precision fit gives
-  A=59.8843 p=2.4838 q=4.7467 and C=1.2850 p_sq=-1.0700 p_hs=0.2721, which
-  round to the shipped values below (verified 2026-08-06, scipy 1.17.1).
+* PINNED, REFIT REPORTED — RHALF and G: fitted on the 88-config record,
+  where blastlib.street.fitting re-derived A=59.8843 p=2.4838 q=4.7467 and
+  C=1.2850 p_sq=-1.0700 p_hs=0.2721, which round to the shipped values
+  below (verified 2026-08-06, scipy 1.17.1). On the 92-config record (D36,
+  configs 77-80 rerun) the same fit gives A=72.001 p=2.6402 q=4.9072 and
+  C=1.2842 p_sq=-1.0205 p_hs=0.2780 (shipped rounding 72.1/2.64/4.91 and
+  1.28/-1.02/0.28). That refit is VERIFICATION only, like EPK's: it does not
+  improve the profile (mean MAPE 9.68% vs 9.61% with the shipped values)
+  and raises the worst envelope exceedance 0.723 -> 0.874, so the shipped
+  values stay (owner, D36, 2026-10-07).
 * PINNED-HERITAGE — EPK and ENV: the scripts that fitted them were one-off
   and never kept. The constants are carried as published; fitting.fit_e_peak
   exists as a VERIFICATION refit only (its output is reported next to the
@@ -35,9 +41,16 @@ import numpy as np
 # The two saturations read as "walls taller than ~s/6 and ~W^(1/3)/6 act
 # infinite" and give the correct E -> 1 limit as H -> 0, which no power law
 # can.
+# CORRECTION (D36, 2026-10-07): "never channels (median E 0.89)" and the
+# "+-8% at s = 8/12" residual were measured on the original runs of configs
+# 77-80, which were faulty and have been rerun. On the rerun det1_b10_s12
+# channels (E_peak 1.39/1.56) and joins the membership (92). The 88 above
+# span 34 geometry families, not 36. Out-of-sample check: EPK, fitted
+# without b10_s12, predicts the rerun 77-80 within 1-5% and the faulty
+# originals off by ~35%. EPK stays pinned.
 EPK = dict(C=2.69, a=1.81, b=-0.50, k_hs=4.56, k_hw=7.07)
 
-# ---- R_half: extent scale in metres (REFIT-REPRODUCIBLE) ----
+# ---- R_half: extent scale in metres (PINNED, refit reported; see top) ----
 # R_half = C * (b+s) * sqrt(rho)^p_sq * (H/s)^p_hs — geometry only, no
 # charge. The (b+s) block-period exponent is PINNED at 1 by the dimensional
 # prior: freeing it fits 1.12 and scores WORSE end-to-end (10.1% vs 9.8%
@@ -48,7 +61,8 @@ EPK = dict(C=2.69, a=1.81, b=-0.50, k_hs=4.56, k_hw=7.07)
 # with a fitted decay; MAPE 16.5% against its own anchor.
 RHALF = dict(C=1.28, p_sq=-1.07, p_hs=0.27)
 
-# ---- g: unit-peak master curve of the channelling zone (REFIT-REPRODUCIBLE)
+# ---- g: unit-peak master curve of the channelling zone (PINNED, refit
+# reported; see top)
 # g(x) = A * x^p * exp(-q*x), x = r/R_half, valid to X_MAX. A is not free:
 # A = (q/p)^p * e^p pins max g = 1 exactly at x = p/q = 0.52, so the
 # predicted profile ATTAINS E_peak. Fitting the pointwise MEDIAN instead
@@ -71,21 +85,26 @@ G = dict(A=59.9, p=2.48, q=4.75)
 # slightly MORE conservative than its documentation claimed; it was kept
 # rather than recalibrated because loosening a published safety bound to hit
 # a cosmetic 95.0% would change a design number for nothing.
+# UPDATE (D36, 2026-10-07): on the 92-config record, same constants:
+# coverage 96.47%, 0.71% of slices exceed by more than 0.15, mean
+# overprediction 26.84%, largest exceedance 0.7233 at the same config_26
+# (10907 slices).
 ENV = dict(S=1.35, f=1.20)
 
 # Gate: predicted E_peak below this means "no strong local zone" — the
 # profile prediction below the gate is indicative only. Truth table on the
-# 96 (measured E_peak >= 1.5 as truth): 92/96 correct, 2 misses (config_67,
-# config_70: predicted 1.43/1.46, measured 1.65) and 2 false alarms
-# (config_78, config_80: predicted 1.58/1.59, measured 1.18) — the false
-# alarms are the conservative direction.
+# 96 (measured E_peak >= 1.5 as truth): 94/96 correct, 2 misses (config_67,
+# config_70: predicted 1.43/1.46, measured 1.65) and no false alarms. Before
+# D36 the faulty original runs of config_78/80 (measured 1.18) were 2 false
+# alarms; the rerun measures 1.56, as predicted (1.58/1.59).
 GATE = 1.5
 
-# Below this the measured "peak" is noise, not channelling: the excluded 8
-# configs (4x det1_b10_s12, 4x low det1_b15_s20) top out at E 1.05-1.19 with
-# no coherent decay to fit. The floor bounds fits and scoring alike — the
-# 88-config membership everywhere in this package is COMPUTED as
-# anchors.E_peak >= FLOOR, never hardcoded.
+# Below this the measured "peak" is noise, not channelling: the excluded 4
+# configs (config_10, 11, 13, 16, the low det1_b15_s20) top out at E 1.16-1.19
+# with no coherent decay to fit. The floor bounds fits and scoring alike —
+# the membership (92 of 96 since D36; 88 before, when the faulty runs of
+# det1_b10_s12 77-80 fell below the floor) is COMPUTED everywhere in this
+# package as anchors.E_peak >= FLOOR, never hardcoded.
 FLOOR = 1.2
 
 # g describes the channelling zone only; beyond ~1.6*R_half the street is

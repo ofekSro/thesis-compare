@@ -68,15 +68,16 @@ def test_rhalf_form_and_pinned_exponent():
 
 
 def test_cloud_gate_uses_floor(street_anchors_csv):
-    # Membership arithmetic on the pinned table: 75 rows carry a fitted
-    # slope anchor above the floor; the crossing column yields 71.
+    # Membership arithmetic on the pinned table (92-config record, D36):
+    # 79 rows carry a fitted slope anchor above the floor; the crossing
+    # column yields 77 (75/71 before the rerun of 77-80).
     anchors = pd.read_csv(street_anchors_csv)
     slope = anchors[np.isfinite(anchors.R_half_slope)
                     & (anchors.E_peak >= 1.2)]
     cross = anchors[np.isfinite(anchors.R_half_cross)
                     & (anchors.E_peak >= 1.2)]
-    assert len(slope) == 75
-    assert len(cross) == 71
+    assert len(slope) == 79
+    assert len(cross) == 77
 
 
 @pytest.mark.slow
@@ -85,16 +86,18 @@ def test_constants_match_pinned(street_full_data, street_anchors_csv,
     anchors = pd.read_csv(street_anchors_csv)
     x, y, used = fitting.collect_cloud(anchors, street_full_data,
                                        progress=lambda _m: None)
-    assert (len(used), len(x)) == (75, 11545)
+    assert (len(used), len(x)) == (79, 12185)
+    # Since D36 these lock the VERIFICATION refit on the 92-config record;
+    # the shipped G and RHALF stay pinned (constants.py).
     g = fitting.fit_master_curve(x, y)
-    assert g['A'] == pytest.approx(59.88434103668478, rel=1e-9)
-    assert g['p'] == pytest.approx(2.483758865788831, rel=1e-9)
-    assert g['q'] == pytest.approx(4.746669040697642, rel=1e-9)
+    assert g['A'] == pytest.approx(72.00099409429846, rel=1e-9)
+    assert g['p'] == pytest.approx(2.6401629004429346, rel=1e-9)
+    assert g['q'] == pytest.approx(4.907159124527716, rel=1e-9)
     rh = fitting.fit_r_half(anchors)
-    assert rh['C'] == pytest.approx(1.2849835992920906, rel=1e-9)
-    assert rh['p_sq'] == pytest.approx(-1.0700379830256466, rel=1e-9)
-    assert rh['p_hs'] == pytest.approx(0.2721321919965368, rel=1e-9)
-    assert fitting.collapse_iqr(x, y) == pytest.approx(0.2218, abs=5e-4)
+    assert rh['C'] == pytest.approx(1.2842128901999612, rel=1e-9)
+    assert rh['p_sq'] == pytest.approx(-1.020512692535677, rel=1e-9)
+    assert rh['p_hs'] == pytest.approx(0.278019829957591, rel=1e-9)
+    assert fitting.collapse_iqr(x, y) == pytest.approx(0.2452, abs=5e-4)
 
     mc = fitting.master_curve_table(x, y)
     out = tmp_path / 'master_curve_g.csv'

@@ -44,13 +44,17 @@ WHAT THE MODEL REFUSES TO DO, ON MEASURED GROUNDS
 * No prediction below the gate: b10_s12 NEVER channels (E <= 1.06, median
   0.89 — that street ATTENUATES), and fitting it as data once bought a fake
   +-8% structured residual at s = 8/12. Below measured E ~ 1.2 the "peaks"
-  are noise.
+  are noise. CORRECTION (D36): the b10_s12 numbers came from the faulty
+  original runs of configs 77-80; on the rerun det1_b10_s12 channels
+  (E_peak 1.39/1.56) and is a member. The floor-below-noise rule stands.
 * Known worst corner: Pi2 = 0.44 (s=5, W=1500) — profile errors 26-29%,
   the same corner every formula system in this project degrades in.
 
-Validation of this exact parameterization (88 channelling configs, slices
-with measured E >= 1.2 inside the domain): profile MAPE mean 9.7%, median
-8.5%, p90 17.3%, max 31.0%; E_peak LOGO over 36 geometry families 6.7%.
+Validation of this exact parameterization (92 channelling configs since
+D36, slices with measured E >= 1.2 inside the domain): profile MAPE mean
+9.61%, median 8.45%, p90 17.09%, max 31.0% (on the pre-D36 88: 9.7 / 8.5 /
+17.3 / 31.0%); E_peak LOGO 6.7% as published (the pinned fitter is lost;
+the 88 span 34 geometry families, not 36).
 """
 
 import numpy as np

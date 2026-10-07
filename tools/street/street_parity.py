@@ -3,11 +3,12 @@
 Regenerates every artefact of the street-channelling suite into
 outputs/check_results/street_parity/ (a subdirectory git ignores, so
 scratch runs never dirty the tree) and compares against the pinned
-reference files committed in snapshot bf8eefe:
+reference files under outputs/check_results/ (first pinned in snapshot
+bf8eefe, re-pinned at D36 on the 92-config record):
 
     street_anchors.csv            rel 1e-12 (pinned CSVs sit up to 1 ulp
     master_curve_g.csv            off recomputation on this machine —
-    e_profile_validation_88.csv   never compare bit-exact)
+    e_profile_validation.csv      never compare bit-exact)
 
 plus the constants (full precision, rel 1e-9 — curve_fit is deterministic
 per scipy version, so version drift degrades this check before it touches
@@ -63,15 +64,21 @@ from compare_outputs import compare_csv
 # Full-precision fit results measured in the pinned environment (Python
 # 3.12.10, numpy 2.4.4, scipy 1.17.1). A scipy upgrade may move the last
 # digits; the CSV gates (optimizer-free) stay decisive if this ever fires.
-EXPECT_G = dict(A=59.88434103668478, p=2.483758865788831, q=4.746669040697642)
-EXPECT_RHALF = dict(C=1.2849835992920906, p_sq=-1.0700379830256466,
-                    p_hs=0.2721321919965368)
-EXPECT_IQR = dict(slope=0.2218, cross=0.1894)
-EXPECT_HEADLINE = dict(mean=9.7364, median=8.50, p90=17.34, max=31.0)
-EXPECT_ENVELOPE = dict(coverage=96.34, exceed_gt_015=0.73, worst=0.723,
-                       worst_cfg='config_26', n_slices=10531)
-EXPECT_GATE = dict(n_correct=92, misses={'config_67', 'config_70'},
-                   false_alarms={'config_78', 'config_80'})
+# Since D36 (92-config record) EXPECT_G/EXPECT_RHALF lock the VERIFICATION
+# refit only: the shipped G and RHALF stay pinned at the 88-config values
+# (constants.py), so no check compares the refit's rounding with them.
+EXPECT_G = dict(A=72.00099409429846, p=2.6401629004429346,
+                q=4.907159124527716)
+EXPECT_RHALF = dict(C=1.2842128901999612, p_sq=-1.020512692535677,
+                    p_hs=0.278019829957591)
+EXPECT_CLOUD = (79, 12185)          # slope-anchored profiles, points
+EXPECT_LDECAY_NAN = 17              # the s=20 rows that do not decay
+EXPECT_IQR = dict(slope=0.2452, cross=0.2053)
+EXPECT_HEADLINE = dict(mean=9.6109, median=8.45, p90=17.09, max=31.0)
+EXPECT_ENVELOPE = dict(coverage=96.47, exceed_gt_015=0.71, worst=0.7233,
+                       worst_cfg='config_26', n_slices=10907)
+EXPECT_GATE = dict(n_correct=94, misses={'config_67', 'config_70'},
+                   false_alarms=set())
 
 
 def _git_head():
@@ -104,8 +111,9 @@ def main(*, npz_dir=None, skip_figures=False, progress=None):
     rows_csv.append(('street_anchors.csv', st, detail))
     anchors = pd.read_csv(rebuilt_anchors)
     n_nan = int(anchors.L_decay.isna().sum())
-    gates['B'] = (st == 'PASS' and n_nan == 21,
-                  f'{st}; {detail}; L_decay NaN {n_nan}/96 (want 21)')
+    gates['B'] = (st == 'PASS' and n_nan == EXPECT_LDECAY_NAN,
+                  f'{st}; {detail}; L_decay NaN {n_nan}/96 '
+                  f'(want {EXPECT_LDECAY_NAN})')
 
     # ---- Q1 sweep --------------------------------------------------------
     say('== Q1 sweep: strict vs inclusive exclusion cut ==')
@@ -145,18 +153,15 @@ def main(*, npz_dir=None, skip_figures=False, progress=None):
     rows_csv.append(('master_curve_g.csv', st, detail))
     c_checks = [
         st == 'PASS',
-        len(used) == 75 and len(x) == 11545,
+        (len(used), len(x)) == EXPECT_CLOUD,
         all(_rel_ok(gfit[k], EXPECT_G[k], 1e-9) for k in EXPECT_G),
         all(_rel_ok(rh[k], EXPECT_RHALF[k], 1e-9) for k in EXPECT_RHALF),
-        dict(A=round(gfit['A'], 1), p=round(gfit['p'], 2),
-             q=round(gfit['q'], 2)) == G,
-        dict(C=round(rh['C'], 2), p_sq=round(rh['p_sq'], 2),
-             p_hs=round(rh['p_hs'], 2)) == RHALF,
         abs(iqr_new - EXPECT_IQR['slope']) < 5e-4,
         abs(iqr_old - EXPECT_IQR['cross']) < 5e-4,
     ]
     gates['C'] = (all(c_checks),
-                  f'{st}; cloud {len(used)}/{len(x)} (want 75/11545); '
+                  f'{st}; cloud {len(used)}/{len(x)} (want '
+                  f'{EXPECT_CLOUD[0]}/{EXPECT_CLOUD[1]}); '
                   f"A={gfit['A']:.6f} p={gfit['p']:.6f} q={gfit['q']:.6f}; "
                   f"C={rh['C']:.6f} p_sq={rh['p_sq']:.6f} "
                   f"p_hs={rh['p_hs']:.6f}; IQR {iqr_new:.4f}/{iqr_old:.4f}; "
@@ -165,13 +170,13 @@ def main(*, npz_dir=None, skip_figures=False, progress=None):
     # ---- D: model formula vs pinned validation column -------------------
     say('== gate D: E_peak formula ==')
     pinned_val = pd.read_csv(paths.CHECK_RESULTS_DIR
-                             / 'e_profile_validation_88.csv')
+                             / 'e_profile_validation.csv')
     pred = np.array([model.e_peak(r.b, r.s, r.H, r.W)
                      for r in pinned_val.itertuples()])
     n_mismatch = int(np.sum(np.round(pred, 3)
                             != pinned_val.E_peak_pred.values))
     gates['D'] = (n_mismatch == 0,
-                  f'{n_mismatch}/88 3-dp mismatches '
+                  f'{n_mismatch}/{len(pinned_val)} 3-dp mismatches '
                   f'(max |formula-csv| {np.max(np.abs(pred - pinned_val.E_peak_pred.values)):.5f})')
     say(f'  {gates["D"][1]}')
 
@@ -179,17 +184,17 @@ def main(*, npz_dir=None, skip_figures=False, progress=None):
     # The rebuilt anchors already compared bit-identical to the pinned file
     # (gate B), so running fit+validate off them IS the end-to-end chain.
     say('== gates E+F: validation (chained) ==')
-    val_csv = out_root / 'e_profile_validation_88.csv'
+    val_csv = out_root / 'e_profile_validation.csv'
     val = validation.validate_all(rebuilt_anchors, npz_dir,
                                   out_csv=val_csv, progress=progress)
     st, detail = compare_csv(paths.CHECK_RESULTS_DIR
-                             / 'e_profile_validation_88.csv',
+                             / 'e_profile_validation.csv',
                              val_csv, rtol=1e-12, atol=1e-12)
-    rows_csv.append(('e_profile_validation_88.csv', st, detail))
+    rows_csv.append(('e_profile_validation.csv', st, detail))
+    # Membership is computed from FLOOR, never hardcoded (D36).
     members = {c for c in anchors[anchors.E_peak >= FLOOR].cfg}
-    gates['E'] = (st == 'PASS' and set(val.cfg) == members
-                  and len(val) == 88,
-                  f'{st}; {detail}; membership {len(val)}/88')
+    gates['E'] = (st == 'PASS' and set(val.cfg) == members,
+                  f'{st}; {detail}; membership {len(val)}/{len(members)}')
     gates['F'] = (gates['B'][0] and gates['C'][0] and gates['E'][0],
                   'chain rebuilt-anchors -> fit -> validate, every link '
                   'compared against its pinned artefact')
@@ -239,27 +244,28 @@ def main(*, npz_dir=None, skip_figures=False, progress=None):
                                 dict(A=gfit['A'], p=gfit['p'], q=gfit['q']),
                                 mc, iqr_new, iqr_old, len(used),
                                 out_dir=fig_root, progress=progress)
-        figures.all88_figures(rebuilt_anchors, npz_dir, fig_root,
-                              progress=progress)
+        figures.all_figures(rebuilt_anchors, npz_dir, fig_root,
+                            progress=progress)
         figures.envelope_corner_figures(npz_dir, fig_root, progress=progress)
         figures.pressure_check_figures(
             npz_dir=npz_dir, out_dir=paths.ensure_dir(
                 fig_root / 'pressure_check'), progress=progress)
         expect_top = {f'{c}_E.png' for c in members}
         got_top = {p.name for p in fig_root.glob('*_E.png')}
-        got_88 = {p.name for p in (fig_root / 'all88').glob('*.png')}
+        got_all = {p.name for p in (fig_root / 'all_figures').glob('*.png')}
         got_env = {p.name for p in (fig_root / 'env').glob('*.png')}
         got_pc = {p.name for p in (fig_root / 'pressure_check').glob('*.png')}
         g_checks = [
             got_top == expect_top,
             (fig_root / 'master_curve_collapse.png').exists(),
-            got_88 == expect_top | {'_contact_sheet.png'},
+            got_all == expect_top | {'_contact_sheet.png'},
             got_env == {f'{c}_E.png' for c in figures.ENV_CORNERS}
             | {'_sheet.png'},
             got_pc == {f'{c}_P_and_E.png' for c in figures.PRESSURE_CHECK},
         ]
         gates['G'] = (all(g_checks),
-                      f'top {len(got_top)}/88, all88 {len(got_88)}/89, '
+                      f'top {len(got_top)}/{len(expect_top)}, all_figures '
+                      f'{len(got_all)}/{len(expect_top) + 1}, '
                       f'env {len(got_env)}/5, pressure_check '
                       f'{len(got_pc)}/10; checks {g_checks}')
 
@@ -269,8 +275,9 @@ def main(*, npz_dir=None, skip_figures=False, progress=None):
     with open(report, 'w', encoding='utf-8') as f:
         f.write('# Street-suite parity report\n\n')
         f.write(f'- date: {t0:%Y-%m-%d %H:%M}\n')
-        f.write('- reference snapshot: bf8eefe '
-                '(pre-rebuild pinned artefacts)\n')
+        f.write('- reference: pinned artefacts under outputs/check_results/ '
+                '(first pinned bf8eefe; re-pinned at D36, 92-config '
+                'record)\n')
         f.write(f'- rebuild HEAD: {_git_head()}\n')
         f.write(f'- environment: Python {platform.python_version()}, '
                 f'numpy {np.__version__}, scipy {scipy.__version__}, '
@@ -281,7 +288,7 @@ def main(*, npz_dir=None, skip_figures=False, progress=None):
         for name, st, detail in rows_csv:
             f.write(f'| {name} | {st} | {detail} |\n')
         f.write('\n## T2 — constants (full precision vs pinned)\n\n')
-        f.write('| constant | refit | pinned expectation | shipped rounding '
+        f.write('| constant | refit | pinned expectation | shipped (pinned) '
                 '|\n|---|---|---|---|\n')
         for k in ('A', 'p', 'q'):
             f.write(f'| G.{k} | {gfit[k]!r} | {EXPECT_G[k]!r} | {G[k]} |\n')
@@ -296,21 +303,25 @@ def main(*, npz_dir=None, skip_figures=False, progress=None):
                   f"over {ep_logo['n_families']} (det,b,s,H) families; the "
                   'published 6.7%/36 used the lost fitter and a slightly '
                   'different family roster |\n')
+        f.write('\nSince D36 the G and RHALF refits are verification only, '
+                'like EPK: the shipped values stay pinned at the 88-config '
+                'fit.\n')
         f.write('\n## T3 — headline locks\n\n')
-        f.write(f"- profile MAPE (88): mean {hs['mean']:.4f}, median "
+        f.write(f"- profile MAPE ({len(val)}): mean {hs['mean']:.4f}, median "
                 f"{hs['median']:.2f}, p90 {hs['p90']:.2f}, max "
                 f"{hs['max']:.1f} [%]\n")
         f.write(f"- gate: {gsum['n_correct']}/96 correct; misses "
                 f"{sorted(gsum['misses'])}; false alarms "
                 f"{sorted(gsum['false_alarms'])}\n")
-        f.write(f"- envelope (in-sample, 88): coverage "
+        f.write(f"- envelope (in-sample, {len(val)}): coverage "
                 f"{env['coverage']:.2f}%, >0.15 exceedance "
                 f"{env['exceed_gt_015']:.2f}%, mean overprediction "
                 f"{env['mean_overpred']:.1f}%, worst "
                 f"{env['worst_exceed']:.3f} at {env['worst_cfg']} "
                 f"({env['n_slices']} slices)\n")
         f.write(f"- collapse IQR: slope {iqr_new:.4f}, crossing "
-                f"{iqr_old:.4f}; cloud 75 profiles / 11,545 points\n")
+                f"{iqr_old:.4f}; cloud {len(used)} profiles / "
+                f"{len(x):,} points\n")
         f.write('\n## T4 — figure inventories\n\n')
         f.write(f"- {gates['G'][1]}\n")
         f.write('- pixel provenance: three sets had no surviving writer; '
@@ -319,13 +330,17 @@ def main(*, npz_dir=None, skip_figures=False, progress=None):
         f.write('\n## Corrected stale claims (doc superseded by '
                 'measurement)\n\n')
         f.write('| claim | was documented | measured now |\n|---|---|---|\n')
-        f.write('| envelope coverage | 95.0% | 96.34% |\n')
-        f.write('| slices exceeding by >0.15 | 1.5% | 0.73% |\n')
-        f.write('| mean overprediction | 24% | 27.2% |\n')
-        f.write('| largest exceedance | 0.96 at config_03 | 0.723 at '
-                'config_26 |\n')
-        f.write('| gate false alarms | zero | config_78, config_80 '
-                '(conservative direction) |\n')
+        f.write(f"| envelope coverage | 95.0% | {env['coverage']:.2f}% |\n")
+        f.write(f"| slices exceeding by >0.15 | 1.5% | "
+                f"{env['exceed_gt_015']:.2f}% |\n")
+        f.write(f"| mean overprediction | 24% | "
+                f"{env['mean_overpred']:.1f}% |\n")
+        f.write(f"| largest exceedance | 0.96 at config_03 | "
+                f"{env['worst_exceed']:.3f} at "
+                f"{env['worst_cfg'].split('_det')[0]} |\n")
+        fa = sorted(c.split('_det')[0] for c in gsum['false_alarms'])
+        f.write(f"| gate false alarms | zero | {', '.join(fa) or 'none'} "
+                f"(config_78, config_80 before D36) |\n")
         f.write('| g(1) | 0.48 | 0.518 |\n')
         f.write(f'\n- Q1 sweep: {gates["Q1"][1]}\n')
         f.write('\n## Sign-off\n\n')

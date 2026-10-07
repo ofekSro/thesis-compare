@@ -30,7 +30,7 @@ def test_shipped_constants_frozen():
 
 
 def test_e_peak_historical_values():
-    # Rows quoted verbatim from the pinned e_profile_validation_88.csv
+    # Rows quoted verbatim from the pinned e_profile_validation.csv
     # (E_peak_pred, 3 dp). The formula must land on them exactly after
     # rounding — the gate-D contract in miniature.
     for (b, s, H, W), want in [

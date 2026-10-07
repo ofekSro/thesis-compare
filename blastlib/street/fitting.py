@@ -1,10 +1,14 @@
 """Fit the model's constants from measured anchors — reproducibly.
 
 Two of the model's three fitted pieces are re-derived here from
-street_anchors.csv plus the NPZ stores, and land (before rounding) on
-A=59.8843 p=2.4838 q=4.7467 / C=1.2850 p_sq=-1.0700 p_hs=0.2721 — the
-shipped G and RHALF exactly (verified 2026-08-06, scipy 1.17.1; curve_fit
-is deterministic Levenberg-Marquardt, no seed involved). The third piece,
+street_anchors.csv plus the NPZ stores. On the 88-config record they landed
+(before rounding) on A=59.8843 p=2.4838 q=4.7467 / C=1.2850 p_sq=-1.0700
+p_hs=0.2721 — the shipped G and RHALF exactly (verified 2026-08-06, scipy
+1.17.1; curve_fit is deterministic Levenberg-Marquardt, no seed involved).
+On the 92-config record (D36) they give A=72.001 p=2.6402 q=4.9072 /
+C=1.2842 p_sq=-1.0205 p_hs=0.2780; since D36 that refit is VERIFICATION
+only, like EPK's, and the shipped G and RHALF stay (constants.py). The
+third piece,
 EPK, is PINNED-HERITAGE: its original fitter was a one-off script that was
 never kept. fit_e_peak/logo_e_peak below re-implement the fit as best it
 can be reconstructed — they exist to VERIFY the pinned constants are
@@ -12,9 +16,10 @@ near-optimal (the parity report prints refit-vs-pinned deltas), and their
 output is never adopted into constants.py.
 
 DESIGN CHOICES THAT WERE PAID FOR (each measured end-to-end, i.e. by the
-mean/median/p90 profile MAPE on the 88 — collapse-IQR comparisons between
-anchor types are UNFAIR, because a crossing anchor self-aligns y(x=1)=0.5
-by construction; end-to-end error is the only fair arbiter):
+mean/median/p90 profile MAPE on the 88 of the pre-D36 record — collapse-IQR
+comparisons between anchor types are UNFAIR, because a crossing anchor
+self-aligns y(x=1)=0.5 by construction; end-to-end error is the only fair
+arbiter):
 
 * UNIT-PEAK CONSTRAINT, not a free amplitude: fitting the pointwise MEDIAN
   of the pooled cloud under-attains every measured peak by ~9% (misaligned
@@ -116,8 +121,10 @@ def fit_master_curve(x, y):
 
     Plain unweighted least squares in LINEAR space (not log — the cloud
     crosses zero), scipy curve_fit with p0=(2.8, 5.4); deterministic, no
-    seed. Full-precision result on the pinned anchors: A=59.8843 p=2.4838
-    q=4.7467, rms 0.2061 — shipped G is this rounded to 1/2/2 dp.
+    seed. Full-precision result on the 88-config anchors: A=59.8843
+    p=2.4838 q=4.7467, rms 0.2061 — shipped G is this rounded to 1/2/2 dp.
+    On the 92-config anchors (D36): A=72.0010 p=2.6402 q=4.9072, rms
+    0.2132 — reported, not shipped.
     """
     popt, _ = curve_fit(g_unit, x, y, p0=(2.8, 5.4), maxfev=20000)
     p, q = float(popt[0]), float(popt[1])
@@ -181,7 +188,7 @@ def _pi_columns(d):
 
 
 def fit_e_peak(anchors):
-    """VERIFICATION refit of the E_peak constants on the channelling 88.
+    """VERIFICATION refit of the E_peak constants on the channelling set.
 
     The original fitter is lost; its loss function is unknown. This
     reconstruction fits ln(E_peak - 1) by least squares (relative errors on
@@ -208,7 +215,7 @@ def fit_e_peak(anchors):
 
 
 def logo_e_peak(anchors):
-    """Leave-one-geometry-out score of the E_peak form on the 88.
+    """Leave-one-geometry-out score of the E_peak form on the members.
 
     A geometry family is a unique (det, b, s, H) — the same buildings and
     charge position at different charge weights; the published 6.7% was

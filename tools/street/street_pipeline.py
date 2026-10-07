@@ -6,9 +6,10 @@ One entry point for everything blastlib.street produces in batch:
   fit        refit g(x) + R_half from the anchors, write master_curve_g.csv
              and the collapse figure, and report the constants next to the
              shipped rounding
-  validate   score the closed-form model on the 88 -> e_profile_validation_88
-             .csv, plus the gate table and true envelope statistics
-  figures    the per-config panel sets (top level + all88/ + env/ +
+  validate   score the closed-form model on the channelling members
+             (E_peak >= FLOOR) -> e_profile_validation.csv, plus the gate
+             table and true envelope statistics
+  figures    the per-config panel sets (top level + all_figures/ + env/ +
              pressure_check/)
   all        the chain, in that order
 
@@ -124,7 +125,7 @@ def main(*, stage='all', npz_dir=None, dr=0.5, hi_frac=HI_FRAC,
 
     if stage in ('validate', 'all'):
         say(f'== validate (anchors: {anchors_path.name}) ==')
-        val_csv = check_dir / f'e_profile_validation_88{tag}.csv'
+        val_csv = check_dir / f'e_profile_validation{tag}.csv'
         val = validation.validate_all(anchors_path, npz_dir,
                                       out_csv=val_csv, progress=progress)
         hs = validation.headline_stats(val)
@@ -142,8 +143,8 @@ def main(*, stage='all', npz_dir=None, dr=0.5, hi_frac=HI_FRAC,
 
     if stage in ('figures', 'all'):
         say('== figures ==')
-        figures.all88_figures(anchors_path, npz_dir, out_dir,
-                              progress=progress)
+        figures.all_figures(anchors_path, npz_dir, out_dir,
+                            progress=progress)
         figures.envelope_corner_figures(npz_dir, out_dir, progress=progress)
         pc_dir = None if out_dir is None else \
             paths.ensure_dir(Path(out_dir) / 'pressure_check')

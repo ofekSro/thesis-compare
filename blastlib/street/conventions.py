@@ -68,9 +68,10 @@ Q6  DECAY-FIT WINDOW, TERMINATOR EXCLUSIVE. The fall window opens at the
 
 Q7  A ROW FOR EVERY CONFIG. measure_profile returns a pre-seeded dict
     (anchors NaN, n_fit=0, span_fit=0.0) and every early exit returns it,
-    so street_anchors.csv always holds all 96 rows — 21 with NaN L_decay
-    (the 17 s=20 rows that genuinely do not decay inside 100 m, plus the 4
-    det1_b10_s12 rows that never channel). Downstream stages FILTER on the
+    so street_anchors.csv always holds all 96 rows — 17 with NaN L_decay,
+    the s=20 rows that genuinely do not decay inside 100 m (21 before D36,
+    when the faulty original runs of det1_b10_s12 77-80 added 4 that never
+    channelled). Downstream stages FILTER on the
     NaNs; they must never be pre-dropped at write time.
 """
 

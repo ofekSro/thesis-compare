@@ -63,42 +63,40 @@ def test_scoring_nan_band_selected_not_scored():
 
 
 def test_gate_classification(street_anchors_csv):
-    # The TRUE confusion under the shipped constants (the doc's old "zero
-    # false alarms" was measured on pre-refit constants): 92/96 correct,
-    # misses 67/70, false alarms 78/80 — conservative direction.
+    # The TRUE confusion under the shipped constants on the 92-config
+    # record (D36): 94/96 correct, misses 67/70, no false alarms. Before
+    # the rerun of 77-80 it was 92/96 with false alarms 78/80.
     anchors = pd.read_csv(street_anchors_csv)
     _df, summary = validation.gate_table(anchors)
-    assert (summary['n_correct'], summary['n']) == (92, 96)
+    assert (summary['n_correct'], summary['n']) == (94, 96)
     assert {c.split('_det')[0] for c in summary['misses']} \
         == {'config_67', 'config_70'}
-    assert {c.split('_det')[0] for c in summary['false_alarms']} \
-        == {'config_78', 'config_80'}
+    assert not summary['false_alarms']
 
 
 def test_membership_is_computed(street_anchors_csv):
     anchors = pd.read_csv(street_anchors_csv)
     members = anchors[anchors.E_peak >= 1.2]
-    assert len(members) == 88
+    assert len(members) == 92
     excluded = {c.split('_det')[0] for c in
                 set(anchors.cfg) - set(members.cfg)}
-    assert excluded == {'config_10', 'config_11', 'config_13', 'config_16',
-                        'config_77', 'config_78', 'config_79', 'config_80'}
+    assert excluded == {'config_10', 'config_11', 'config_13', 'config_16'}
 
 
 @pytest.mark.slow
 def test_validation_matches_pinned(street_full_data, street_anchors_csv,
                                    tmp_path):
-    out_csv = tmp_path / 'e_profile_validation_88.csv'
+    out_csv = tmp_path / 'e_profile_validation.csv'
     val = validation.validate_all(street_anchors_csv, street_full_data,
                                   out_csv=out_csv, progress=lambda _m: None)
     status, detail = compare_csv(
-        paths.CHECK_RESULTS_DIR / 'e_profile_validation_88.csv', out_csv,
+        paths.CHECK_RESULTS_DIR / 'e_profile_validation.csv', out_csv,
         rtol=1e-12, atol=1e-12)
     assert status == 'PASS', detail
     hs = validation.headline_stats(val)
-    assert hs['mean'] == pytest.approx(9.7364, abs=0.005)
-    assert hs['median'] == pytest.approx(8.50, abs=0.005)
-    assert hs['p90'] == pytest.approx(17.34, abs=0.01)
+    assert hs['mean'] == pytest.approx(9.6109, abs=0.005)
+    assert hs['median'] == pytest.approx(8.45, abs=0.005)
+    assert hs['p90'] == pytest.approx(17.09, abs=0.01)
     assert hs['max'] == 31.0
 
 
@@ -107,9 +105,9 @@ def test_envelope_true_stats(street_full_data, street_anchors_csv):
     # The corrected-claims lock: code and doc can never drift apart again.
     env = validation.envelope_stats(street_anchors_csv, street_full_data,
                                     progress=lambda _m: None)
-    assert env['coverage'] == pytest.approx(96.34, abs=0.05)
-    assert env['exceed_gt_015'] == pytest.approx(0.73, abs=0.05)
-    assert env['mean_overpred'] == pytest.approx(27.2, abs=0.2)
-    assert env['worst_exceed'] == pytest.approx(0.723, abs=0.002)
+    assert env['coverage'] == pytest.approx(96.47, abs=0.05)
+    assert env['exceed_gt_015'] == pytest.approx(0.71, abs=0.05)
+    assert env['mean_overpred'] == pytest.approx(26.84, abs=0.2)
+    assert env['worst_exceed'] == pytest.approx(0.7233, abs=0.002)
     assert env['worst_cfg'].startswith('config_26')
-    assert env['n_slices'] == 10531
+    assert env['n_slices'] == 10907

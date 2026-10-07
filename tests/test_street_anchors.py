@@ -137,4 +137,4 @@ def test_anchors_match_pinned(street_full_data, street_anchors_csv,
     status, detail = compare_csv(street_anchors_csv, out_csv,
                                  rtol=1e-12, atol=1e-12)
     assert status == 'PASS', detail
-    assert int(df.L_decay.isna().sum()) == 21
+    assert int(df.L_decay.isna().sum()) == 17     # the s=20 rows (D36)

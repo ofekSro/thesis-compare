@@ -8,9 +8,9 @@ kept; the formats here are reconstructed from the shipped PNGs and the
 surviving single-config code of the retired e_profile.py.
 
 Layout contract (what a full run leaves under outputs/figures/e_profile/):
-    {config}_E.png              one per validated config (88), top level
+    {config}_E.png              one per validated config (92), top level
     master_curve_collapse.png   the pooled-cloud collapse + fitted g
-    all88/                      the same 88 panels + _contact_sheet.png
+    all_figures/                the same panels + _contact_sheet.png
     env/                        the 4 envelope corner cases + _sheet.png
     pressure_check/             10 two-panel P-and-E checks
 The directory is still named e_profile: it is the same artefact set the
@@ -251,13 +251,14 @@ def _image_sheet(pngs, out_png, ncols, say):
     return out_png
 
 
-def all88_figures(anchors_csv=None, npz_dir=None, out_dir=None,
-                  contact_sheet=True, progress=None):
-    """One panel per validated config (top level) + the all88/ set.
+def all_figures(anchors_csv=None, npz_dir=None, out_dir=None,
+                contact_sheet=True, progress=None):
+    """One panel per validated config (top level) + the all_figures/ set.
 
     Membership is computed (anchors E_peak >= FLOOR), never listed. Each
-    panel is rendered once at the top level and copied into all88/ — the
-    historical layout kept both, and every doc link points at one of them.
+    panel is rendered once at the top level and copied into all_figures/ —
+    the historical layout kept both, and every doc link points at one of
+    them.
     """
     say = progress or _say
     anchors_csv = paths.resolve(anchors_csv,
@@ -266,7 +267,7 @@ def all88_figures(anchors_csv=None, npz_dir=None, out_dir=None,
     members = anchors[anchors.E_peak >= FLOOR]
     out_dir = paths.ensure_dir(paths.resolve(out_dir,
                                              paths.fig_dir('e_profile')))
-    sub = paths.ensure_dir(out_dir / 'all88')
+    sub = paths.ensure_dir(out_dir / 'all_figures')
     pngs = []
     for i, cfg_name in enumerate(members.cfg):
         png = profile_figure(cfg_name, npz_dir=npz_dir, out_dir=out_dir,

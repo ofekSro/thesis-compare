@@ -1,6 +1,6 @@
-"""Score the closed-form model against the measured 88 — the honest way.
+"""Score the closed-form model against the measured members — the honest way.
 
-This module is the writer e_profile_validation_88.csv never had: the table
+This module is the writer e_profile_validation.csv never had: the table
 was produced by a one-off script; the scoring block survived inside the
 retired e_profile.py (:234-252) and reproduces the pinned file digit for
 digit. Here that block is a pure function (score_profile) plus a batch
@@ -9,12 +9,12 @@ driver (validate_all), so the convention is testable without data.
 THE SCORING CONVENTION, PRECISELY (each clause is load-bearing)
 ---------------------------------------------------------------
 * Membership: a config is validated iff its MEASURED anchors E_peak >=
-  FLOOR — computed from street_anchors.csv, never hardcoded. 88 of 96
-  qualify; the excluded 8 (4x det1_b10_s12, 4x low det1_b15_s20) never
-  channel, and slices with no channelling carry no information about a
-  channelling model. Scoring them once produced a fake +-8% structured
-  residual — the exclusion is on both sides of the comparison, fit and
-  score alike.
+  FLOOR — computed from street_anchors.csv, never hardcoded. 92 of 96
+  qualify since D36 (88 before the rerun of 77-80); the excluded 4 (low
+  det1_b15_s20: config_10, 11, 13, 16) never channel, and slices with no
+  channelling carry no information about a channelling model. Scoring
+  them once produced a fake +-8% structured residual — the exclusion is
+  on both sides of the comparison, fit and score alike.
 * Slice selection: r <= r_model[-1] (the envelope grid's last point, up to
   X_MAX*S*R_half capped at 100 m) AND smoothed E_s >= FLOOR; at least 5
   qualifying slices or no score.
@@ -99,7 +99,7 @@ def score_profile(meas, r_model, pred):
 
 
 def validate_all(anchors_csv=None, npz_dir=None, out_csv=None, progress=None):
-    """The 88-config validation table — e_profile_validation_88.csv.
+    """The members' validation table — e_profile_validation.csv.
 
     Rounding is part of the pinned-file contract: E_peak_pred 3 dp,
     E_peak_meas 2 dp, R_half_pred and profile_mape 1 dp. Returns the
@@ -183,7 +183,7 @@ def gate_table(anchors):
 
 
 def envelope_stats(anchors_csv=None, npz_dir=None, progress=None):
-    """True in-sample envelope statistics over the 88 — the stale-claim fix.
+    """True in-sample envelope statistics over the members (stale-claim fix).
 
     Pooled over the same slices the MAPE scores (r <= r_model[-1], smoothed
     E_s >= FLOOR): coverage = share with envelope >= E_s; exceed_gt_015 =
@@ -192,7 +192,8 @@ def envelope_stats(anchors_csv=None, npz_dir=None, progress=None):
     coverage 96.34%, exceed 0.73%, mean overprediction 27.2%, worst single
     exceedance 0.723 at config_26 — superseding the stale 95.0% / 1.5% /
     24% / 0.96-at-config_03 that had been calibrated on pre-refit
-    constants.
+    constants. On the 92-config record (D36): coverage 96.47%, exceed
+    0.71%, mean overprediction 26.84%, worst 0.7233 at config_26.
     """
     say = progress or _say
     anchors_csv = paths.resolve(anchors_csv,
