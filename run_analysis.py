@@ -46,6 +46,8 @@ from blastlib.processing.free_field import (load_ff_lookup,
                                             reference_level_per_theta,
                                             theta_index)
 from blastlib.processing.radius_estimator import resolve_estimator, VALID_METHODS
+from blastlib.processing.null_city import (null_city_processed, mesh_boxes,
+                                           sector_cell_size, per_direction_lambda)
 from blastlib.processing.ff_reference import rebuild_impulse_ratio
 from blastlib.processing.soft_criterion import (soft_pressure_fields,
                                                 soft_pressure_weights)
@@ -184,6 +186,13 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
     if rebuild_impulse and raw_store_in_use:
         progress('  Ignoring --rebuild-impulse: a raw store already computes '
                  'ratioI from the true reference field.')
+    # 'reqdir' normalises MaxR by the null city, built from the raw solver
+    # fields (blastlib/processing/null_city.py) — a processed store has none.
+    normalise_dir = est.get('normalise') == 'dir'
+    if normalise_dir and not raw_store_in_use:
+        raise ValueError(f'{method} needs the v3 raw store (data/raw_npz): the '
+                         f'null city is built from the raw solver fields.')
+    n_theta = est['n_theta']
     progress('')
 
     conv_rows   = []
@@ -299,8 +308,18 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         else:
             all_refP = concat3(processed, 'refP{}')
             all_refI = concat3(processed, 'refI{}')
-        th_idx = theta_index(all_X, all_Z)
+        th_idx = theta_index(all_X, all_Z, n_theta)
         dist_all = np.sqrt(all_X ** 2 + all_Z ** 2)
+
+        # Null city (same holes, free field): per-direction normaliser of MaxR.
+        if normalise_dir:
+            raw, ok = raw_store.load_raw_data(npz_dir, config_name)
+            if not ok:
+                raise RuntimeError(f'{config_name}: raw payload unreadable for the null city')
+            null = null_city_processed(raw)
+            null_P = concat3(null, 'peakP{}_orig')
+            null_I = concat3(null, 'impulse{}_orig')
+            boxes = mesh_boxes(processed)
 
         weight = cfg['weight']
         W13 = float(weight) ** (1 / 3)
@@ -315,8 +334,10 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
             P_ff, I_ff = ff_lookup[weight][z_val]
             r_free = z_val * W13
 
-            lvl_P = reference_level_per_theta(all_refP, dist_all, th_idx, r_free)
-            lvl_I = reference_level_per_theta(all_refI, dist_all, th_idx, r_free)
+            lvl_P = reference_level_per_theta(all_refP, dist_all, th_idx, r_free,
+                                              n_theta=n_theta)
+            lvl_I = reference_level_per_theta(all_refI, dist_all, th_idx, r_free,
+                                              n_theta=n_theta)
             n_fallback += int(np.isnan(lvl_P).sum() + np.isnan(lvl_I).sum())
             n_levels += 2 * len(lvl_P)
             lvl_P = np.where(np.isnan(lvl_P), P_ff, lvl_P)
@@ -334,6 +355,20 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
                 all_I_orig, all_X, all_Z, lvl_I, estimator=est,
                 th_idx=th_idx, dist=dist_all)
 
+            # The domain flags below use the RAW reach (where the load is
+            # measured); the reported MaxR becomes Λ_dir · R_free.
+            raw_P, raw_I = maxR_P, maxR_I
+            if normalise_dir:
+                _, rN_P = find_percentile_radius(null_P, all_X, all_Z, lvl_P, estimator=est,
+                                                 th_idx=th_idx, dist=dist_all)
+                _, rN_I = find_percentile_radius(null_I, all_X, all_Z, lvl_I, estimator=est,
+                                                 th_idx=th_idx, dist=dist_all)
+                lam_P, _ = per_direction_lambda(r_theta_P, rN_P, r_free,
+                                                sector_cell_size(rN_P, n_theta, boxes))
+                lam_I, _ = per_direction_lambda(r_theta_I, rN_I, r_free,
+                                                sector_cell_size(rN_I, n_theta, boxes))
+                maxR_P, maxR_I = lam_P * r_free, lam_I * r_free
+
             maxR_P_per_Z[z_val] = maxR_P
             maxR_I_per_Z[z_val] = maxR_I
             theta_radii_P_per_Z[z_val] = r_theta_P
@@ -345,10 +380,12 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
             # which hid how often it happens. Record the flag and the raw
             # value instead; the exclusion now lives in the fit, in
             # z_urban.z_urban_valid_mask.
-            beyond_P = bool(np.isnan(maxR_P) or maxR_P >= act_R_P)
-            beyond_I = bool(np.isnan(maxR_I) or maxR_I >= act_R_I)
+            beyond_P = bool(np.isnan(raw_P) or raw_P >= act_R_P)
+            beyond_I = bool(np.isnan(raw_I) or raw_I >= act_R_I)
 
-            maxR_rows.append({
+            row_extra = ({'MaxR_P_raw': raw_P, 'MaxR_I_raw': raw_I}
+                         if normalise_dir else {})
+            maxR_rows.append({**row_extra,
                 'Config': config_name,
                 'Z': z_val,
                 'P_ff': P_ff,
@@ -403,11 +440,11 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
             tables_dir / paths.suffixed('theta_radius_I.csv', method), index=False)
 
     # ---- Save max-radius-per-Z table ----
-    maxR_df = pd.DataFrame(maxR_rows, columns=['Config', 'Z', 'P_ff', 'I_ff',
-                                               'MaxR_P', 'MaxR_I',
-                                               'beyond_P', 'beyond_I',
-                                               'R_free', 'ExcludeR',
-                                               'RadiusEstimator'])
+    maxR_cols = ['Config', 'Z', 'P_ff', 'I_ff', 'MaxR_P', 'MaxR_I',
+                 'beyond_P', 'beyond_I', 'R_free', 'ExcludeR', 'RadiusEstimator']
+    if normalise_dir:
+        maxR_cols[6:6] = ['MaxR_P_raw', 'MaxR_I_raw']
+    maxR_df = pd.DataFrame(maxR_rows, columns=maxR_cols)
     maxR_df.to_csv(maxR_csv, index=False)
     progress(f'Saved: {maxR_csv}')
 
@@ -525,11 +562,13 @@ def _build_parser():
     p.add_argument('--figures-dir', default=None, help='Output folder for figures.')
     p.add_argument('--radius-method', default=None,
                    dest='radius_method',
-                   help='How the 91 per-angle radii collapse to one radius: '
+                   help='How the per-angle radii collapse to one radius: '
                         f'{"|".join(VALID_METHODS)}, pXX, or a soft token '
                         "'<base>_soft[beta]' (e.g. req_soft, req_soft8) that "
                         'measures pressure sectors with the soft tanh '
-                        'criterion. Drives BOTH the convergence radius and '
+                        'criterion. reqdir = req on 90 equal sectors with MaxR '
+                        'normalised per direction by the null city (needs '
+                        'data/raw_npz). Drives BOTH the convergence radius and '
                         f'MaxR (default: {constants.RADIUS_ESTIMATOR["method"]}).')
     p.add_argument('--percentile', type=float, default=None,
                    help='Percentile for --radius-method p95 (default 95).')

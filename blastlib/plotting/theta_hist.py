@@ -10,9 +10,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from blastlib.processing.radius_estimator import radius_label
-
-THETA_DEG = np.arange(0, 91, dtype=float)  # 0, 1, ..., 90
+from blastlib.processing.radius_estimator import radius_label, theta_centers_deg
 
 
 def plot_theta_histogram(config_name, r_theta_P, r_theta_I, req_P, req_I,
@@ -22,11 +20,11 @@ def plot_theta_histogram(config_name, r_theta_P, r_theta_I, req_P, req_I,
     Parameters
     ----------
     config_name       : str
-    r_theta_P         : array(91,) — per-theta convergence radius, pressure [m]
-    r_theta_I         : array(91,) — per-theta convergence radius, impulse [m]
+    r_theta_P         : array(n_theta,) — per-theta convergence radius, pressure [m]
+    r_theta_I         : array(n_theta,) — per-theta convergence radius, impulse [m]
     req_P             : float — collapsed radius, pressure [m]
     req_I             : float — collapsed radius, impulse [m]
-    theta_centers_deg : array(91,) — theta bin centres in degrees (0..90)
+    theta_centers_deg : array(n_theta,) — sector centres [deg] (91 or 90 sectors)
     fig_folder        : str — output directory (must already exist)
     method            : str — radius-estimator token, used to label the line
     """
@@ -65,8 +63,10 @@ def plot_theta_histogram_Z(config_name, theta_radii_per_Z, req_per_Z,
     Parameters
     ----------
     config_name        : str
-    theta_radii_per_Z  : dict {z_val (int): array(91,)} — per-theta radii
-    req_per_Z          : dict {z_val (int): float} — scalar Req per Z
+    theta_radii_per_Z  : dict {z_val (int): array(n_theta,)} — per-theta raw
+                         radii (91 legacy or 90 equal sectors)
+    req_per_Z          : dict {z_val (int): float} — scalar radius per Z (for
+                         'reqdir' the normalised MaxR, drawn over raw bars)
     quantity_label     : str — 'P' or 'I', used in title and filename
     fig_folder         : str — output directory (must already exist)
     """
@@ -86,7 +86,8 @@ def plot_theta_histogram_Z(config_name, theta_radii_per_Z, req_per_Z,
         req     = req_per_Z.get(z_val, np.nan)
 
         heights = np.nan_to_num(r_theta, nan=0.0)
-        ax.bar(THETA_DEG, heights, width=0.8, color=color, edgecolor='none')
+        ax.bar(theta_centers_deg(len(r_theta)), heights, width=0.8,
+               color=color, edgecolor='none')
 
         if not np.isnan(req) and req > 0:
             ax.axhline(req, color='red', linestyle='--', linewidth=1.0)
