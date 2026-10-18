@@ -14,6 +14,13 @@ way to configure them separately.
 
 The three collapse methods are carried over verbatim from the code they
 replace; 'req' and 'p95' reproduce the previous behaviour exactly.
+
+Sector layouts. The legacy tokens keep 91 sectors centred on whole degrees,
+the two end sectors half-width but summed as full width in req (an area of
+91 deg instead of 90: Req ~0.45% long, more where the street axes are long).
+The 'reqdir' token uses 90 equal sectors [k, k+1) deg, so req integrates
+exactly 90 deg (docs/PLAN_LAMBDA_ZURBAN_HE.md, decision H1). The legacy
+layout is kept so the req_soft3 record stays reproducible.
 """
 
 import re
@@ -22,10 +29,13 @@ import numpy as np
 
 from blastlib import constants
 
-N_THETA = 91                # 0, 1, 2, ..., 90 degrees
+N_THETA = 91                # legacy: 0, 1, 2, ..., 90 degrees
+N_THETA_EQUAL = 90          # 'reqdir': [0,1), [1,2), ..., [89,90] degrees
 DEFAULT_DTHETA_DEG = 1.0    # angular bin width
 
-VALID_METHODS = ('req', 'max', 'p95')
+# 'reqdir' = req collapse on 90 equal sectors, with MaxR normalised per
+# direction by the null city (processing/null_city.py; PLAN H1 + H2).
+VALID_METHODS = ('req', 'max', 'p95', 'reqdir')
 
 # A '<base>_soft[<beta>]' token (e.g. 'req_soft', 'req_soft8') selects the
 # soft pressure criterion (processing/soft_criterion.py) on top of the same
@@ -35,7 +45,7 @@ _SOFT_RE = re.compile(r'^(?P<base>.+?)_soft(?P<beta>\d+(?:\.\d+)?)?$')
 # How each method is written on a figure, so plots stay honest when the
 # collapse is not the equivalent-area radius. Percentile tokens ('p95', 'p99')
 # are already readable and fall through unchanged.
-RADIUS_LABEL = {'req': 'Req', 'max': 'Rmax'}
+RADIUS_LABEL = {'req': 'Req', 'max': 'Rmax', 'reqdir': 'Req,dir'}
 
 
 def radius_label(method):
@@ -43,16 +53,28 @@ def radius_label(method):
     return RADIUS_LABEL.get(method, method)
 
 
-def theta_bin_edges():
-    """Return the 92 bin edges (radians) for the 91 angular bins.
+def theta_bin_edges(n_theta=N_THETA):
+    """Return the n_theta+1 bin edges (radians) of the angular sectors.
 
-    Each bin is centred on its integer degree and spans +/- 0.5 deg, with the
-    first and last clipped to [0, pi/2] (so bins 0 and 90 are half-width).
+    n_theta = 91 (legacy): each bin is centred on its integer degree and spans
+    +/- 0.5 deg, the first and last clipped to [0, pi/2] (half-width ends).
+    n_theta = 90: equal 1-deg sectors [k, k+1) deg, k = 0..89.
     """
+    if n_theta == N_THETA_EQUAL:
+        return np.radians(np.arange(0.0, 91.0, 1.0))
+    if n_theta != N_THETA:
+        raise ValueError(f'n_theta must be {N_THETA} or {N_THETA_EQUAL}, got {n_theta}')
     edges = np.radians(np.arange(-0.5, 91.0, 1.0))
     edges[0] = 0.0
     edges[-1] = np.pi / 2
     return edges
+
+
+def theta_centers_deg(n_theta=N_THETA):
+    """Sector centres [deg]: 0..90 (legacy, 91) or 0.5..89.5 (equal, 90)."""
+    if n_theta == N_THETA_EQUAL:
+        return np.arange(0.5, 90.0, 1.0)
+    return np.arange(0, N_THETA, dtype=float)
 
 
 def in_theta_bin(theta, bin_edges, i):
@@ -61,7 +83,7 @@ def in_theta_bin(theta, bin_edges, i):
     Bins are half-open [lo, hi) except the last, which is closed so that
     theta == pi/2 is not dropped.
     """
-    if i == N_THETA - 1:
+    if i == len(bin_edges) - 2:
         return (theta >= bin_edges[i]) & (theta <= bin_edges[i + 1])
     return (theta >= bin_edges[i]) & (theta < bin_edges[i + 1])
 
@@ -95,8 +117,8 @@ def _parse_method(method, percentile):
         method = 'req'
     m, _ = _split_soft(method)
 
-    if m == 'req':
-        return 'req', percentile
+    if m in ('req', 'reqdir'):
+        return m, percentile
     if m == 'max':
         return 'max', percentile
     if m == 'percentile':
@@ -116,7 +138,8 @@ def reduce_theta_radii(r_per_theta, method='req', percentile=95,
     """Reduce a per-angle radius array to a scalar radius.
 
     method:
-      'req'  -> equivalent-area radius: sqrt(4A/pi), A = sum(0.5*r_i^2*dtheta)
+      'req', 'reqdir'
+             -> equivalent-area radius: sqrt(4A/pi), A = sum(0.5*r_i^2*dtheta)
       'max'  -> np.nanmax(r_per_theta)
       'pXX'  -> np.nanpercentile(r_per_theta, percentile)
 
@@ -131,7 +154,7 @@ def reduce_theta_radii(r_per_theta, method='req', percentile=95,
     radii = np.asarray(r_per_theta, dtype=float)
     kind, p = _parse_method(method, percentile)
 
-    if kind == 'req':
+    if kind in ('req', 'reqdir'):
         delta_theta = np.radians(dtheta_deg)
         valid = ~np.isnan(radii)
         if not np.any(valid):
@@ -164,7 +187,9 @@ def resolve_estimator(estimator=None):
     the suffix beta (used by --soft-beta); it is ignored for hard tokens.
     'base_method' is the collapse token and 'soft_beta' is None on the hard
     path — existing callers that only read 'method'/'percentile' are
-    unaffected.
+    unaffected. 'n_theta' is the sector layout (91 legacy, 90 for 'reqdir')
+    and 'normalise' is 'dir' for 'reqdir' (MaxR per-direction null-city
+    normalisation), else None.
     """
     default = dict(constants.RADIUS_ESTIMATOR)
 
@@ -194,8 +219,11 @@ def resolve_estimator(estimator=None):
         percentile = settings.get('percentile', 95)
 
     token = base if soft_beta is None else f'{base}_soft{soft_beta:g}'
+    is_dir = base == 'reqdir'
     return {'method': token, 'percentile': percentile,
-            'base_method': base, 'soft_beta': soft_beta}
+            'base_method': base, 'soft_beta': soft_beta,
+            'n_theta': N_THETA_EQUAL if is_dir else N_THETA,
+            'normalise': 'dir' if is_dir else None}
 
 
 def method_label(estimator=None):

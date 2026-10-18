@@ -3,8 +3,8 @@
 Provides functions to load the free-field reference data (pressure and impulse
 at scaled distances Z=1-20 for each charge weight) and to find the radius of
 the exceedance region — the outermost cells where the urban field still
-reaches at least the free-field value — using angular binning (91 bins
-covering 0-90 degrees).
+reaches at least the free-field value — using angular binning over 0-90
+degrees (91 legacy sectors, or 90 equal ones for the 'reqdir' token).
 
 The per-bin radii are collapsed to one scalar by the SAME configurable
 estimator the convergence radius uses (see processing/radius_estimator.py and
@@ -56,22 +56,22 @@ def _percentile_radius(radii, p=95):
     return reduce_theta_radii(radii, method='percentile', percentile=p)
 
 
-def theta_index(all_X, all_Zc):
-    """Angular-bin index (0..90) of every cell; -1 outside the first quadrant.
+def theta_index(all_X, all_Zc, n_theta=N_THETA):
+    """Angular-bin index (0..n_theta-1) of every cell; -1 outside the first quadrant.
 
     Computed once per configuration and reused for all 20 free-field levels —
-    the binning does not depend on Z.
+    the binning does not depend on Z. n_theta: 91 (legacy) or 90 ('reqdir').
     """
     theta = np.arctan2(np.asarray(all_Zc, float), np.asarray(all_X, float))
-    edges = theta_bin_edges()
+    edges = theta_bin_edges(n_theta)
     idx = np.digitize(theta, edges) - 1
     # theta == pi/2 lands one past the last bin; the last bin is closed.
-    idx = np.where(theta == edges[-1], N_THETA - 1, idx)
-    return np.where((idx >= 0) & (idx < N_THETA), idx, -1)
+    idx = np.where(theta == edges[-1], n_theta - 1, idx)
+    return np.where((idx >= 0) & (idx < n_theta), idx, -1)
 
 
 def reference_level_per_theta(ref_vals, dist, th_idx, r_target, tol=0.6,
-                              max_tol=4.0):
+                              max_tol=4.0, n_theta=N_THETA):
     """Free-field level at radius *r_target*, per angular sector.
 
     The reference field is a simulation on the same Cartesian mesh as the
@@ -86,9 +86,9 @@ def reference_level_per_theta(ref_vals, dist, th_idx, r_target, tol=0.6,
     at small radius or across a grid seam still yields a level. Sectors that
     stay empty are returned NaN for the caller to fall back on.
 
-    Returns (91,) array.
+    Returns (n_theta,) array; n_theta must match the layout of *th_idx*.
     """
-    out = np.full(N_THETA, np.nan)
+    out = np.full(n_theta, np.nan)
     finite = np.isfinite(ref_vals) & (ref_vals > 0) & (th_idx >= 0)
     if not np.any(finite):
         return out
@@ -111,10 +111,12 @@ def find_percentile_radius(all_vals, all_X, all_Zc, ff_val, estimator=None,
 
     Identifies cells whose values are at least the free-field reference value
     (the exceedance region — "how far does the urban field still deliver at
-    least this load"), bins them into 91 angular bins (0-90 degrees, 1-degree
-    spacing), finds the maximum distance in each bin (the outer exceedance
-    boundary per direction), then collapses those per-bin maxima with the
-    configured estimator.
+    least this load"), bins them into the estimator's angular sectors (91
+    legacy or 90 equal, over 0-90 degrees), finds the maximum distance in each
+    bin (the outer exceedance boundary per direction), then collapses those
+    per-bin maxima with the configured estimator. The result is the RAW reach;
+    the 'reqdir' per-direction normalisation is applied by the caller
+    (processing/null_city.py).
 
     Parameter-free by construction: replaces the earlier tolerance-band
     matching (|val - ff_val| <= tol*ff_val), which inflated MaxR near the
@@ -127,7 +129,7 @@ def find_percentile_radius(all_vals, all_X, all_Zc, ff_val, estimator=None,
         Flattened array of field values (pressure or impulse).
     all_X, all_Zc : np.ndarray
         Flattened coordinates corresponding to all_vals.
-    ff_val : float or (91,) array
+    ff_val : float or (n_theta,) array
         Free-field exceedance threshold. A scalar applies one level in every
         direction (the historical behaviour, and the fallback when no
         reference field is available). An array applies ff_val[i] in sector i
@@ -160,31 +162,32 @@ def find_percentile_radius(all_vals, all_X, all_Zc, ff_val, estimator=None,
     th_idx, dist : np.ndarray or None
         Precomputed theta_index(...) and cell distances. Supplied by callers
         that loop over many levels for one configuration; computed here when
-        omitted.
+        omitted. th_idx must use the estimator's sector layout.
 
     Returns
     -------
     tuple(float, np.ndarray)
         - The collapsed radius (scalar, may be NaN).
-        - Array of shape (91,) with the max radius per angular bin.
+        - Array of shape (n_theta,) with the max radius per angular bin.
     """
     est = resolve_estimator(estimator)
+    n_theta = est['n_theta']
 
     if dist is None:
         dist = np.sqrt(np.asarray(all_X, float) ** 2
                        + np.asarray(all_Zc, float) ** 2)
     if th_idx is None:
-        th_idx = theta_index(all_X, all_Zc)
+        th_idx = theta_index(all_X, all_Zc, n_theta)
 
     level = np.asarray(ff_val, dtype=float)
     if level.ndim == 0:
         threshold = np.full(len(all_vals), float(level))
     else:
-        if level.shape != (N_THETA,):
-            raise ValueError(f'ff_val must be a scalar or a ({N_THETA},) '
+        if level.shape != (n_theta,):
+            raise ValueError(f'ff_val must be a scalar or a ({n_theta},) '
                              f'array, got shape {level.shape}')
         if np.all(np.isnan(level)):
-            return np.nan, np.full(N_THETA, np.nan)
+            return np.nan, np.full(n_theta, np.nan)
         level = np.where(np.isnan(level), np.nanmedian(level), level)
         threshold = np.where(th_idx >= 0, level[th_idx], np.inf)
 
@@ -192,9 +195,9 @@ def find_percentile_radius(all_vals, all_X, all_Zc, ff_val, estimator=None,
         match = (~np.isnan(all_vals) & (all_vals >= threshold)
                  & (dist > exclude_r) & (th_idx >= 0))
     if not np.any(match):
-        return np.nan, np.full(N_THETA, np.nan)
+        return np.nan, np.full(n_theta, np.nan)
 
-    r_per_theta = np.full(N_THETA, np.nan)
+    r_per_theta = np.full(n_theta, np.nan)
     m_idx, m_dist = th_idx[match], dist[match]
     for i in np.unique(m_idx):
         r_per_theta[i] = float(np.max(m_dist[m_idx == i]))

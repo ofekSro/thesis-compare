@@ -1,8 +1,11 @@
 """Find convergence radius using angular binning (theta slices).
 
-Splits the first quadrant into 91 angular samples (0, 1, 2, ..., 90 deg),
-finds the convergence radius per sample using far-to-near scanning, then
-collapses the per-theta radii into a single scalar radius.
+Splits the first quadrant into angular sectors — 91 centred on whole degrees
+(legacy tokens) or 90 equal sectors [k, k+1) deg ('reqdir') — finds the
+convergence radius per sector by far-to-near scanning, then collapses the
+per-sector radii into a single scalar radius. The pressure scan is soft
+(tanh weights, beta from the token, e.g. req_soft3) when soft weights are
+passed; the impulse scan is always hard.
 
 The collapse is configurable — equivalent area (the default), max, or a
 percentile — and comes from the SAME setting that drives the MaxR radius in
@@ -13,8 +16,8 @@ processing/radius_estimator.py and constants.RADIUS_ESTIMATOR.
 import numpy as np
 
 from blastlib.processing.radius_estimator import (
-    N_THETA, DEFAULT_DTHETA_DEG, in_theta_bin, reduce_theta_radii,
-    resolve_estimator, theta_bin_edges,
+    DEFAULT_DTHETA_DEG, in_theta_bin, reduce_theta_radii,
+    resolve_estimator, theta_bin_edges, theta_centers_deg,
 )
 
 TOLERANCE = 0.05
@@ -134,9 +137,10 @@ def find_convergence_radius(ratio_P, ratio_I, peak_P, peak_I, X, Z, exclude_r,
                             estimator=None, soft_w_P=None):
     """Find convergence radius using angular binning + a scalar collapse.
 
-    Samples the first quadrant at 91 angles (0-90 deg, 1 deg spacing) and
-    finds the convergence radius per angle, then collapses those per-theta
-    radii with the configured estimator.
+    Samples the first quadrant in the estimator's sector layout (91 legacy
+    sectors, or 90 equal ones for 'reqdir') and finds the convergence radius
+    per sector, then collapses those per-theta radii with the configured
+    estimator.
 
     estimator : dict, str or None
         None uses constants.RADIUS_ESTIMATOR — the same setting free_field.py
@@ -153,22 +157,19 @@ def find_convergence_radius(ratio_P, ratio_I, peak_P, peak_I, X, Z, exclude_r,
         theta_centers, radius_per_theta_P, radius_per_theta_I
     """
     est = resolve_estimator(estimator)
+    n_theta = est['n_theta']
     dist = np.sqrt(X ** 2 + Z ** 2)
     theta = np.arctan2(Z, X)  # [0, pi/2] for first quadrant
 
-    # 91 sample angles: 0, 1, 2, ..., 90 degrees
-    thetas_deg = np.arange(0, N_THETA, dtype=float)
-    thetas_rad = np.radians(thetas_deg)
+    thetas_rad = np.radians(theta_centers_deg(n_theta))
+    bin_edges = theta_bin_edges(n_theta)  # n_theta + 1 edges
 
-    # Bin edges: each theta ± 0.5 deg, clipped to [0, pi/2]
-    bin_edges = theta_bin_edges()  # 92 edges
+    r_P = np.full(n_theta, np.nan)
+    r_I = np.full(n_theta, np.nan)
+    val_P = np.full(n_theta, np.nan)
+    val_I = np.full(n_theta, np.nan)
 
-    r_P = np.full(N_THETA, np.nan)
-    r_I = np.full(N_THETA, np.nan)
-    val_P = np.full(N_THETA, np.nan)
-    val_I = np.full(N_THETA, np.nan)
-
-    for i in range(N_THETA):
+    for i in range(n_theta):
         in_bin = in_theta_bin(theta, bin_edges, i)
 
         if not np.any(in_bin):
