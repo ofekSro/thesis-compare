@@ -53,6 +53,30 @@ def test_widget_dicts_resolve_to_canonical_tokens():
     assert est['method'] == 'p97_soft4.5' and est['soft_beta'] == 4.5
 
 
+def test_reqdir_radio_resolves_to_its_token():
+    """'Req, per direction' + soft beta 3 must be exactly the production token."""
+    assert estimator_value('reqdir', '95', 'hard', '3') == {'method': 'reqdir'}
+    est = resolve_estimator(estimator_value('reqdir', '95', 'soft', '3'))
+    assert est['method'] == 'reqdir_soft3'
+    assert est['n_theta'] == 90 and est['normalise'] == 'dir'
+
+
+def test_reqdir_status_probe(tmp_path):
+    from gui.specs import reqdir_status
+    ok, reason = reqdir_status(tmp_path / 'nope')
+    assert not ok and 'raw store' in reason
+
+
+def test_analysis_requirements_add_reqdir_check(tmp_path):
+    from gui.specs import analysis_requirements
+    reqs = analysis_requirements({'phase': '1', 'npz_dir': str(tmp_path),
+                                  'radius_estimator': {'method': 'reqdir_soft', 'soft_beta': 3}})
+    checks = [r for r in reqs if r.get('label') == 'per-direction Req inputs']
+    assert len(checks) == 1 and 'raw store' in checks[0]['fn']()
+    legacy = analysis_requirements({'phase': '1', 'radius_estimator': {'method': 'req'}})
+    assert not any(r.get('label') == 'per-direction Req inputs' for r in legacy)
+
+
 # ---- v2 probe ----
 
 def test_raw_fields_probe_missing_dir(tmp_path):

@@ -59,6 +59,17 @@ def soft_npz_status(npz_dir=None):
     return raw_fields_available(npz_dir)
 
 
+def reqdir_status(npz_dir=None):
+    """(ok, reason) — can the 'reqdir' estimator run? It builds the null city
+    from the raw solver fields, which only the v3 raw store carries."""
+    from blastlib.io import raw_store
+    d = npz_dir or paths.RAW_NPZ_DIR
+    if raw_store.is_raw_dir(d):
+        return True, ''
+    return False, (f'per-direction Req needs the v3 raw store (data/raw_npz, built '
+                   f'on the Preprocess tab); none found in {d}')
+
+
 def available_radius_methods():
     """Estimator tokens with a convergence table on disk, for the read-side
     dropdowns — hard and soft runs then display side by side, each from its
@@ -159,8 +170,15 @@ def analysis_requirements(values):
 
     est = resolve_estimator(values.get('radius_estimator')
                             or values.get('radius_method'))
+    reqdir_check = []
+    if est.get('normalise') == 'dir':
+        dir_npz = values.get('npz_dir') or paths.default_npz_dir(soft=True)
+        reqdir_check = [{'kind': 'check', 'label': 'per-direction Req inputs',
+                         'fn': lambda: reqdir_status(dir_npz)[1],
+                         'hint': 'reqdir builds the null city from the raw solver '
+                                 'fields: point the NPZ folder at data/raw_npz.'}]
     if est.get('soft_beta') is None:
-        return [_ff_required(), _npz_required(values.get('npz_dir'))]
+        return [_ff_required(), _npz_required(values.get('npz_dir'))] + reqdir_check
 
     npz_dir = values.get('npz_dir') or paths.default_npz_dir(soft=True)
     return [_ff_required(), _npz_required(npz_dir),
@@ -169,7 +187,7 @@ def analysis_requirements(values):
              'hint': 'Soft runs need the raw band fields: the raw store '
                      '(data/raw_npz, built on the Preprocess tab) produces '
                      'them at load time, and the v2 superset carries them on '
-                     'disk. A v1 folder cannot serve them.'}]
+                     'disk. A v1 folder cannot serve them.'}] + reqdir_check
 
 
 # --------------------------------------------------------------------------
@@ -202,10 +220,13 @@ TABS = [
             {'key': 'radius_estimator', 'label': 'Radius estimator',
              'kind': 'estimator', 'default': constants.RADIUS_ESTIMATOR,
              'soft_status_fn': soft_npz_status,
-             'help': 'Collapses the 91 per-angle radii to one scalar. Drives '
+             'reqdir_status_fn': reqdir_status,
+             'help': 'Collapses the per-angle radii to one scalar. Drives '
                      'BOTH the convergence radius and MaxR; outputs are '
                      'suffixed with it (soft runs as e.g. req_soft4). Soft '
-                     'reads the v2 NPZ superset.'},
+                     'reads the v2 NPZ superset. "Req, per direction" '
+                     '(reqdir) uses 90 equal sectors and normalises MaxR per '
+                     'direction by the null city; it needs data/raw_npz.'},
             {'key': 'npz_dir', 'label': 'NPZ folder', 'kind': 'path', 'browse': 'dir',
              'default': '', 'help': 'blank = data/processed_npz/'},
             {'key': 'ff_csv', 'label': 'Free-field CSV', 'kind': 'path', 'browse': 'file',
