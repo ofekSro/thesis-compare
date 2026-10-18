@@ -111,13 +111,21 @@ Phase 2 runs the cross-validated regression over those tables.
 ### The radius estimator
 
 Both the convergence radius and the MaxR / Z_urban radius reduce the same
-object — 91 per-angle radii covering 0–90° — to a single number.
-`--radius-method {req,max,p95}` (plus `--percentile N`) chooses how, and it
+object — per-angle radii covering 0–90° — to a single number.
+`--radius-method {req,max,p95,reqdir}` (plus `--percentile N`) chooses how, and it
 drives **both**; there is deliberately no way to set them separately, because
 comparing an area average (`req`) against a near-maximum (`p95`) is what made
 `MaxR ≥ R_conv` in a large share of rows. The default lives in
 `blastlib/constants.py::RADIUS_ESTIMATOR` and the maths in
 `blastlib/processing/radius_estimator.py`.
+
+`--radius-method reqdir_soft3` (2026-10-18) is the per-direction normalised
+Z_urban: 90 equal sectors [k, k+1)° instead of 91, and MaxR compared per
+direction with the *null city* (free field, same buildings) so that the
+building-front penalty cancels. It needs `data/raw_npz`, adds about one null
+city per config to Phase 1, and writes `MaxR_P_raw` / `MaxR_I_raw` beside the
+normalised `MaxR_*`. The legacy tokens (`req_soft3`, …) are unchanged. See
+`docs/ALGORITHM.md` §Step 1 and `docs/PLAN_LAMBDA_ZURBAN_HE.md`.
 
 Every output is suffixed with the method (`convergence_table_req.csv`,
 `convergence_table_p95.csv`, …) and Phase-1 figures go to

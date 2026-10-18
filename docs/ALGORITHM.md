@@ -197,6 +197,33 @@ W = 50 kg configurations).
   reference is deficient near its outer edge, which inflated a handful of
   large-charge impulse rows). Z_urban = R/W^⅓.
 
+- **Z_urban, per-direction normalised (`reqdir_soft3`, 2026-10-18).** Taking
+  the outermost exceedance cell has a geometric bias: in a direction where
+  R_free falls inside a building, that cell is the building's front face, so
+  the reach is short even when the city does nothing to the wave. Fed the
+  free field with the buildings cut out (the *null city*), the scan gives
+  Λ_P ≈ 0.92 on the fit domain, 0.78 for 30 m blocks on 5 m streets, instead
+  of 1; in 168 of 306 pressure rows read as attenuation, the attenuation is no
+  larger than this penalty alone. The `reqdir` token therefore compares, per
+  direction, the real city with the null city of the same configuration —
+  same holes, same scan — and with R_free where the real load passed the
+  building (comparing it with the front would over-correct: a whole-row
+  normalisation reached Λ = 3–4.6). Λ_dir = √(Σ r_real² / Σ d²), MaxR =
+  Λ_dir·R_free; the raw reach is kept in `MaxR_*_raw` and still defines the
+  `beyond_*` flags. Directions where both cities stop at the same front
+  (≈29% of pressure sectors) count as "no effect" — an assumption, so the
+  remaining bias is towards a low Λ. The token also uses 90 equal sectors
+  [k, k+1)° instead of 91 integer-centred ones, whose two half-width ends
+  were summed as full width (area of 91° instead of 90°: radii ≈0.45% long).
+  On the fit domain the median Λ_P moves 1.014 → 1.128 and Λ_I 1.277 → 1.306
+  (`max_radius_per_Z_reqdir_soft3.csv`), pressure rows read as attenuation
+  fall 306 → 148, and Λ_P becomes monotone in ρ (1.03 at ρ = 0.18 → 1.26 at
+  ρ = 0.74). Z_urban LOGO (36 families): P mean 8.5 → 9.4%, max 18.1 → 17.5%;
+  I mean 7.6 → 7.1%, max 15.5 → 12.9%. Z_urban measures *reach* — how far the
+  load level L extends, averaged over directions — not the typical load at a
+  given distance. Code: `processing/null_city.py`; evidence and decisions:
+  `docs/PLAN_LAMBDA_ZURBAN_HE.md` (A4, N1, N2, H1–H5).
+
 The single estimator collapses both radii from the same 91 sectors, so the
 *aggregation* is shared. The per-sector criteria are deliberately not: R_conv
 uses a tolerance band and a three-cell streak, MaxR a zero-tolerance single
