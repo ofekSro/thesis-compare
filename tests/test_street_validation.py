@@ -94,10 +94,12 @@ def test_validation_matches_pinned(street_full_data, street_anchors_csv,
         rtol=1e-12, atol=1e-12)
     assert status == 'PASS', detail
     hs = validation.headline_stats(val)
-    assert hs['mean'] == pytest.approx(9.6109, abs=0.005)
-    assert hs['median'] == pytest.approx(8.45, abs=0.005)
-    assert hs['p90'] == pytest.approx(17.09, abs=0.01)
-    assert hs['max'] == 31.0
+    # 2026-10-19, D44 (free-field reference re-run): previous headline
+    # 9.6109 / 8.45 / 17.09 / 31.0.
+    assert hs['mean'] == pytest.approx(9.6478, abs=0.005)
+    assert hs['median'] == pytest.approx(8.65, abs=0.005)
+    assert hs['p90'] == pytest.approx(17.10, abs=0.01)
+    assert hs['max'] == 31.1
 
 
 @pytest.mark.slow
@@ -105,9 +107,11 @@ def test_envelope_true_stats(street_full_data, street_anchors_csv):
     # The corrected-claims lock: code and doc can never drift apart again.
     env = validation.envelope_stats(street_anchors_csv, street_full_data,
                                     progress=lambda _m: None)
-    assert env['coverage'] == pytest.approx(96.47, abs=0.05)
+    # 2026-10-19, D44 (free-field reference re-run): previous values
+    # 96.47 / 0.71 / 26.84 / 0.7233 / config_26 / 10907 slices.
+    assert env['coverage'] == pytest.approx(96.49, abs=0.05)
     assert env['exceed_gt_015'] == pytest.approx(0.71, abs=0.05)
-    assert env['mean_overpred'] == pytest.approx(26.84, abs=0.2)
-    assert env['worst_exceed'] == pytest.approx(0.7233, abs=0.002)
+    assert env['mean_overpred'] == pytest.approx(26.79, abs=0.2)
+    assert env['worst_exceed'] == pytest.approx(0.7226, abs=0.002)
     assert env['worst_cfg'].startswith('config_26')
-    assert env['n_slices'] == 10907
+    assert env['n_slices'] == 10913

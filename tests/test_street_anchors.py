@@ -79,13 +79,18 @@ def test_positive_slope_guard():
 # and R_half_slope moved by 4e-9..1.3e-7 relative; previous values
 # 0.5: 2.1382381088898073 / 21.69532474629278 / 29.78805317922525,
 # 2.0: 2.1510517261644613 / 23.982629069734468 / 31.62349172210143.
+# 2026-10-19, D44 (free-field reference re-run): previous goldens
+# 0.5: E_peak 2.1382380170800803, L_decay 21.695324925239113, R_half_slope
+#      29.7880533032614, R_half_cross 42.25, n_fit 36, span_fit 17.5;
+# 2.0: E_peak 2.1510519742356853, L_decay 23.982632152542237, R_half_slope
+#      31.623493858940943, R_half_cross 43.0, n_fit 13, span_fit 24.0.
 GOLDEN_93 = {
-    0.5: dict(R_peak=14.75, E_peak=2.1382380170800803,
-              L_decay=21.695324925239113, R_half_slope=29.7880533032614,
-              R_half_cross=42.25, n_fit=36, span_fit=17.5),
-    2.0: dict(R_peak=15.0, E_peak=2.1510519742356853,
-              L_decay=23.982632152542237, R_half_slope=31.623493858940943,
-              R_half_cross=43.0, n_fit=13, span_fit=24.0),
+    0.5: dict(R_peak=14.75, E_peak=2.1825524800954836,
+              L_decay=24.802936660199048, R_half_slope=31.942085615623878,
+              R_half_cross=35.25, n_fit=53, span_fit=26.0),
+    2.0: dict(R_peak=15.0, E_peak=2.1950976637595163,
+              L_decay=25.01629898959679, R_half_slope=32.33997711268363,
+              R_half_cross=35.0, n_fit=14, span_fit=26.0),
 }
 
 
@@ -137,4 +142,5 @@ def test_anchors_match_pinned(street_full_data, street_anchors_csv,
     status, detail = compare_csv(street_anchors_csv, out_csv,
                                  rtol=1e-12, atol=1e-12)
     assert status == 'PASS', detail
-    assert int(df.L_decay.isna().sum()) == 17     # the s=20 rows (D36)
+    # the s=20 rows (D36); 17 before the free-field re-run (D44)
+    assert int(df.L_decay.isna().sum()) == 16

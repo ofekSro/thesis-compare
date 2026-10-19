@@ -38,9 +38,12 @@ ANCHORS = {
 # 2026-09-30, D35 (c) (impulse floor on the scaled impulse, I / W^(1/3) <
 # 23.6): impulse anchors re-pinned; pressure unchanged. Previous impulse
 # anchors (D24): 96.79195307749274 / 89.38632616656507.
+# 2026-10-19, D44 (free-field reference runs re-run to completion, raw_npz
+# rebuilt): previous anchors (65.1864661950623, 115.59479755690663) and
+# (40.49157782798788, 119.96560143548557).
 RAW_ANCHORS = {
-    'config_93_det2_b10_s5_h15_w250': (65.1864661950623, 115.59479755690663),
-    'config_95_det2_b10_s5_h24_w250': (40.49157782798788, 119.96560143548557),
+    'config_93_det2_b10_s5_h15_w250': (65.59199169868224, 115.59693431152154),
+    'config_95_det2_b10_s5_h24_w250': (40.500319443184644, 119.95544392722564),
 }
 
 

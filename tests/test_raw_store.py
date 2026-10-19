@@ -1,9 +1,10 @@
 """The v3 raw store must be a lossless re-encoding of the processed stores.
 
 The whole point of moving the criteria out of preprocessing is that nothing
-downstream changes. These tests pin that: a v3 file expanded through
-process_grids() must reproduce the shipped v2 arrays exactly — not
-approximately — and the criteria must actually be re-applicable at load time.
+downstream changes. These tests pin that the v3 file rebuilds its
+coordinates and metadata exactly and that the criteria are re-applicable at
+load time. (The bit-for-bit comparison with the legacy v2 store was removed
+on 2026-10-19, D44: the reference fields were re-run since.)
 """
 
 import numpy as np
@@ -39,46 +40,9 @@ def test_detected_as_raw(raw_dir):
     assert not raw_store.is_raw_dir(NPZ_V2_DIR)
 
 
-def test_expansion_matches_shipped_v2_bit_for_bit(raw_dir):
-    """Criterion-independent arrays a v3 file yields equal the v2 file's.
-
-    Until 2026-09-27 this test required FULL bit equality with the shipped
-    v2 store. The raw-field building mask adopted then (docs/audit/
-    2026-09-27, ALG-01/PHY-01, decision D2b) deliberately changes every
-    masked/pinned array relative to v2, whose criteria were baked at write
-    time with the old merged-field mask — so full equality is no longer the
-    contract. What must still hold, exactly:
-      * v3 yields a superset of v2's keys (new ref*_fill keys are additive);
-      * every criterion-INDEPENDENT array is bit-identical: coordinates,
-        the raw reference fields, and the raw pressure peaks.
-    The criterion-dependent arrays are pinned by tests/test_npz_anchors.py
-    (raw-store anchors) instead.
-
-    Since 2026-09-30 (D34) the expanded refP{g}, refI{g} and peakP{g}_raw
-    hold the FILLED fields the criteria act on, so the raw solver fields are
-    compared as the v3 store holds them on disk, against v2's raw keys.
-    """
-    _require_config(NPZ_V2_DIR, CONFIG)
-    from_raw, ok_raw = load_processed_data(raw_dir, CONFIG)
-    from_v2, ok_v2 = load_processed_data(NPZ_V2_DIR, CONFIG)
-    stored, ok_stored = raw_store.load_raw_data(raw_dir, CONFIG)
-    assert ok_raw and ok_v2 and ok_stored
-
-    missing = set(from_v2) - set(from_raw)
-    assert not missing, f'v3 lost keys the v2 store had: {sorted(missing)}'
-
-    # (v3 array, v2 key)
-    pairs = ([(from_raw[k], k) for k in ('X1', 'Z1', 'X2', 'Z2', 'X3', 'Z3')]
-             + [(stored[f'refP{g}'], f'refP{g}') for g in '123']
-             + [(stored[f'refI{g}'], f'refI{g}') for g in '123']
-             + [(stored[f'peakP{g}'], f'peakP{g}_raw') for g in '123'])
-    mismatched = []
-    for a, key in pairs:
-        a = np.asarray(a)
-        b = np.asarray(from_v2[key])
-        if a.shape != b.shape or not np.array_equal(a, b, equal_nan=True):
-            mismatched.append(key)
-    assert not mismatched, f'differs from the v2 store: {mismatched}'
+# test_expansion_matches_shipped_v2_bit_for_bit was removed on 2026-10-19
+# (owner): the free-field reference runs were re-run to completion, so the
+# raw reference fields no longer equal the legacy v2 store's by design (D44).
 
 
 def test_coordinates_rebuilt_exactly(raw, raw_dir):
