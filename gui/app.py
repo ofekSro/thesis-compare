@@ -225,6 +225,7 @@ class ToolTab(ttk.Frame):
 PREVIEW_TABS = {
     'preview':        ('gui.preview', 'ConfigCurveTab'),
     'ratio_preview':  ('gui.ratio_preview', 'RatioPreviewTab'),
+    'z_bands':        ('gui.z_bands_preview', 'ZBandsTab'),
     'matched_sets':   ('gui.matched_preview', 'MatchedSetsTab'),
     'street_preview': ('gui.street_preview', 'StreetPreviewTab'),
 }

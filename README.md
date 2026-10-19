@@ -85,6 +85,12 @@ Notes:
   window is open. They cannot be cancelled mid-run.
 - The **3D Viewer** tab disables itself with an explanation if `pyvista` is not
   installed.
+- The **Z Bands** tab colours one config's street floor by the smallest listed
+  Z_free whose free-field level each cell reaches (per direction, as the MaxR
+  loop), cut at the last Z whose MaxR lies inside R_conv, with MaxR and R_conv
+  circles from the phase-1 tables of the chosen estimator (the raw reach for
+  `reqdir`). Read-only; Save figure writes only where you choose.
+  Logic: `blastlib/processing/z_bands.py`, `blastlib/plotting/z_bands.py`.
 
 The GUI is a thin launcher: it only calls the same `main()` functions the CLI
 calls, passing `progress=` to stream output into the log. No analysis logic

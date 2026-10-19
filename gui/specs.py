@@ -349,6 +349,19 @@ TABS = [
         'params': [],
     },
     {
+        # Reads the NPZs for the field and the phase-1 tables of the chosen
+        # estimator for the cut and the MaxR / R_conv circles; writes nothing
+        # until Save figure.
+        'kind': 'z_bands',
+        'name': 'Z Bands',
+        'blurb': 'One config: every cell coloured by the smallest listed Z_free '
+                 'whose free-field level it reaches (per direction, as the MaxR '
+                 'loop). Bands stop at the last Z whose MaxR is inside R_conv; '
+                 'MaxR and R_conv drawn from the phase-1 tables.',
+        'requirements_fn': lambda values: [_npz_required()],
+        'params': [],
+    },
+    {
         # Pinned to the req table by the tool itself, so unlike the other
         # table-reading tabs its requirement does not follow an estimator
         # widget — there is no estimator control here to follow.
