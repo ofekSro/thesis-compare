@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 
+from blastlib import constants
 from blastlib.config.parser import config_parser
 from blastlib.geometry import area_density, exclude_radius
 from blastlib.regression.stats import lstsq, r2_mape
@@ -237,6 +238,11 @@ def z_urban_valid_mask(sub, target_col, maxR_col, radius_col, target_name):
          training data for the other.
       4. `Z_free >= Z_URBAN_ZF_MIN` (= 2) — Z_free = 1 sits within one
          Hopkinson length of the charge and is not of interest.
+      5. `R_free >= Z_URBAN_MIN_PERIODS * (b + s)` (D46, 2026-10-20) — below
+         one urban period the quadrant at R_free offers only one or two
+         street corridors, so the row measures a single street's placement,
+         not urban behaviour; that regime belongs to the street-channelling
+         model. See the rationale in constants.Z_URBAN_MIN_PERIODS.
 
     Conditions 2 and 3 use R_free / ExcludeR when Phase 1 wrote them, and
     fall back to recomputing R_free from Z_free and the weight (condition 3
@@ -267,6 +273,12 @@ def z_urban_valid_mask(sub, target_col, maxR_col, radius_col, target_name):
 
     if 'exclude_r' in sub.columns:
         inside = inside & (r_free > sub['exclude_r'].astype(float))
+
+    # Condition 5: at least Z_URBAN_MIN_PERIODS urban periods (older frames
+    # without the geometry columns skip it, like condition 3).
+    if 'bsize' in sub.columns and 'swidth' in sub.columns:
+        period = sub['bsize'].astype(float) + sub['swidth'].astype(float)
+        inside = inside & (r_free >= constants.Z_URBAN_MIN_PERIODS * period)
 
     return inside & (sub['Z_free'] >= Z_URBAN_ZF_MIN[target_name])
 
@@ -841,6 +853,9 @@ def evaluate_z_urban_deployable(test_df, z_coeffs, conv_P_coeffs=None,
                    & (sub['Z_free'].values >= Z_URBAN_ZF_MIN[target_name]))
             if 'exclude_r' in sub.columns:
                 dom &= r_free > sub['exclude_r'].astype(float).values
+            # D46: b + s is known before the answer, so the geometric domain
+            # condition belongs in the deployable domain too.
+            dom &= r_free >= constants.Z_URBAN_MIN_PERIODS * (s + b)
 
             sub_valid = sub[dom]
             if len(sub_valid) == 0:

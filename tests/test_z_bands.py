@@ -70,5 +70,8 @@ def test_real_config_is_read_only(tmp_path):
             assert res[t]['maxr_raw'] == (method == 'reqdir_soft3')
             assert res[t]['r_conv'] == pytest.approx(
                 conv.set_index('ConfigName').loc[name, f'Radius{t}'])
+            # D46: the domain's inner edge; for config_19 (b30 s5, W=50) the
+            # binding condition is one urban period, 35 m
+            assert res[t]['r_min'] == pytest.approx(35.0)
     after = {p: p.stat().st_mtime for p in paths.TABLES_DIR.glob('*.csv')}
     assert before == after

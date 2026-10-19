@@ -61,6 +61,7 @@ def draw_z_bands(fig, result, config_name, panels=('P', 'I'), band_colors=None,
         for p in ax.patches[n_before:]:
             p.set_facecolor(building_color)
         _arc(ax, res['r_conv'], color='black', lw=2.0)
+        _arc(ax, res.get('r_min'), color='black', lw=1.2, ls=':')
         for i, z in enumerate(zs):
             _arc(ax, res['maxr'].get(z), color=cols[i], lw=1.4, ls='--')
         ax.set_xlim(0, axis_limit)
@@ -81,6 +82,9 @@ def draw_z_bands(fig, result, config_name, panels=('P', 'I'), band_colors=None,
         h.append(Patch(facecolor='white', edgecolor='#999999', label='no band, beyond R_conv'))
         h.append(Patch(facecolor=building_color, edgecolor='none', label='building'))
         h.append(Line2D([], [], color='black', lw=2.0, label=f'R_conv = {res["r_conv"]:.1f} m'))
+        if res.get('r_min') is not None:
+            h.append(Line2D([], [], color='black', lw=1.2, ls=':',
+                            label=f'Z_urban domain from R = {res["r_min"]:.1f} m'))
         raw = ' (raw reach)' if res['maxr_raw'] else ''
         for i, z in enumerate(zs):
             if z in res['maxr']:

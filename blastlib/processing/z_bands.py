@@ -19,10 +19,11 @@ Read-only: nothing here writes a file.
 import numpy as np
 import pandas as pd
 
-from blastlib import paths
+from blastlib import constants, paths
 from blastlib.geometry import concat3
 from blastlib.processing.free_field import reference_level_per_theta, theta_index
 from blastlib.processing.radius_estimator import resolve_estimator
+from blastlib.regression.z_urban import Z_URBAN_ZF_MIN
 
 Z_ALL = tuple(range(1, 21))
 LOADS = {'P': ('peakP{}_orig', 'refP{}'), 'I': ('impulse{}_orig', 'refI{}')}
@@ -127,9 +128,18 @@ def compute(processed, cfg, config_name, z_list, method, levels, conv, maxr):
     n = est['n_theta']
     crow = conv.set_index('ConfigName').loc[config_name]
     rows = maxr[maxr.Config == config_name]
+    W13 = float(cfg['weight']) ** (1 / 3)
+    period = float(cfg['bsize'] + cfg['swidth'])
     out = {}
     for t, (val_key, _) in LOADS.items():
         r_conv = float(crow[f'Radius{t}'])
+        # inner edge of the Z_urban prediction domain (z_urban_valid_mask
+        # conditions 3-5): the first street, Z_free >= 2, and one urban
+        # period (D46)
+        target = 'Pressure' if t == 'P' else 'Impulse'
+        r_min = max(float(rows['ExcludeR'].iloc[0]),
+                    Z_URBAN_ZF_MIN[target] * W13,
+                    constants.Z_URBAN_MIN_PERIODS * period)
         zc = z_cut(rows, z_list, t)
         z_shown = tuple(z for z in z_list if zc is not None and z <= zc)
         lv = np.vstack([levels[t][z] for z in z_list])
@@ -145,7 +155,7 @@ def compute(processed, cfg, config_name, z_list, method, levels, conv, maxr):
             th = theta_index(Xg.ravel(), Zg.ravel(), n).reshape(Xg.shape)
             bidx = band_index(processed[val_key.format(g)], th, lv)
             layers.append((Xg, Zg, classify(bidx, np.hypot(Xg, Zg), len(z_shown), r_conv)))
-        out[t] = dict(z_shown=z_shown, z_cut=zc, r_conv=r_conv, layers=layers,
+        out[t] = dict(z_shown=z_shown, z_cut=zc, r_conv=r_conv, r_min=r_min, layers=layers,
                       maxr={z: float(r_by_z[z]) for z in z_shown if z in r_by_z.index},
                       maxr_raw=use_raw,
                       level={z: float(np.nanmedian(levels[t][z])) for z in z_shown})

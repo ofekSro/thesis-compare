@@ -33,8 +33,10 @@ from blastlib import paths
 # (rows with Target=RadiusP: C0, C1_sW13, C2_switch, C3_canyon, a_thresh)
 # and update this dict by hand if they differ.
 COEF = {
-    1: dict(C0=10.139, C1=-0.762, C2=2.423, C3=0.418, a=1),  # street
-    2: dict(C0=11.605, C1=-0.776, C2=1.926, C3=0.648, a=2),  # intersection
+    # Updated 2026-10-20 to the D44 record (free-field reference re-run);
+    # previous: (10.139, -0.762, 2.423, 0.418) / (11.605, -0.776, 1.926, 0.648).
+    1: dict(C0=10.145, C1=-0.765, C2=2.428, C3=0.419, a=1),  # street
+    2: dict(C0=11.613, C1=-0.778, C2=1.929, C3=0.649, a=2),  # intersection
 }
 
 # axis sampling ranges (match dataset coverage)

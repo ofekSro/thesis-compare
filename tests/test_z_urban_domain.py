@@ -143,5 +143,7 @@ def test_prepare_maxR_data_supplies_the_geometry():
     assert np.allclose(df['R_free'], df['Z_free'] * 250.0 ** (1 / 3))
 
     keep = z_urban_valid_mask(df, *ARGS['Pressure'], 'Pressure')
-    # Z=2 (12.6 m) and Z=5 (31.5 m) are inside RadiusP=50; Z=12 (75.6 m) is not
-    assert list(keep) == [True, True, False]
+    # Z=5 (31.5 m) is inside RadiusP=50 and beyond one period (b+s = 15 m);
+    # Z=12 (75.6 m) is outside RadiusP; Z=2 (12.6 m) was kept until D46
+    # (2026-10-20) and is now excluded by condition 5 (R_free < b+s).
+    assert list(keep) == [False, True, False]

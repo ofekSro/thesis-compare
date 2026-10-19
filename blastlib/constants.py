@@ -237,3 +237,16 @@ RADIUS_ESTIMATOR = {
 # Measured before adoption: only Z = 1 rows change (Z = 2: 0.00%), so the fit
 # domain (Z_free >= 2) is untouched (D45; outputs/plan_evidence/ring_guard/).
 MIN_RING_CELLS = 3
+
+# Z_urban fit-domain condition: R_free >= this many urban periods (b + s).
+# Below one period the quadrant at R_free offers only one or two street
+# corridors (at Z_free = 5, W = 50: R_free = 0.53 (b+s), with ~half the
+# sectors stopping on the facing block 2.5 m away), so a row measures one
+# street's idiosyncrasy, not urban behaviour — which is the street model's
+# job (blastlib/street), not Z_urban's. Measured before adoption (D46):
+# removing x < 1 rows changes the far-domain in-sample MAPE by <= 1.1 pp
+# (slightly better) and median Lambda by < 1.5%, i.e. the restriction
+# defines the model's purpose rather than engineering its answer; the
+# impulse error gradient (median 10-11% at x < 0.5 vs 4% at x >= 2)
+# flattens in the kept domain. Rows stay in the CSVs as always.
+Z_URBAN_MIN_PERIODS = 1.0
