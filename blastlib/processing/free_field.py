@@ -14,6 +14,7 @@ constants.RADIUS_ESTIMATOR), so MaxR and R_conv are always comparable.
 import numpy as np
 import pandas as pd
 
+from blastlib import constants
 from blastlib.processing.radius_estimator import (
     N_THETA, in_theta_bin, reduce_theta_radii, resolve_estimator,
     theta_bin_edges,
@@ -71,7 +72,7 @@ def theta_index(all_X, all_Zc, n_theta=N_THETA):
 
 
 def reference_level_per_theta(ref_vals, dist, th_idx, r_target, tol=0.6,
-                              max_tol=4.0, n_theta=N_THETA):
+                              max_tol=4.0, n_theta=N_THETA, min_cells=None):
     """Free-field level at radius *r_target*, per angular sector.
 
     The reference field is a simulation on the same Cartesian mesh as the
@@ -81,13 +82,17 @@ def reference_level_per_theta(ref_vals, dist, th_idx, r_target, tol=0.6,
     MaxR did, because it compared against one scalar. Sampling the reference
     per direction restores the same cancellation for MaxR.
 
-    Median of *ref_vals* in the ring |dist - r_target| < tol, per sector. The
-    ring widens (up to *max_tol*) while sectors come up empty, so a thin ring
-    at small radius or across a grid seam still yields a level. Sectors that
-    stay empty are returned NaN for the caller to fall back on.
+    Median of *ref_vals* in the ring |dist - r_target| < tol, per sector. A
+    sector is accepted only with at least *min_cells* cells (default
+    constants.MIN_RING_CELLS = 3), so one defective cell cannot set the level
+    of a direction; the ring widens (up to *max_tol*) while sectors fall
+    short, so a thin ring at small radius or across a grid seam still yields a
+    level. Sectors still short are returned NaN for the caller to fall back on.
 
     Returns (n_theta,) array; n_theta must match the layout of *th_idx*.
     """
+    if min_cells is None:
+        min_cells = constants.MIN_RING_CELLS
     out = np.full(n_theta, np.nan)
     finite = np.isfinite(ref_vals) & (ref_vals > 0) & (th_idx >= 0)
     if not np.any(finite):
@@ -98,7 +103,9 @@ def reference_level_per_theta(ref_vals, dist, th_idx, r_target, tol=0.6,
         if np.any(ring):
             for i in np.unique(th_idx[ring]):
                 if np.isnan(out[i]):
-                    out[i] = float(np.median(ref_vals[ring & (th_idx == i)]))
+                    vals = ref_vals[ring & (th_idx == i)]
+                    if vals.size >= min_cells:
+                        out[i] = float(np.median(vals))
         if not np.any(np.isnan(out)):
             break
         tol *= 2.0

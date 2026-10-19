@@ -205,6 +205,31 @@ def test_ring_widens_until_every_sector_is_served(cloud):
     assert np.max(np.abs(lvl / (1000.0 / 50.0 ** 1.5) - 1)) < 0.10
 
 
+def test_one_defective_cell_cannot_set_a_direction(grid):
+    """D45: a sector with one bad reference cell in its ring (as in the W = 50
+    reference at Z = 1) must not take that cell as its level: the ring widens
+    until the sector holds MIN_RING_CELLS cells, whose median rejects it."""
+    from blastlib import constants
+    X, Z = grid
+    dist = np.sqrt(X ** 2 + Z ** 2)
+    idx = theta_index(X, Z)
+    ref = 1000.0 / dist ** 1.5
+    r0 = 3.7                                   # sector narrower than a cell
+    ring = np.abs(dist - r0) < 0.6
+    counts = np.bincount(idx[ring], minlength=N_THETA)
+    i = int(np.argmax(counts == 1))            # a sector holding ONE cell
+    assert counts[i] == 1, 'fixture must have a one-cell sector'
+    bad = np.where(ring & (idx == i))[0][0]
+    ref = ref.copy()
+    ref[bad] = 1e-3 * ref[bad]                 # the defective cell
+    good = 1000.0 / r0 ** 1.5
+    lvl = reference_level_per_theta(ref, dist, idx, r0)
+    assert abs(lvl[i] / good - 1) < 0.5, 'a single bad cell set the level'
+    old = reference_level_per_theta(ref, dist, idx, r0, min_cells=1)
+    assert old[i] == pytest.approx(ref[bad])   # the pre-D45 behaviour
+    assert constants.MIN_RING_CELLS == 3
+
+
 def test_level_is_nan_where_the_reference_has_no_data(grid):
     """Sectors the field cannot serve are reported, not invented."""
     X, Z = grid

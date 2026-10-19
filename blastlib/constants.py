@@ -224,3 +224,16 @@ RADIUS_ESTIMATOR = {
     'method': 'req_soft3',  # 'req' | 'max' | 'p95' | '<base>_soft[beta]'
     'percentile': 95,       # used only when method is a percentile
 }
+
+# Minimum reference cells per sector in the ring from which the per-direction
+# free-field level of MaxR is taken (free_field.reference_level_per_theta).
+# Near the charge a 1-deg sector is narrower than a 0.15 m cell (until r ~
+# 8.6 m), so the 0.6 m ring held 1-2 cells and the "median" was one cell. A
+# defective cell in the W = 50 reference (owner, 2026-10-19: impulse level
+# 0.018 Pa*s where ~700 is right) then set the level of a whole direction and
+# inflated MaxR ~15x at Z = 1 for every W = 50 config. With >= 3 cells the
+# median rejects a single bad cell; a sector short of 3 keeps widening the
+# ring (to 4 m, as before) and else falls back to free_field_data.csv.
+# Measured before adoption: only Z = 1 rows change (Z = 2: 0.00%), so the fit
+# domain (Z_free >= 2) is untouched (D45; outputs/plan_evidence/ring_guard/).
+MIN_RING_CELLS = 3
