@@ -92,8 +92,10 @@ class ParamField:
 
         help_text = spec.get('help')
         if help_text:
-            ttk.Label(master, text=help_text, foreground='gray').grid(
-                row=row, column=3, sticky='w', padx=(8, 0))
+            # Wrapped, so on a narrow window the help column does not slide
+            # over the controls in columns 1-2 (QA 2026-10-19).
+            ttk.Label(master, text=help_text, foreground='gray',
+                      wraplength=420).grid(row=row, column=3, sticky='w', padx=(8, 0))
 
     def _build(self, master, row):
         if self.kind == 'choice':
@@ -111,10 +113,12 @@ class ParamField:
             frame = ttk.Frame(master)
             frame.grid(row=row, column=1, columnspan=2, sticky='w', pady=2)
             self._check_vars = {}
-            for name in self.spec['options']:
+            # Three per row: a single row of six was cut off by the help
+            # column on narrow windows (QA 2026-10-18, F3).
+            for i, name in enumerate(self.spec['options']):
                 var = tk.BooleanVar(value=name in ticked)
-                ttk.Checkbutton(frame, text=name, variable=var).pack(
-                    side='left', padx=(0, 8))
+                ttk.Checkbutton(frame, text=name, variable=var).grid(
+                    row=i // 3, column=i % 3, sticky='w', padx=(0, 8))
                 self._check_vars[name] = var
             return frame
 
@@ -200,12 +204,18 @@ class Tooltip:
     def _show(self, _event=None):
         if self._tip is not None or not self.text:
             return
-        x = self.widget.winfo_rootx() + 12
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        # Beside the widget, so it does not cover the row below (QA F4);
+        # below it only when there is no room to the right.
+        x = self.widget.winfo_rootx() + self.widget.winfo_width() + 8
+        y = self.widget.winfo_rooty()
+        if x + 640 > self.widget.winfo_screenwidth():
+            x = self.widget.winfo_rootx() + 12
+            y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
         self._tip = tk.Toplevel(self.widget)
         self._tip.wm_overrideredirect(True)
         self._tip.wm_geometry(f'+{x}+{y}')
-        tk.Label(self._tip, text=self.text, justify='left', wraplength=360,
+        # wide enough for one line, so the tip stays on its own row
+        tk.Label(self._tip, text=self.text, justify='left', wraplength=620,
                  background='#ffffe0', relief='solid', borderwidth=1,
                  padx=6, pady=4).pack()
 
@@ -323,7 +333,7 @@ class RadiusEstimatorField:
             reqdir_ok, reqdir_reason = False, str(exc)
         if not reqdir_ok:
             radios['reqdir'].configure(state='disabled')
-            Tooltip(radios['reqdir'], 'Per-direction Req unavailable: ' + reqdir_reason)
+            Tooltip(radios['reqdir'], reqdir_reason)
             if self.method.get() == 'reqdir':
                 self.method.set('req')
 

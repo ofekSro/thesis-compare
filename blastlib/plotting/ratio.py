@@ -92,8 +92,12 @@ PANELS = {
 def draw_ratio(fig, data, cfg, config_name, radius, scale_limits=None,
                method='req', panels=('P', 'I'), show_radius=True,
                axis_limit=None, show_buildings=True, center_white=False,
-               show_polyline=False, use_raw=False):
+               show_polyline=False, use_raw=False, wrap_title=False):
     """Draw the ratio map(s) into *fig* and return the axis limit used.
+
+    wrap_title : put the radius on its own title line. The GUI turns it on
+                 (a long token was clipped by the colour bar in narrow
+                 windows); off by default so batch figures are unchanged.
 
     Split out of plot_ratio so the batch run and the GUI preview share one
     drawing path: the batch caller saves the result, the GUI hands in the
@@ -122,8 +126,9 @@ def draw_ratio(fig, data, cfg, config_name, radius, scale_limits=None,
                     manual ones, where the GUI turns it on and enforces the
                     limits straddle 1. The batch keeps it off so a saved
                     figure stays byte-comparable with the ones already on disk.
-    show_polyline : draw the per-theta convergence boundary — the 91 per-angle
-                    radii joined into a polyline, which is the raw frontier the
+    show_polyline : draw the per-theta convergence boundary — the per-angle
+                    radii (91 sectors, or 90 for reqdir) joined into a
+                    polyline, which is the raw frontier the
                     single radius collapses. Same overlay tools/radius_methods
                     draws, so the two read alike. Independent of show_radius:
                     together they show how much shape the collapse discards,
@@ -192,7 +197,8 @@ def draw_ratio(fig, data, cfg, config_name, radius, scale_limits=None,
         sm.set_array([])
         fig.colorbar(sm, ax=ax)
         panel_title = spec['title'] + ('  (raw)' if use_raw else '')
-        ax.set_title(f'{panel_title}  ({label} = {r:.1f} m)'
+        sep = '\n' if wrap_title else '  '
+        ax.set_title(f'{panel_title}{sep}({label} = {r:.1f} m)'
                      if show_radius else panel_title)
         ax.set_xlabel('X [m]')
         ax.set_ylabel('Z [m]')

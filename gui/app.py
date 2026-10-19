@@ -292,7 +292,11 @@ class LauncherApp(ttk.Frame):
 def main():
     root = tk.Tk()
     root.title('Blast Analysis Launcher')
-    root.geometry('960x720')
+    # 18 tabs need ~1400 px before ttk truncates their labels (QA 2026-10-18,
+    # F3): open at up to 1500x950, never larger than 90% of the screen.
+    w = min(1500, int(0.9 * root.winfo_screenwidth()))
+    h = min(950, int(0.9 * root.winfo_screenheight()))
+    root.geometry(f'{w}x{h}')
     root.minsize(760, 560)
     LauncherApp(root)
     root.mainloop()

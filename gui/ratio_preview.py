@@ -127,6 +127,16 @@ class RatioPreviewTab(ttk.Frame):
         pbox.bind('<<ComboboxSelected>>', self._changed)
         row += 1
 
+        # -- actions, near the top: at the bottom of this tall panel they fell
+        # off the window below ~1000 px of height (QA 2026-10-18, F3)
+        bar = ttk.Frame(side)
+        bar.grid(row=row, column=0, columnspan=2, sticky='ew', pady=(8, 0))
+        ttk.Button(bar, text='Save figure', width=14,
+                   command=self.save).pack(side='left')
+        ttk.Button(bar, text='Redraw', width=10,
+                   command=self.redraw).pack(side='left', padx=(6, 0))
+        row += 1
+
         # -- which field is drawn
         field = ttk.LabelFrame(side, text='Field', padding=6)
         field.grid(row=row, column=0, columnspan=2, sticky='ew', pady=(10, 0))
@@ -166,8 +176,9 @@ class RatioPreviewTab(ttk.Frame):
         ttk.Checkbutton(group, text='Building footprints',
                         variable=self.buildings_on,
                         command=self._changed).grid(row=2, column=0, sticky='w')
-        ttk.Label(group, text='The boundary is the 91 per-angle radii joined '
-                              'up; the circle is the single radius they '
+        ttk.Label(group, text='The boundary is the per-angle radii joined up '
+                              '(91 sectors, or 90 for reqdir); the circle is '
+                              'the single radius they '
                               'collapse to. The gap between them is the shape '
                               'the collapse throws away.',
                   foreground='gray', wraplength=260).grid(
@@ -229,15 +240,6 @@ class RatioPreviewTab(ttk.Frame):
         ttk.Label(zoom, text='Blank = auto (largest radius + 15 m).',
                   foreground='gray', wraplength=260).grid(
                       row=1, column=0, columnspan=2, sticky='w', pady=(4, 0))
-
-        # -- actions
-        bar = ttk.Frame(side)
-        bar.grid(row=row, column=0, columnspan=2, sticky='ew', pady=(12, 0))
-        ttk.Button(bar, text='Save figure', width=14,
-                   command=self.save).pack(side='left')
-        ttk.Button(bar, text='Redraw', width=10,
-                   command=self.redraw).pack(side='left', padx=(6, 0))
-        row += 1
 
         self.radius_note = ttk.Label(side, text='', foreground='gray25',
                                      wraplength=260)
@@ -484,7 +486,7 @@ class RatioPreviewTab(ttk.Frame):
                 show_buildings=self.buildings_on.get(),
                 center_white=True,
                 show_polyline=self.polyline_on.get(),
-                use_raw=self.raw_on.get())
+                use_raw=self.raw_on.get(), wrap_title=True)
         except Exception as exc:
             self._message(f'Could not draw this figure:\n\n{exc}')
             self.status.configure(text='✗ Draw failed')

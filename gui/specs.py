@@ -66,8 +66,8 @@ def reqdir_status(npz_dir=None):
     d = npz_dir or paths.RAW_NPZ_DIR
     if raw_store.is_raw_dir(d):
         return True, ''
-    return False, (f'per-direction Req needs the v3 raw store (data/raw_npz, built '
-                   f'on the Preprocess tab); none found in {d}')
+    return False, (f'Unavailable: needs the v3 raw store (data/raw_npz, built on '
+                   f'the Preprocess tab); none found in {d}')
 
 
 def available_radius_methods():
@@ -228,7 +228,9 @@ TABS = [
                      '(reqdir) uses 90 equal sectors and normalises MaxR per '
                      'direction by the null city; it needs data/raw_npz.'},
             {'key': 'npz_dir', 'label': 'NPZ folder', 'kind': 'path', 'browse': 'dir',
-             'default': '', 'help': 'blank = data/processed_npz/'},
+             'default': '',
+             'help': 'blank = data/raw_npz/ when present (needed by reqdir), '
+                     'else data/processed_npz/'},
             {'key': 'ff_csv', 'label': 'Free-field CSV', 'kind': 'path', 'browse': 'file',
              'default': '', 'help': 'blank = data/free_field_data.csv'},
             {'key': 'tables_dir', 'label': 'Tables output', 'kind': 'path', 'browse': 'dir',
