@@ -482,6 +482,7 @@
 **הרצות חוזרות (הבעלים, 2026-09-30):** "13–18, 28 and 29 were re-exported (grid 1) before this record; 30–36 and 62 are being rerun; the record is final only after they are in raw_npz."
 **עדכון (הבעלים, 2026-10-01):** גם 77–80 הורצו מחדש, יחד עם 30–36 ו־62. הרשומה המלאה נוצרה מחדש ונשמרה ב־`27211b3`. שאר המספרים בסעיף "מספרים שמצוטטים" הם עדיין הערכת scratch שלפני ההרצות החוזרות.
 **ערך הרצפה:** 23.6 is the mean over the five charge weights (per-W values 21.9–24.4, spread from free-field pressure noise); Hopkinson-Cranz implies one value, so the mean is used.
+**עדכון 2026-10-20:** הערך נגזר מהטבלה הישנה, שנדגמה על הציר (`4300e59`). עם טבלת ממוצע הטבעת (`219c13e`) אותה בנייה נותנת 23.26 (לכל W 22.4–24.1) ב־Z ≈ 11.8. הבעלים השאיר את 23.6 (`outputs/check_results/free_field_table_note.md`).
 **פתוח:** ALGORITHM.md ו-ALGORITHM_HE.md עדיין מתארים את D24 ו-D31.
 **ראיות:** scratchpad של הסשן, `chain/` (‏`run_chain.py`, ‏`baseline/`, ‏`variant/`, ‏`variant_c/`, ‏`analyze3.py`); ‏`tests/test_impulse_criterion.py`.
 **יומן:** —

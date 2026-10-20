@@ -59,3 +59,33 @@ free-field contours Z ~ 13.4 and ~ 15.7 — i.e. the criteria are slightly
 more permissive in KB terms than their CFD locations suggest. Any thesis
 sentence anchoring a threshold to a standard damage level (e.g. the IATG
 02.20 Table 8 bracket) should carry this one-line caveat.
+
+## Update 2026-10-20: re-run on the ring-mean table
+
+`data/free_field_data.csv` is now the ring mean of the reference field over
+all directions, Z = 1–30 (`free_field_table_note.md`); the table above was
+measured on the earlier axis-sampled table (`4300e59`), which lies 1–9% below
+the ring mean in pressure. `cfd_vs_kb_ufc215.csv` was regenerated with
+`docs/audit/2026-09-27/scripts/kb_crosscheck.py` and now runs to Z = 30.
+
+CFD/KB ratio (mean over the five charge weights), old → new table:
+
+| Z | pressure | scaled impulse |
+|---|---|---|
+| 1 | 0.997 → 1.056 | 0.840 → 0.843 |
+| 2 | 0.906 → 0.936 | 0.833 → 0.828 |
+| 4 | 0.920 → 0.945 | 0.915 → 0.908 |
+| 8 | 0.918 → 0.934 | 0.892 → 0.890 |
+| 10 | 0.860 → 0.872 | 0.884 → 0.885 |
+| 12 | 0.819 → 0.849 | 0.877 → 0.882 |
+| 16 | 0.740 → 0.774 | 0.876 → 0.877 |
+| 20 | 0.695 → 0.736 | 0.874 → 0.875 |
+| 30 | — → 0.656 | — → 0.878 |
+
+Z = 2..16 summary: pressure median 0.889 → 0.909 (range 0.740–0.930 →
+0.774–0.948); impulse median 0.884 → 0.885 (range 0.833–0.915 →
+0.828–0.908). The reading is unchanged: pressure ~5–7% below KB in the
+mid field with the deficit growing with distance, impulse a flat ~12% below.
+
+Threshold locations on the new table: CFD P = 10 kPa at Z = 11.4–12.2
+(KB 13.4); CFD I/W^(1/3) = 20 at Z = 13.7–13.8 (KB 15.7).

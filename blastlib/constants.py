@@ -66,6 +66,10 @@ PARAMS = {
 # owner. Evidence (scratch evaluation, 2026-09-30): LOGO I 9.03% (D24
 # 9.46%), safe-box I max 10.3% (23.6%), CV R^2 0.934 (0.913); the floor sets
 # R_I in 94/96; 8 configs have Z_conv,I > 20.
+# The derivation above used the axis-sampled table (4300e59). With the
+# ring-mean table of 2026-10-20 the same construction gives 23.26 (per-W
+# 22.4–24.1) at Z ~ 11.8; the owner kept 23.6 (see
+# outputs/check_results/free_field_table_note.md).
 #
 # ---- Historical (D24, 2026-09-28 → 2026-09-30) ----
 # (owner decision, 2026-09-28 evening, adopting the physics-audit verdict —
