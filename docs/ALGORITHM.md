@@ -250,7 +250,8 @@ W = 50 kg configurations).
   Code: `processing/null_city.py`; evidence and decisions:
   `docs/PLAN_LAMBDA_ZURBAN_HE.md` (A4, N1, N2, H1–H5).
 
-The single estimator collapses both radii from the same 91 sectors, so the
+The single estimator collapses both radii from the same sectors (91 for the
+earlier tokens, 90 equal ones for `reqdir`), so the
 *aggregation* is shared. The per-sector criteria are deliberately not: R_conv
 uses a tolerance band and a three-cell streak, MaxR a zero-tolerance single
 outermost cell — so MaxR systematically overshoots R_conv, and rows whose
@@ -334,7 +335,8 @@ converted back by R = Z·W^⅓.
   W appears only as W^⅓. The formulas are therefore scale-invariant, not tuned to
   the tested charge sizes — the central requirement for a blast correlation.
 - **The measurement is direction-consistent.** One equivalent-area estimator
-  collapses both radii over the same 91 sectors, so the scalar is an integral
+  collapses both radii over the same sectors (91, or 90 for `reqdir`), so the
+  scalar is an integral
   rather than a fragile extreme. The per-sector criteria differ by design
   (band + streak for R_conv, zero-tolerance exceedance for MaxR), so MaxR
   overshoots R_conv systematically; the `beyond_*` flags record it and the
@@ -612,7 +614,8 @@ any regression re-run.)
   excluded from radius measurement: there the discrete near-field geometry
   dominates and no continuum radius is meaningful.
 - **Both radii, one estimator — shared collapse, distinct criteria.** R_conv
-  and the Z_urban exceedance radius are collapsed from the same 91 sectors by
+  and the Z_urban exceedance radius are collapsed from the same sectors (91,
+  or 90 for `reqdir`) by
   the same equivalent-area rule, so the two scalars aggregate directions
   identically. The per-sector measurements deliberately differ (band + K=3
   streak + first-street exclusion for R_conv; zero-tolerance outermost cell
