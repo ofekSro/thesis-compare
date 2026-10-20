@@ -220,8 +220,13 @@ IMPULSE_CRITERION = {
 # under this default reads data/processed_npz_v2. Set 'req' here (or pass
 # --radius-method req) for the legacy hard criterion; both output sets live
 # side by side under their own filename tokens.
+#
+# Production is 'reqdir_soft3' since 2026-10-20 (DECISIONS.md D40, reviewed
+# the same day): the same soft criterion at beta = 3 on 90 equal sectors, with
+# MaxR normalised per direction by the null city so the building-front
+# penalty cancels. 'req_soft3' remains the reproducible earlier record.
 RADIUS_ESTIMATOR = {
-    'method': 'req_soft3',  # 'req' | 'max' | 'p95' | '<base>_soft[beta]'
+    'method': 'reqdir_soft3',  # 'req' | 'max' | 'p95' | 'reqdir' | '<base>_soft[beta]'
     'percentile': 95,       # used only when method is a percentile
 }
 

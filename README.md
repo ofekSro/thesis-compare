@@ -130,7 +130,8 @@ Z_urban: 90 equal sectors [k, k+1)° instead of 91, and MaxR compared per
 direction with the *null city* (free field, same buildings) so that the
 building-front penalty cancels. It needs `data/raw_npz`, adds about one null
 city per config to Phase 1, and writes `MaxR_P_raw` / `MaxR_I_raw` beside the
-normalised `MaxR_*`. The legacy tokens (`req_soft3`, …) are unchanged. See
+normalised `MaxR_*`. It is the production default since 2026-10-20 (D40);
+the earlier tokens (`req_soft3`, …) are unchanged and reproducible. See
 `docs/ALGORITHM.md` §Step 1 and `docs/PLAN_LAMBDA_ZURBAN_HE.md`.
 
 Every output is suffixed with the method (`convergence_table_req.csv`,
@@ -238,7 +239,7 @@ Each is independent and takes `--help`. All write under `outputs/`.
 > `tools/z_surface_3d` uses **hardcoded** production-fit coefficients. If you
 > re-run the regression, compare them against
 > `outputs/tables/final_production_convergence_coefficients_<method>.csv` (e.g.
-> `..._req.csv`) and update the `COEF` dict by hand — it will not update itself.
+> `..._reqdir_soft3.csv`) and update the `COEF` dict by hand — it will not update itself.
 
 ---
 
