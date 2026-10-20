@@ -212,16 +212,42 @@ W = 50 kg configurations).
   Λ_dir·R_free; the raw reach is kept in `MaxR_*_raw` and still defines the
   `beyond_*` flags. Directions where both cities stop at the same front
   (≈29% of pressure sectors) count as "no effect" — an assumption, so the
-  remaining bias is towards a low Λ. The token also uses 90 equal sectors
+  remaining bias is towards a low Λ. R_conv is the radius of engineering
+  relevance — beyond it the urban field differs from the free field by less
+  than the damage band — not the radius beyond which the field is free. At
+  Z_free ≳ 8 the band is of the order of the load level itself, so
+  Λ_dir·R_free may exceed R_conv where channelling persists (4% of pressure
+  and 1% of impulse rows on the D46 domain); those rows stay in the fit, and
+  the deployed chain's Z_conv clip is a simplification whose error is bounded
+  by the band (D40). The token also uses 90 equal sectors
   [k, k+1)° instead of 91 integer-centred ones, whose two half-width ends
   were summed as full width (area of 91° instead of 90°: radii ≈0.45% long).
-  On the fit domain the median Λ_P moves 1.014 → 1.128 and Λ_I 1.277 → 1.306
-  (`max_radius_per_Z_reqdir_soft3.csv`), pressure rows read as attenuation
-  fall 306 → 148, and Λ_P becomes monotone in ρ (1.03 at ρ = 0.18 → 1.26 at
-  ρ = 0.74). Z_urban LOGO (36 families): P mean 8.5 → 9.4%, max 18.1 → 17.5%;
-  I mean 7.6 → 7.1%, max 15.5 → 12.9%. Z_urban measures *reach* — how far the
+  On the fit domain of D46 (R_free ≥ b+s) the median Λ_P moves 1.115 → 1.144
+  and Λ_I 1.298 → 1.310 (`max_radius_per_Z_{req,reqdir}_soft3.csv`), and
+  pressure rows read as attenuation fall 117 → 89. Λ_P rises with ρ at every
+  Z_free (Spearman over rows +0.38 to +0.75 for Z_free = 2–10), most strongly
+  near the charge (Z_free = 2–5) and weakening with distance; the dependence is
+  stronger under reqdir than under req at every Z (Z_free = 8: +0.40 against
+  +0.25). The two groups closest in ρ (b15 s20 and b10 s12, 0.18 against 0.21)
+  swap order at Z_free = 4–7, where the street width outweighs the difference
+  in ρ. The null-city penalty on the D46 rows has median 0.954 (P) / 0.959 (I)
+  and ranges by geometry from 0.983 (b10 s12) to 0.872 (b30 s5): small at the
+  median, but geometry-dependent, which is why the correction matters for the
+  parameter dependence. On the domain before D46 the figures were Λ_P
+  1.014 → 1.128, Λ_I 1.277 → 1.306, attenuation 306 → 148; Z_urban LOGO
+  (36 families): P mean 8.5 → 9.4%, max 18.1 → 17.5%; I mean 7.6 → 7.1%,
+  max 15.5 → 12.9% (D40; for the D46 domain see D46). Z_urban measures *reach* — how far the
   load level L extends, averaged over directions — not the typical load at a
-  given distance. Code: `processing/null_city.py`; evidence and decisions:
+  given distance. Its purpose is descriptive: to expose how amplification,
+  shielding and channelling depend on ρ, Π₂, H/s and the detonation position
+  (street or intersection), and to distil rules with stated limits of
+  validity. It is not a design quantity. Being a mean over directions, it is
+  not conservative: along a channelling street the level L reaches further
+  (config_19, pressure, Z_free = 5: 31 m along the street against
+  Λ_dir·R_free = 24.6 m). Urban safety distances (aim 4 of the proposal) need
+  an upper-bound measure, for example a high percentile of q_θ = r_real/d
+  (Λ_safe, `PLAN_LAMBDA_ZURBAN_HE.md` §C6-a). This is left to future work.
+  Code: `processing/null_city.py`; evidence and decisions:
   `docs/PLAN_LAMBDA_ZURBAN_HE.md` (A4, N1, N2, H1–H5).
 
 The single estimator collapses both radii from the same 91 sectors, so the
