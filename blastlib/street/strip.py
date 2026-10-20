@@ -26,10 +26,12 @@ verified digit-for-digit by symmetry.
 
 WHY THE REFERENCE FIELD IS refP ON THE SAME CELLS
 -------------------------------------------------
-Never data/free_field_data.csv. That table is axis-sampled and 1-D, while
-the reference SIMULATION on the Cartesian mesh is anisotropic by 9.6%
-between directions (high on the diagonal, low on the axes) and suffers
-grid-seam corruption past Z = 100/W^(1/3). Dividing cell-by-cell by refP{g}
+Never data/free_field_data.csv. That table is 1-D — since 2026-10-20 a ring
+mean over all directions, axis-sampled before — while the reference
+SIMULATION on the Cartesian mesh is anisotropic between directions (high on
+the diagonal, low on the axes; 9.6% as first measured, 3-9% at Z = 3-8 and up
+to 16-18% at Z = 30 as re-measured 2026-10-20) and suffers grid-seam
+corruption past Z = 100/W^(1/3). Dividing cell-by-cell by refP{g}
 cancels the anisotropy for free; any scalar or table reference does not.
 refP{g} holds the FILLED reference since D34 (coarse→fine max-fill). RMAX = 100 m is kept as the fine-box limit.
 

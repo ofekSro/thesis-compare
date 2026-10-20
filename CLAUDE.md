@@ -165,7 +165,9 @@ four directions, and a review reports on each separately:
 2. **Physics and units.** Dimensionless groups (`rho = b^2/(b+s)^2`,
    `Pi_2 = s/W^(1/3)`, `H/s`), Hopkinson-Cranz scaling of every threshold
    (see the `IMPULSE_CRITERION` comment for why a fixed Pa.s band is
-   inadmissible), free-field reference from `data/free_field_data.csv`.
+   inadmissible), free-field reference: the reference VTK field, cell by
+   cell (`data/free_field_data.csv` is a 1-D ring-mean table used for
+   fallback levels and the `P_ff`/`I_ff` columns).
    Standards are registered in `docs/references/INDEX.md` when present.
 3. **Statistics.** `StratifiedShuffleSplit` with `random_state=42`;
    `--n-iter` changes the whole split sequence, so results are comparable

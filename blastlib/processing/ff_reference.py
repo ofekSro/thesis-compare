@@ -6,12 +6,16 @@ the NPZ rebuild path (which does not, and reconstructs the reference from the
 1-D free-field table).
 
 RECONSTRUCTION ACCURACY — read before trusting a number that depends on it.
-The reference recovered from free_field_data.csv agrees with the true
-reference field to ~0.4% (impulse) and ~2.2% (pressure) for scaled distances
-inside the tabulated range Z <= 20. Beyond Z=20 the curve is extrapolated as a
-power law and CANNOT be validated at all: every far-field cell in the shipped
-NPZs was overwritten to ratio=1 by the old threshold rule, so nothing survives
-to check against. Treat any result whose radius exceeds Z=20 as unsupported.
+The reference recovered from free_field_data.csv agreed with the true
+reference field to ~0.4% (impulse) and ~2.2% (pressure) inside Z <= 20 —
+measured for the earlier axis-sampled table (4300e59). The table is now the
+ring mean of the D44 reference field (2026-10-20) and covers Z = 1-30; that
+agreement has not been re-measured, and the ring mean of pressure lies 1-9%
+above the on-axis value (mesh anisotropy). Beyond the tabulated range the
+curve is extrapolated as a power law and CANNOT be validated: every far-field
+cell in the shipped NPZs was overwritten to ratio=1 by the old threshold rule,
+so nothing survives to check against. Treat any result whose radius exceeds
+the tabulated range as unsupported.
 """
 
 import numpy as np

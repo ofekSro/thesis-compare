@@ -28,6 +28,12 @@ Nothing is copied automatically. Copy these from the old folder into the new one
 | `free_field_data.csv` | `data\free_field_data.csv` |
 | `MAT_files\config_*.npz` (96 files, ~6.4 GB) | `data\processed_npz\` |
 
+> `free_field_data.csv` is versioned in git. Since 2026-10-20 it is the ring
+> mean of the reference field (`refP`/`refI` in `data/raw_npz`, D44 runs) at
+> r = Z·W^⅓, Z = 1–30, on the finest grid not within 1 m of its box edge. It
+> agrees with the on-axis gauges in `data/Gauges/ff_*kg` (0.00% P, ≤1.3% I on
+> the axis). Previous axis-sampled table: commit 4300e59.
+
 **Required only for specific tools**
 
 | From `compare_v6\` | To `compare_v7\` | Needed by |

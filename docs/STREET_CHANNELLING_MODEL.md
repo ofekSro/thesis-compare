@@ -146,8 +146,9 @@ not substitute one for the other.
   because the *sample* changed, not the field.
 - `E(r) = mean(P_urban) / mean(P_ff)` per slice, the free field taken from
   the charge-only reference simulation **on the same cells** — never from
-  `free_field_data.csv` (axis-sampled; the mesh reference is anisotropic by
-  9.6% between directions, which the cell-by-cell ratio cancels for free).
+  `free_field_data.csv` (1-D: a ring mean over directions since 2026-10-20,
+  axis-sampled before; the mesh reference is anisotropic between directions,
+  3–18% depending on Z, which the cell-by-cell ratio cancels for free).
 - Slices inside the exclusion radius are dropped from the RAW profile
   **before** smoothing (dropping them after, or merely skipping them at
   read time, contaminated the first outside bins through the running

@@ -1,7 +1,8 @@
 """Free-field lookup and exceedance-radius helpers.
 
 Provides functions to load the free-field reference data (pressure and impulse
-at scaled distances Z=1-20 for each charge weight) and to find the radius of
+at integer scaled distances Z=1-30 for each charge weight; ring mean of the
+reference field, 2026-10-20) and to find the radius of
 the exceedance region — the outermost cells where the urban field still
 reaches at least the free-field value — using angular binning over 0-90
 degrees (91 legacy sectors, or 90 equal ones for the 'reqdir' token).
@@ -36,7 +37,8 @@ def load_ff_lookup(csv_path):
     -------
     dict
         Nested dict: ``lookup[weight][Z] = (P_ff, I_ff)`` where weight is
-        one of FF_WEIGHTS and Z is an integer scaled distance (1-20).
+        one of FF_WEIGHTS and Z is an integer scaled distance (1-30 in the
+        current table; Phase 1 reads Z = 1-20).
     """
     df = pd.read_csv(csv_path)
     lookup = {}
