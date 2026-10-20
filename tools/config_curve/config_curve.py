@@ -795,11 +795,20 @@ def cli(argv=None):
     p.add_argument('--maxr-csv', default=None, help='max_radius_per_Z.csv path.')
     p.add_argument('--conv-csv', default=None, help='convergence_table.csv path.')
     p.add_argument('--out-dir', default=None, help='Output folder for the figure.')
-    p.add_argument('--radius-method', choices=list(VALID_METHODS), default=None,
-                   dest='radius_method',
-                   help='Which radius-estimator tables to read (ignored for a '
-                        'table given explicitly).')
+    # No argparse choices: soft tokens (req_soft3, the production estimator)
+    # are open-ended, so validation is left to resolve_estimator, as in
+    # run_analysis.py.
+    p.add_argument('--radius-method', default=None, dest='radius_method',
+                   help='Which radius-estimator tables to read: '
+                        f'{"|".join(VALID_METHODS)}, pXX, or a soft token such '
+                        'as req_soft3 / reqdir_soft3 (ignored for a table '
+                        'given explicitly).')
     args = p.parse_args(argv)
+    if args.radius_method is not None:
+        try:
+            resolve_estimator(args.radius_method)
+        except ValueError as exc:
+            p.error(str(exc))
 
     # isatty() alone is not reliable — some non-interactive launchers report a
     # tty but deliver EOF on the first read, so the ask helpers return None.
