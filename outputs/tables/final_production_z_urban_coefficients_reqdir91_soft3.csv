@@ -1,0 +1,5 @@
+Det,Location,Target,Formula,Regime,C,m,p_rho,q_HoverS,r_sW13,C0,C1_sW13,C2_switch,C3_canyon,C4_lnZf,a_thresh,K_const,K_invpi2,K_rho,K_hs,K_xi,C1_amp,A_switch,B_open,C2_self,C3_dilute,Zf_min
+1,Street,Pressure,range_switch,,,,,,,0.1438645295522054,,,,,,,,,,,1.259812016211027,3.048548022292751,4.359790867208526,,,2.0
+1,Street,Impulse,canyon_trap,,,,,,,0.000989587013165297,,,,,,,,,,,2.715775056570238,,,0.9899190421434239,1.3555462597005365,2.0
+2,Intersection,Pressure,range_switch,,,,,,,0.18307044526752095,,,,,,,,,,,0.8540248660338359,2.3377599357278114,3.112254189010817,,,2.0
+2,Intersection,Impulse,canyon_trap,,,,,,,0.027638395180091636,,,,,,,,,,,2.8004421765452703,,,1.0991059859675831,0.9533110267440319,2.0
