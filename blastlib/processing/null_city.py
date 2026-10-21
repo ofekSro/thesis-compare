@@ -29,6 +29,10 @@ and what remains is what the city does to the wave:
 
   Λ_dir = sqrt( sum w r_real^2 / sum w d^2 ),  MaxR_dir = Λ_dir · R_free
 
+w is the relative sector width: 1 everywhere for 'reqdir' (90 equal sectors),
+1/2 on the two half-width end sectors for 'reqdir91' (radius_estimator.
+sector_weights; PLAN H1, K1).
+
 tol = TOL_CELLS cells of the local mesh. Case B is an assumption, not a
 measurement: in ~29% of pressure sectors the remaining bias is towards a low Λ,
 of unknown size (PLAN H2).
@@ -99,17 +103,21 @@ def sector_cell_size(r, n_theta, boxes):
     return h
 
 
-def per_direction_lambda(r_real, r_null, R_free, h, tol_cells=TOL_CELLS):
+def per_direction_lambda(r_real, r_null, R_free, h, tol_cells=TOL_CELLS, w=None):
     """Per-direction normalised Λ for one row (module docstring for the rule).
 
     r_real, r_null : per-sector reach [m] of the real and null city (NaN = no
         open cell reaches L). R_free : free-field radius of the level [m].
-    h : per-sector local cell size [m]. Sectors are of equal width.
+    h : per-sector local cell size [m].
+    w : per-sector relative width [-] (radius_estimator.sector_weights);
+        None = equal sectors.
     Returns (Λ_dir [-], counts {'A','B','C','dropped'}); Λ_dir is NaN when no
     sector can be measured.
     """
     r_real = np.asarray(r_real, float)
     r_null = np.asarray(r_null, float)
+    # x * 1.0 is exact, so equal weights reproduce the unweighted sums bit for bit
+    w = np.ones(r_real.shape) if w is None else np.asarray(w, float)
     keep = ~np.isnan(r_null)
     rR = np.where(np.isnan(r_real), 0.0, r_real)
     tol = tol_cells * np.asarray(h, float)
@@ -118,7 +126,7 @@ def per_direction_lambda(r_real, r_null, R_free, h, tol_cells=TOL_CELLS):
     d = np.where(capped & passed, R_free, r_null)
     counts = {'A': int((keep & ~capped).sum()), 'B': int((capped & ~passed).sum()),
               'C': int((capped & passed).sum()), 'dropped': int((~keep).sum())}
-    den = float(np.sum(d[keep] ** 2))
+    den = float(np.sum(w[keep] * d[keep] ** 2))
     if den <= 0:
         return np.nan, counts
-    return float(np.sqrt(np.sum(rR[keep] ** 2) / den)), counts
+    return float(np.sqrt(np.sum(w[keep] * rR[keep] ** 2) / den)), counts

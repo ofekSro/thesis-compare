@@ -21,6 +21,10 @@ the two end sectors half-width but summed as full width in req (an area of
 The 'reqdir' token uses 90 equal sectors [k, k+1) deg, so req integrates
 exactly 90 deg (docs/PLAN_LAMBDA_ZURBAN_HE.md, decision H1). The legacy
 layout is kept so the req_soft3 record stays reproducible.
+The 'reqdir91' token keeps the legacy 91 sectors and weighs the two
+half-width end sectors by 1/2 (the trapezoid rule on whole-degree rays, K1 in
+the H1 comparison), so it too integrates exactly 90 deg. Its MaxR is
+normalised per direction like 'reqdir'; only the sector layout differs.
 """
 
 import re
@@ -35,7 +39,16 @@ DEFAULT_DTHETA_DEG = 1.0    # angular bin width
 
 # 'reqdir' = req collapse on 90 equal sectors, with MaxR normalised per
 # direction by the null city (processing/null_city.py; PLAN H1 + H2).
-VALID_METHODS = ('req', 'max', 'p95', 'reqdir')
+# 'reqdir91' = the same on the legacy 91 sectors, end sectors weighted 1/2
+# (PLAN H1, K1).
+VALID_METHODS = ('req', 'max', 'p95', 'reqdir', 'reqdir91')
+
+# Sector layout of each per-direction token; every other token uses N_THETA.
+DIR_LAYOUT = {'reqdir': N_THETA_EQUAL, 'reqdir91': N_THETA}
+
+# Tokens whose two end sectors (0 and 90 deg, half-width) carry weight 1/2.
+# The legacy tokens weigh them 1 and stay so for reproducibility.
+HALF_END_METHODS = ('reqdir91',)
 
 # A '<base>_soft[<beta>]' token (e.g. 'req_soft', 'req_soft8') selects the
 # soft pressure criterion (processing/soft_criterion.py) on top of the same
@@ -45,7 +58,8 @@ _SOFT_RE = re.compile(r'^(?P<base>.+?)_soft(?P<beta>\d+(?:\.\d+)?)?$')
 # How each method is written on a figure, so plots stay honest when the
 # collapse is not the equivalent-area radius. Percentile tokens ('p95', 'p99')
 # are already readable and fall through unchanged.
-RADIUS_LABEL = {'req': 'Req', 'max': 'Rmax', 'reqdir': 'Req,dir'}
+RADIUS_LABEL = {'req': 'Req', 'max': 'Rmax', 'reqdir': 'Req,dir',
+                'reqdir91': 'Req,dir91'}
 
 
 def radius_label(method):
@@ -75,6 +89,19 @@ def theta_centers_deg(n_theta=N_THETA):
     if n_theta == N_THETA_EQUAL:
         return np.arange(0.5, 90.0, 1.0)
     return np.arange(0, N_THETA, dtype=float)
+
+
+def sector_weights(estimator=None):
+    """Relative width of each sector [-] (1 = one degree) for an estimator.
+
+    'reqdir91': 1/2 for the two half-width end sectors, 1 elsewhere (sum 90).
+    Every other token: 1 for all sectors (91 legacy, 90 for 'reqdir').
+    """
+    est = resolve_estimator(estimator)
+    w = np.ones(est['n_theta'])
+    if est['base_method'] in HALF_END_METHODS:
+        w[0] = w[-1] = 0.5
+    return w
 
 
 def in_theta_bin(theta, bin_edges, i):
@@ -117,7 +144,7 @@ def _parse_method(method, percentile):
         method = 'req'
     m, _ = _split_soft(method)
 
-    if m in ('req', 'reqdir'):
+    if m in ('req', 'reqdir', 'reqdir91'):
         return m, percentile
     if m == 'max':
         return 'max', percentile
@@ -140,6 +167,9 @@ def reduce_theta_radii(r_per_theta, method='req', percentile=95,
     method:
       'req', 'reqdir'
              -> equivalent-area radius: sqrt(4A/pi), A = sum(0.5*r_i^2*dtheta)
+      'reqdir91'
+             -> the same with A = sum(0.5*r_i^2*w_i*dtheta), w = 1/2 on the
+                two end sectors of the 91 (sector_weights)
       'max'  -> np.nanmax(r_per_theta)
       'pXX'  -> np.nanpercentile(r_per_theta, percentile)
 
@@ -154,12 +184,19 @@ def reduce_theta_radii(r_per_theta, method='req', percentile=95,
     radii = np.asarray(r_per_theta, dtype=float)
     kind, p = _parse_method(method, percentile)
 
-    if kind in ('req', 'reqdir'):
+    if kind in ('req', 'reqdir', 'reqdir91'):
         delta_theta = np.radians(dtheta_deg)
         valid = ~np.isnan(radii)
         if not np.any(valid):
             return np.nan
-        A = np.sum(0.5 * radii[valid] ** 2 * delta_theta)
+        if kind in HALF_END_METHODS:
+            if radii.shape != (N_THETA,):
+                raise ValueError(f'{kind} expects {N_THETA} sectors, got {radii.shape}')
+            w = sector_weights(kind)
+            A = np.sum(0.5 * radii[valid] ** 2 * w[valid] * delta_theta)
+        else:
+            # legacy expression kept verbatim (req_soft3 / reqdir_soft3 records)
+            A = np.sum(0.5 * radii[valid] ** 2 * delta_theta)
         return float(np.sqrt(4 * A / np.pi))
 
     valid = radii[~np.isnan(radii)]
@@ -187,9 +224,9 @@ def resolve_estimator(estimator=None):
     the suffix beta (used by --soft-beta); it is ignored for hard tokens.
     'base_method' is the collapse token and 'soft_beta' is None on the hard
     path — existing callers that only read 'method'/'percentile' are
-    unaffected. 'n_theta' is the sector layout (91 legacy, 90 for 'reqdir')
-    and 'normalise' is 'dir' for 'reqdir' (MaxR per-direction null-city
-    normalisation), else None.
+    unaffected. 'n_theta' is the sector layout (91 legacy and 'reqdir91',
+    90 for 'reqdir') and 'normalise' is 'dir' for 'reqdir' and 'reqdir91'
+    (MaxR per-direction null-city normalisation), else None.
     """
     default = dict(constants.RADIUS_ESTIMATOR)
 
@@ -219,10 +256,10 @@ def resolve_estimator(estimator=None):
         percentile = settings.get('percentile', 95)
 
     token = base if soft_beta is None else f'{base}_soft{soft_beta:g}'
-    is_dir = base == 'reqdir'
+    is_dir = base in DIR_LAYOUT
     return {'method': token, 'percentile': percentile,
             'base_method': base, 'soft_beta': soft_beta,
-            'n_theta': N_THETA_EQUAL if is_dir else N_THETA,
+            'n_theta': DIR_LAYOUT.get(base, N_THETA),
             'normalise': 'dir' if is_dir else None}
 
 

@@ -45,7 +45,8 @@ from blastlib.processing.free_field import (load_ff_lookup,
                                             find_percentile_radius,
                                             reference_level_per_theta,
                                             theta_index)
-from blastlib.processing.radius_estimator import resolve_estimator, VALID_METHODS
+from blastlib.processing.radius_estimator import (resolve_estimator, sector_weights,
+                                                  VALID_METHODS)
 from blastlib.processing.null_city import (null_city_processed, mesh_boxes,
                                            sector_cell_size, per_direction_lambda)
 from blastlib.processing.ff_reference import rebuild_impulse_ratio
@@ -193,6 +194,7 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
         raise ValueError(f'{method} needs the v3 raw store (data/raw_npz): the '
                          f'null city is built from the raw solver fields.')
     n_theta = est['n_theta']
+    w_sector = sector_weights(est)   # 1/2 at the ends for reqdir91 (PLAN H1, K1)
     progress('')
 
     conv_rows   = []
@@ -364,9 +366,11 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
                 _, rN_I = find_percentile_radius(null_I, all_X, all_Z, lvl_I, estimator=est,
                                                  th_idx=th_idx, dist=dist_all)
                 lam_P, _ = per_direction_lambda(r_theta_P, rN_P, r_free,
-                                                sector_cell_size(rN_P, n_theta, boxes))
+                                                sector_cell_size(rN_P, n_theta, boxes),
+                                                w=w_sector)
                 lam_I, _ = per_direction_lambda(r_theta_I, rN_I, r_free,
-                                                sector_cell_size(rN_I, n_theta, boxes))
+                                                sector_cell_size(rN_I, n_theta, boxes),
+                                                w=w_sector)
                 maxR_P, maxR_I = lam_P * r_free, lam_I * r_free
 
             maxR_P_per_Z[z_val] = maxR_P
@@ -568,7 +572,8 @@ def _build_parser():
                         'measures pressure sectors with the soft tanh '
                         'criterion. reqdir = req on 90 equal sectors with MaxR '
                         'normalised per direction by the null city (needs '
-                        'data/raw_npz). Drives BOTH the convergence radius and '
+                        'data/raw_npz); reqdir91 = the same on 91 sectors, '
+                        'end sectors weighted 1/2. Drives BOTH the convergence radius and '
                         f'MaxR (default: {constants.RADIUS_ESTIMATOR["method"]}).')
     p.add_argument('--percentile', type=float, default=None,
                    help='Percentile for --radius-method p95 (default 95).')
