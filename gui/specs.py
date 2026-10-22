@@ -317,7 +317,8 @@ TABS = [
         'blurb': 'Leave-one-geometry-out CV: each (Det, b, s, H) family is '
                  'withheld in turn and predicted by a refit on the rest. '
                  'Target conv = the convergence radius (figures R and Z); '
-                 'zurban = the Z_urban chain (figures Z_urban and Lambda). '
+                 'zurban = the Z_urban chain (figures R_urban [m], the '
+                 'primary view (D48), Z_urban and Lambda). '
                  'Writes the detail and summary CSVs and the figures.',
         'target': _call('logo_cv'),
         'requirements_fn': lambda values: _conv_table_requirements(values) + (
@@ -326,7 +327,8 @@ TABS = [
         'params': [
             {'key': 'target', 'label': 'Target', 'kind': 'choice',
              'options': ['conv', 'zurban'], 'default': 'conv',
-             'help': 'conv = R_conv models; zurban = Z_urban / Lambda'},
+             'help': 'conv = R_conv models; zurban = R_urban (primary) / '
+                     'Z_urban / Lambda'},
             {'key': 'domain', 'label': 'Z_urban rows', 'kind': 'choice',
              'options': ['conditional', 'deployable'], 'default': 'conditional',
              'help': 'zurban only. conditional = rows inside the MEASURED '
