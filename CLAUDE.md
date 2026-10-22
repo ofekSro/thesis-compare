@@ -146,8 +146,10 @@ they must be reproducible from the code at the same commit.
 Figures (`outputs/figures/`, ~3500 PNG) are regenerable and not of record.
 
 Suffix rule: every table and figure carries the radius-estimator token that
-produced it (`_req`, `_p95`, `_req_soft3`, `_reqdir_soft3`). Production is
-`reqdir_soft3` since 2026-10-20 (D40); `req_soft3` is the earlier record
+produced it (`_req`, `_p95`, `_req_soft3`, `_reqdir_soft3`,
+`_reqdir91_soft3`). Production is `reqdir91_soft3` since 2026-10-21 (D15:
+91 sectors, ends weighted ½); `reqdir_soft3` (2026-10-20, D40, 90 sectors)
+and `req_soft3` are earlier records
 (`blastlib/constants.py::RADIUS_ESTIMATOR`). Never compare tables with
 different suffixes as if they were the same run.
 

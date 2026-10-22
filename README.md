@@ -95,7 +95,7 @@ Notes:
   Z_free whose free-field level each cell reaches (per direction, as the MaxR
   loop), cut at the last Z whose MaxR lies inside R_conv, with MaxR and R_conv
   circles from the phase-1 tables of the chosen estimator (the raw reach for
-  `reqdir`). Read-only; Save figure writes only where you choose.
+  `reqdir` and `reqdir91`). Read-only; Save figure writes only where you choose.
   Logic: `blastlib/processing/z_bands.py`, `blastlib/plotting/z_bands.py`.
 
 The GUI is a thin launcher: it only calls the same `main()` functions the CLI
@@ -124,7 +124,7 @@ Phase 2 runs the cross-validated regression over those tables.
 
 Both the convergence radius and the MaxR / Z_urban radius reduce the same
 object — per-angle radii covering 0–90° — to a single number.
-`--radius-method {req,max,p95,reqdir}` (plus `--percentile N`) chooses how, and it
+`--radius-method {req,max,p95,reqdir,reqdir91}` (plus `--percentile N`) chooses how, and it
 drives **both**; there is deliberately no way to set them separately, because
 comparing an area average (`req`) against a near-maximum (`p95`) is what made
 `MaxR ≥ R_conv` in a large share of rows. The default lives in
@@ -136,8 +136,14 @@ Z_urban: 90 equal sectors [k, k+1)° instead of 91, and MaxR compared per
 direction with the *null city* (free field, same buildings) so that the
 building-front penalty cancels. It needs `data/raw_npz`, adds about one null
 city per config to Phase 1, and writes `MaxR_P_raw` / `MaxR_I_raw` beside the
-normalised `MaxR_*`. It is the production default since 2026-10-20 (D40);
-the earlier tokens (`req_soft3`, …) are unchanged and reproducible. See
+normalised `MaxR_*`. It was the production default from 2026-10-20 (D40).
+`--radius-method reqdir91_soft3` is the same on the 91 whole-degree sectors,
+with the two half-width end sectors weighted ½ in both Req and Λ_dir; it is
+the production default since 2026-10-21 (D15). The earlier tokens
+(`req_soft3`, `reqdir_soft3`, …) are kept as records; since D37 (2026-10-22,
+the MaxR reference level carries the D34 cut) their MaxR / Z_urban tables
+reproduce only from the code at `1b9dac7` or before, while their R_conv
+tables still reproduce at HEAD. See
 `docs/ALGORITHM.md` §Step 1 and `docs/PLAN_LAMBDA_ZURBAN_HE.md`.
 
 Every output is suffixed with the method (`convergence_table_req.csv`,
@@ -245,7 +251,7 @@ Each is independent and takes `--help`. All write under `outputs/`.
 > `tools/z_surface_3d` uses **hardcoded** production-fit coefficients. If you
 > re-run the regression, compare them against
 > `outputs/tables/final_production_convergence_coefficients_<method>.csv` (e.g.
-> `..._reqdir_soft3.csv`) and update the `COEF` dict by hand — it will not update itself.
+> `..._reqdir91_soft3.csv`) and update the `COEF` dict by hand — it will not update itself.
 
 ---
 

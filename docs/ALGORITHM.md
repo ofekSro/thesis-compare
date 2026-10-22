@@ -197,7 +197,8 @@ W = 50 kg configurations).
   reference is deficient near its outer edge, which inflated a handful of
   large-charge impulse rows). Z_urban = R/W^⅓.
 
-- **Z_urban, per-direction normalised (`reqdir_soft3`, 2026-10-18).** Taking
+- **Z_urban, per-direction normalised (`reqdir_soft3`, 2026-10-18; production
+  `reqdir91_soft3` since 2026-10-21).** Taking
   the outermost exceedance cell has a geometric bias: in a direction where
   R_free falls inside a building, that cell is the building's front face, so
   the reach is short even when the city does nothing to the wave. Fed the
@@ -208,27 +209,32 @@ W = 50 kg configurations).
   direction, the real city with the null city of the same configuration —
   same holes, same scan — and with R_free where the real load passed the
   building (comparing it with the front would over-correct: a whole-row
-  normalisation reached Λ = 3–4.6). Λ_dir = √(Σ r_real² / Σ d²), MaxR =
-  Λ_dir·R_free; the raw reach is kept in `MaxR_*_raw` and still defines the
+  normalisation reached Λ = 3–4.6). Λ_dir = √(Σ w·r_real² / Σ w·d²), with w
+  the relative sector width (½ on the two half-width end sectors of
+  `reqdir91`, 1 elsewhere), MaxR = Λ_dir·R_free; the raw reach is kept in `MaxR_*_raw` and still defines the
   `beyond_*` flags. Directions where both cities stop at the same front
   (≈29% of pressure sectors) count as "no effect" — an assumption, so the
   remaining bias is towards a low Λ. R_conv is the radius of engineering
   relevance — beyond it the urban field differs from the free field by less
   than the damage band — not the radius beyond which the field is free. At
   Z_free ≳ 8 the band is of the order of the load level itself, so
-  Λ_dir·R_free may exceed R_conv where channelling persists (4% of pressure
-  and 1% of impulse rows on the D46 domain); those rows stay in the fit, and
+  Λ_dir·R_free may exceed R_conv where channelling persists (3.6% of pressure
+  and 1.2% of impulse rows on the D46 domain); those rows stay in the fit, and
   the deployed chain's Z_conv clip is a simplification whose error is bounded
-  by the band (D40). The token also uses 90 equal sectors
-  [k, k+1)° instead of 91 integer-centred ones, whose two half-width ends
-  were summed as full width (area of 91° instead of 90°: radii ≈0.45% long).
-  On the fit domain of D46 (R_free ≥ b+s) the median Λ_P moves 1.115 → 1.144
-  and Λ_I 1.298 → 1.310 (`max_radius_per_Z_{req,reqdir}_soft3.csv`), and
-  pressure rows read as attenuation fall 117 → 89. Λ_P rises with ρ at every
-  Z_free (Spearman over rows +0.38 to +0.75 for Z_free = 2–10), most strongly
-  near the charge (Z_free = 2–5) and weakening with distance; the dependence is
-  stronger under reqdir than under req at every Z (Z_free = 8: +0.40 against
-  +0.25). The two groups closest in ρ (b15 s20 and b10 s12, 0.18 against 0.21)
+  by the band (D40). The earlier tokens sum the two half-width end sectors of
+  the 91 integer-centred ones as full width (area of 91° instead of 90°: radii
+  ≈0.45% long). `reqdir` replaced them with 90 equal sectors [k, k+1)°;
+  production `reqdir91` (D15, revised 2026-10-21) keeps the 91 sectors and
+  weighs the two ends by ½, the trapezoid rule on whole-degree rays. Both
+  integrate exactly 90° and agree to a median of 1.000 (R_conv 0.9997; Λ_dir
+  row by row p5–p95 0.987–1.013; CV errors within 0.1 points).
+  On the fit domain of D46 (R_free ≥ b+s) the median Λ_P moves 1.115 → 1.145
+  and Λ_I 1.298 → 1.308 (`max_radius_per_Z_{req,reqdir91}_soft3.csv`; 1.144
+  and 1.310 under `reqdir`), and pressure rows read as attenuation fall
+  117 → 89. Λ_P rises with ρ at every Z_free (Spearman over rows +0.38 to
+  +0.75 for Z_free = 2–10), most strongly near the charge (Z_free = 2–5) and
+  weakening with distance; the dependence is stronger under reqdir91 than
+  under req at every Z (Z_free = 8: +0.39 against +0.25). The two groups closest in ρ (b15 s20 and b10 s12, 0.18 against 0.21)
   swap order at Z_free = 4–7, where the street width outweighs the difference
   in ρ. The null-city penalty on the D46 rows has median 0.954 (P) / 0.959 (I)
   and ranges by geometry from 0.983 (b10 s12) to 0.872 (b30 s5): small at the
@@ -250,8 +256,9 @@ W = 50 kg configurations).
   Code: `processing/null_city.py`; evidence and decisions:
   `docs/PLAN_LAMBDA_ZURBAN_HE.md` (A4, N1, N2, H1–H5).
 
-The single estimator collapses both radii from the same sectors (91 for the
-earlier tokens, 90 equal ones for `reqdir`), so the
+The single estimator collapses both radii from the same sectors (91, with the
+two end sectors weighted ½ in production `reqdir91`; 90 equal ones for
+`reqdir`), so the
 *aggregation* is shared. The per-sector criteria are deliberately not: R_conv
 uses a tolerance band and a three-cell streak, MaxR a zero-tolerance single
 outermost cell — so MaxR systematically overshoots R_conv, and rows whose
@@ -335,7 +342,8 @@ converted back by R = Z·W^⅓.
   W appears only as W^⅓. The formulas are therefore scale-invariant, not tuned to
   the tested charge sizes — the central requirement for a blast correlation.
 - **The measurement is direction-consistent.** One equivalent-area estimator
-  collapses both radii over the same sectors (91, or 90 for `reqdir`), so the
+  collapses both radii over the same sectors (91, ends weighted ½ in
+  `reqdir91`; or 90 for `reqdir`), so the
   scalar is an integral
   rather than a fragile extreme. The per-sector criteria differ by design
   (band + streak for R_conv, zero-tolerance exceedance for MaxR), so MaxR
@@ -615,7 +623,7 @@ any regression re-run.)
   dominates and no continuum radius is meaningful.
 - **Both radii, one estimator — shared collapse, distinct criteria.** R_conv
   and the Z_urban exceedance radius are collapsed from the same sectors (91,
-  or 90 for `reqdir`) by
+  ends weighted ½ in `reqdir91`; or 90 for `reqdir`) by
   the same equivalent-area rule, so the two scalars aggregate directions
   identically. The per-sector measurements deliberately differ (band + K=3
   streak + first-street exclusion for R_conv; zero-tolerance outermost cell
@@ -629,7 +637,9 @@ any regression re-run.)
   cross-grid max-fill, so interpolation can no longer resurrect wall-skin
   cells into the scans. The merged reference (`ref*_fill`) is what the
   per-direction MaxR level samples, like-for-like with the merged urban
-  field.
+  field: since D37 (2026-10-22) it carries the same cut, so a coarser cell
+  inside a finer box no longer enters the ring median (before, ~12% of the
+  ring cells, which lowered the level by a median 0.16% P / 0.10% I).
 
 ## Provenance of the functional forms
 
