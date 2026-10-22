@@ -218,8 +218,8 @@ def z_urban_valid_mask(sub, target_col, maxR_col, radius_col, target_name):
     """Rows eligible for the Z_urban fit: the domain the model is used on.
 
     The model answers "inside R_conv, what urban distance carries the load
-    that the free field carries at Z_free". Four conditions follow from that
-    sentence, and all four are enforced here:
+    that the free field carries at Z_free". Five conditions follow from that
+    sentence, and all five are enforced here:
 
       1. `MaxR < R_conv` — the place where the load is actually delivered
          lies inside the convergence radius. Recorded by Phase 1 as

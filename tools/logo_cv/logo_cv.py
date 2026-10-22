@@ -83,7 +83,7 @@ def _make_fitters(model_p, model_i):
     if model_i == 'legacy':
         fit_i = lambda df: fit_impulse_all_groups(df, 'RadiusI')
     else:
-        # 'unified' (production since 2026-09-27) or 'quad' (previous)
+        # 'quad' (production since 2026-09-28) or 'unified' (2026-09-27 only)
         fit_i = lambda df: fit_impulse_all_groups(df, 'RadiusI', model=model_i)
     return fit_p, fit_i
 
@@ -247,39 +247,127 @@ def run_logo_zurban(conv_df, maxr_df, model_p=MODEL_P_DEFAULT,
     return pd.DataFrame(rows)
 
 
-def summarize(err_df):
-    """Pooled + per-det mean/median/p90/max rows per target."""
+# Family-level bootstrap of the mean error. Rows of one family share a
+# geometry and are correlated (a Z_urban family carries 6-49 rows), so the
+# resampling unit is the family, not the row; 36 families is the effective
+# sample. Resampled within det, so every replicate keeps the design's 18 + 18.
+# Fixed seed and a fresh generator per call: the CI of a scope does not depend
+# on which scopes were computed before it. Percentile interval.
+BOOT_N = 10000
+BOOT_SEED = 42
+
+# R² columns per target kind: (name, view). 'R'/'Zu' are the stored
+# Actual/Predicted; 'Z'/'Lambda' divide by W^(1/3) / Z_free (see plot_logo).
+R2_VIEWS = {'conv': (('R2_R', 'R'), ('R2_Z', 'Z')),
+            'zurban': (('R2_Zurban', 'Zu'), ('R2_Lambda', 'Lambda'))}
+
+
+def _view_divisor(err_df, view):
+    """Divisor that turns Actual/Predicted into the *view* quantity."""
+    if view == 'Z':
+        return err_df['Config'].str.extract(r'_w(\d+)$')[0].astype(float) ** (1 / 3.)
+    if view == 'Lambda':
+        return err_df['Z_free'].astype(float)
+    return pd.Series(1.0, index=err_df.index)
+
+
+def _r2(sub, div):
+    """R² of Predicted on Actual, both divided by *div* [-]."""
+    a = sub['Actual'] / div[sub.index]
+    q = sub['Predicted'] / div[sub.index]
+    return 1 - ((a - q) ** 2).sum() / ((a - a.mean()) ** 2).sum()
+
+
+def family_bootstrap_ci(sub, n_boot=BOOT_N, seed=BOOT_SEED, per_family=False):
+    """95% percentile CI [%] of the mean error, resampling whole families.
+
+    sub        : err_df rows with finite ErrPct [%] (columns Family, Det).
+    per_family : False -> row-pooled mean (sum of errors / rows, the 'Mean'
+                 of the pooled/det scopes); True -> mean of family MAPEs
+                 (the 'Mean' of the per_family scope).
+    Families are resampled with replacement within each det.
+    Returns (lo, hi) [%].
+    """
+    fam = sub.groupby('Family').agg(det=('Det', 'first'),
+                                    s=('ErrPct', 'sum'), n=('ErrPct', 'size'))
+    rng = np.random.default_rng(seed)
+    num = np.zeros(n_boot)
+    den = np.zeros(n_boot)
+    for _, g in fam.groupby('det'):
+        k = rng.integers(0, len(g), size=(n_boot, len(g)))
+        if per_family:
+            num += (g['s'] / g['n']).values[k].sum(axis=1)
+            den += len(g)
+        else:
+            num += g['s'].values[k].sum(axis=1)
+            den += g['n'].values[k].sum(axis=1)
+    lo, hi = np.percentile(num / den, [2.5, 97.5])
+    return float(lo), float(hi)
+
+
+def _coverage(sub, configs, det=None):
+    """Families / configs graded in *sub*, out of the configs in scope."""
+    if configs is None:
+        total = np.nan
+    elif det is None:
+        total = len(configs)
+    else:
+        total = int((configs['Det'] == det).sum())
+    n_cfg = sub['Config'].nunique()
+    return {'N_families': sub['Family'].nunique(), 'N_configs': n_cfg,
+            'Configs_total': total, 'Coverage_configs': n_cfg / total}
+
+
+def summarize(err_df, kind='conv', configs=None, n_boot=BOOT_N, seed=BOOT_SEED):
+    """Pooled + per-det mean/median/p90/max rows per target.
+
+    kind    : 'conv' or 'zurban'; selects the R² views (R2_VIEWS).
+    configs : DataFrame with ConfigName, Det of every config in the table;
+              the denominator of Coverage_configs. None -> coverage NaN.
+    Columns after Max: Mean_CI95_lo/hi [%] (family bootstrap), the two R²,
+    then coverage.
+    """
     out = []
     for target in ('P', 'I'):
         sub_t = err_df[err_df['Target'] == target]
-        for scope, sub in [('pooled', sub_t),
-                           ('det1', sub_t[sub_t['Det'] == 1]),
-                           ('det2', sub_t[sub_t['Det'] == 2])]:
+        for scope, det, sub in [('pooled', None, sub_t),
+                                ('det1', 1, sub_t[sub_t['Det'] == 1]),
+                                ('det2', 2, sub_t[sub_t['Det'] == 2])]:
             errs = sub['ErrPct'].values
             finite = errs[np.isfinite(errs)]
-            out.append({
+            fin = sub[np.isfinite(sub['ErrPct'])]
+            lo, hi = family_bootstrap_ci(fin, n_boot, seed)
+            row = {
                 'Target': target, 'Scope': scope,
                 'N': len(errs), 'N_finite': len(finite),
                 'Mean': np.mean(finite), 'Median': np.median(finite),
                 'P90': np.percentile(finite, 90), 'Max': np.max(finite),
-            })
+                'Mean_CI95_lo': lo, 'Mean_CI95_hi': hi,
+            }
+            for name, view in R2_VIEWS[kind]:
+                row[name] = _r2(fin, _view_divisor(fin, view))
+            row.update(_coverage(fin, configs, det))
+            out.append(row)
     return pd.DataFrame(out)
 
 
-def summarize_families(err_df):
+def summarize_families(err_df, configs=None, n_boot=BOOT_N, seed=BOOT_SEED):
     """Per target, statistics over the per-family MAPEs (Scope 'per_family').
 
     The mean of these is the LOGO figure of plan_evidence (logo_z_urban),
-    which averages families rather than rows.
+    which averages families rather than rows. R² is not defined here.
     """
     out = []
     for target in ('P', 'I'):
         sub = err_df[(err_df['Target'] == target) & np.isfinite(err_df['ErrPct'])]
         fam = sub.groupby('Family')['ErrPct'].mean().values
+        lo, hi = family_bootstrap_ci(sub, n_boot, seed, per_family=True)
         out.append({'Target': target, 'Scope': 'per_family',
                     'N': len(fam), 'N_finite': len(fam),
                     'Mean': np.mean(fam), 'Median': np.median(fam),
-                    'P90': np.percentile(fam, 90), 'Max': np.max(fam)})
+                    'P90': np.percentile(fam, 90), 'Max': np.max(fam),
+                    'Mean_CI95_lo': lo, 'Mean_CI95_hi': hi,
+                    **_coverage(sub, configs)})
     return pd.DataFrame(out)
 
 
@@ -327,12 +415,8 @@ def plot_logo(err_df, out_png, view='R', progress=print):
     from matplotlib.ticker import MaxNLocator
 
     sym, unit = FIG_VIEWS[view]
-    if view == 'Z':
-        div = err_df['Config'].str.extract(r'_w(\d+)$')[0].astype(float) ** (1 / 3.)
-    elif view == 'Lambda':
-        div = err_df['Z_free'].astype(float)
-    else:
-        div = pd.Series(1.0, index=err_df.index)
+    # Same divisor as the summary's R² columns, so figure and CSV agree.
+    div = _view_divisor(err_df, view)
     # Z_urban sets hold ~10x the points of the 96-config sets.
     ms = 4.6 if len(err_df) <= 400 else 2.6
 
@@ -352,7 +436,7 @@ def plot_logo(err_df, out_png, view='R', progress=print):
             ticks = MaxNLocator(nbins=6, steps=[1, 2, 2.5, 3, 5, 6, 10]).tick_values(
                 0, 1.02 * max(a.max(), q.max()))
             hi = ticks[-1]
-            r2 = 1 - ((a - q) ** 2).sum() / ((a - a.mean()) ** 2).sum()
+            r2 = _r2(sub, div)
             n10 = sum(v <= 10 for v in e)
             n20 = sum(v <= 20 for v in e)
             # Inclusive quantiles reproduce the Median/P90 of summarize().
@@ -417,13 +501,15 @@ def plot_logo(err_df, out_png, view='R', progress=print):
 def main(*, table=None, radius_method=None, model_p=MODEL_P_DEFAULT,
          model_i=MODEL_I_DEFAULT, target='conv', domain='conditional',
          maxr_table=None, radius_i_from=None, out_dir=None, tag=None,
-         figure=True, progress=print):
+         figure=True, n_boot=BOOT_N, boot_seed=BOOT_SEED, progress=print):
     """Run LOGO CV, write the detail and summary CSVs and the figures.
 
     target     : 'conv' (R_conv models) or 'zurban' (Z_urban chain).
     domain     : 'conditional' | 'deployable'; zurban only.
     maxr_table : max_radius_per_Z CSV for zurban; default = the table of the
                  same estimator token as the convergence table.
+    n_boot, boot_seed : family-bootstrap replicates and seed of the
+                 Mean_CI95 columns (see family_bootstrap_ci).
     Returns dict with the DataFrames and the written paths.
     """
     if target not in TARGET_CHOICES:
@@ -445,12 +531,15 @@ def main(*, table=None, radius_method=None, model_p=MODEL_P_DEFAULT,
         if radius_i_from:
             tag += '_ialt'
 
+    configs = conv_df[['ConfigName', 'Det']]
+
     if target == 'zurban':
         maxr_table = Path(maxr_table or paths.maxr_csv(token))
         err_df = run_logo_zurban(conv_df, pd.read_csv(maxr_table),
                                  model_p=model_p, model_i=model_i,
                                  domain=domain, progress=progress)
-        summary = pd.concat([summarize(err_df), summarize_families(err_df)],
+        summary = pd.concat([summarize(err_df, 'zurban', configs, n_boot, boot_seed),
+                             summarize_families(err_df, configs, n_boot, boot_seed)],
                             ignore_index=True)
         stem = f'{tag}_{model_p}_{model_i}_zurban'
         if domain == 'deployable':
@@ -461,7 +550,7 @@ def main(*, table=None, radius_method=None, model_p=MODEL_P_DEFAULT,
     else:
         err_df = run_logo(conv_df, model_p=model_p, model_i=model_i,
                           progress=progress)
-        summary = summarize(err_df)
+        summary = summarize(err_df, 'conv', configs, n_boot, boot_seed)
         stem = f'{tag}_{model_p}_{model_i}'
         views = ('R', 'Z')
         header = f'LOGO CV  table={table.name}'
@@ -520,12 +609,16 @@ def cli(argv=None):
                    help='Filename token override for the output CSVs.')
     p.add_argument('--no-figure', dest='figure', action='store_false',
                    help='Skip the predicted-vs-measured figures.')
+    p.add_argument('--n-boot', type=int, default=BOOT_N,
+                   help=f'Family-bootstrap replicates for Mean_CI95 (default {BOOT_N}).')
+    p.add_argument('--boot-seed', type=int, default=BOOT_SEED,
+                   help=f'Seed of the family bootstrap (default {BOOT_SEED}).')
     a = p.parse_args(argv)
     return main(table=a.table, radius_method=a.radius_method,
                 model_p=a.model_p, model_i=a.model_i, target=a.target,
                 domain=a.domain, maxr_table=a.maxr_table,
                 radius_i_from=a.radius_i_from, out_dir=a.out_dir, tag=a.tag,
-                figure=a.figure)
+                figure=a.figure, n_boot=a.n_boot, boot_seed=a.boot_seed)
 
 
 if __name__ == '__main__':

@@ -102,7 +102,8 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
     strata = det_values
 
     n_configs = len(config_names)
-    n_test = max(1, int(n_configs * test_fraction))
+    # StratifiedShuffleSplit rounds the test size UP (96 * 0.2 -> 20, not 19).
+    n_test = max(1, int(np.ceil(n_configs * test_fraction)))
 
     progress(f'Total configs: {n_configs}')
     progress(f'Train/test split: {n_configs - n_test}/{n_test}')
@@ -172,6 +173,12 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
 
         conv_r2_P, conv_mape_P = r2_mape(actual_P, pred_P)
         conv_r2_I, conv_mape_I = r2_mape(actual_I, pred_I)
+        # R² on R [m] credits the model with the W^(1/3) scaling it gets for
+        # free; R² on Z_conv = R/W^(1/3) measures the geometry dependence.
+        # MAPE is the same on R and Z. docs/audit 2026-10-22 statistics review.
+        test_W13 = test_W ** (1 / 3)
+        conv_r2_P_Z, _ = r2_mape(actual_P / test_W13, pred_P / test_W13)
+        conv_r2_I_Z, _ = r2_mape(actual_I / test_W13, pred_I / test_W13)
 
         # ---- Fit Z_urban ----
         # (R_urban = W^(1/3) * Z_urban identically, so no separate fit —
@@ -212,6 +219,8 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
             'conv_I_r2': conv_r2_I,
             'z_P_dep': z_mape_P_dep,
             'z_I_dep': z_mape_I_dep,
+            'conv_P_r2_Z': conv_r2_P_Z,
+            'conv_I_r2_Z': conv_r2_I_Z,
         })
 
         if worst_mape < target_mape:
@@ -290,6 +299,8 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
     med_conv_I = cv_df['conv_I'].median()
     med_r2_P   = cv_df['conv_P_r2'].median()
     med_r2_I   = cv_df['conv_I_r2'].median()
+    med_r2_P_Z = cv_df['conv_P_r2_Z'].median()
+    med_r2_I_Z = cv_df['conv_I_r2_Z'].median()
 
     progress(f'\n{"="*60}')
     progress('  CONVERGENCE RADIUS MODELS  (R = W^(1/3) * Z, Hopkinson scaling)')
@@ -302,8 +313,10 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
     else:
         progress('  RadiusI: Z = A * rho^p * (H/s)^q * (s/W^1/3)^r')
     progress(f'{"="*60}')
-    progress(f'  Median conv_P MAPE: {med_conv_P:.2f}%  |  R² = {med_r2_P:.3f}')
-    progress(f'  Median conv_I MAPE: {med_conv_I:.2f}%  |  R² = {med_r2_I:.3f}')
+    progress(f'  Median conv_P MAPE: {med_conv_P:.2f}%  |  R² on R = {med_r2_P:.3f}'
+             f'  |  R² on Z = {med_r2_P_Z:.3f}')
+    progress(f'  Median conv_I MAPE: {med_conv_I:.2f}%  |  R² on R = {med_r2_I:.3f}'
+             f'  |  R² on Z = {med_r2_I_Z:.3f}')
 
     # ---- Save best test split ----
     if best_test_idx is not None:
