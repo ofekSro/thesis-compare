@@ -18,12 +18,18 @@ or those evaluate_z_urban_deployable grades (--domain deployable: the domain a
 user can identify beforehand, from the PREDICTED R_conv). Predictions carry
 the same Z_conv clip. Each fold is gated: the MAPE of the rows written here
 must equal what the library evaluator returns for that fold, else the run
-stops. Error on Z_urban is identical to the error on Lambda = Z_urban / Z_free.
+stops. Error on Z_urban is identical to the error on Lambda = Z_urban / Z_free
+and on R_urban = Z_urban * W^(1/3) [m].
+
+R_urban is the primary zurban target (owner, 2026-10-22): the answer is a
+radius in metres. It is the stored Z_urban times W^(1/3) — no refit, and the
+detail CSV is unchanged. The summary adds R², RMSE and MAE on R_urban with
+family-bootstrap 95% CIs; R² on Z_urban and Lambda stay as complements.
 
 Figures: predicted vs measured, P and I panels, in the style of
 isiems_paper/make_fig4.py (PS_Fig4), under outputs/figures/<tag>/:
-R_conv and Z_conv (_R, _Z), or Z_urban and Lambda (_Zu, _Lambda) for
---target zurban. Skip with --no-figure.
+R_conv and Z_conv (_R, _Z), or R_urban (primary), Z_urban and Lambda
+(_Ru, _Zu, _Lambda) for --target zurban. Skip with --no-figure.
 
 Defaults are production: the constants.RADIUS_ESTIMATOR table, relwls P
 model, quad I model (as run_analysis.py). The baseline gate above needs
@@ -261,11 +267,23 @@ BOOT_SEED = 42
 R2_VIEWS = {'conv': (('R2_R', 'R'), ('R2_Z', 'Z')),
             'zurban': (('R2_Zurban', 'Zu'), ('R2_Lambda', 'Lambda'))}
 
+# Primary zurban view: R_urban [m]. Its R², RMSE and MAE (with CIs) are
+# appended after the coverage columns, so earlier columns keep their place.
+PRIMARY_VIEW = {'zurban': ('Rurban', 'Ru')}
+
+
+def _w13(err_df):
+    """W^(1/3) [kg^(1/3)] from the '_w<kg>' ConfigName suffix."""
+    return err_df['Config'].str.extract(r'_w(\d+)$')[0].astype(float) ** (1 / 3.)
+
 
 def _view_divisor(err_df, view):
     """Divisor that turns Actual/Predicted into the *view* quantity."""
     if view == 'Z':
-        return err_df['Config'].str.extract(r'_w(\d+)$')[0].astype(float) ** (1 / 3.)
+        return _w13(err_df)
+    if view == 'Ru':
+        # R_urban = Z_urban * W^(1/3) [m]
+        return 1.0 / _w13(err_df)
     if view == 'Lambda':
         return err_df['Z_free'].astype(float)
     return pd.Series(1.0, index=err_df.index)
@@ -276,6 +294,17 @@ def _r2(sub, div):
     a = sub['Actual'] / div[sub.index]
     q = sub['Predicted'] / div[sub.index]
     return 1 - ((a - q) ** 2).sum() / ((a - a.mean()) ** 2).sum()
+
+
+def _family_draws(fam, n_boot, seed):
+    """Per det group of *fam*: (group, n_boot x n_families resample indices).
+
+    One generator per call, groups in det order: every bootstrap below draws
+    the same families for the same (sub, n_boot, seed).
+    """
+    rng = np.random.default_rng(seed)
+    return [(g, rng.integers(0, len(g), size=(n_boot, len(g))))
+            for _, g in fam.groupby('det')]
 
 
 def family_bootstrap_ci(sub, n_boot=BOOT_N, seed=BOOT_SEED, per_family=False):
@@ -290,11 +319,9 @@ def family_bootstrap_ci(sub, n_boot=BOOT_N, seed=BOOT_SEED, per_family=False):
     """
     fam = sub.groupby('Family').agg(det=('Det', 'first'),
                                     s=('ErrPct', 'sum'), n=('ErrPct', 'size'))
-    rng = np.random.default_rng(seed)
     num = np.zeros(n_boot)
     den = np.zeros(n_boot)
-    for _, g in fam.groupby('det'):
-        k = rng.integers(0, len(g), size=(n_boot, len(g)))
+    for g, k in _family_draws(fam, n_boot, seed):
         if per_family:
             num += (g['s'] / g['n']).values[k].sum(axis=1)
             den += len(g)
@@ -303,6 +330,52 @@ def family_bootstrap_ci(sub, n_boot=BOOT_N, seed=BOOT_SEED, per_family=False):
             den += g['n'].values[k].sum(axis=1)
     lo, hi = np.percentile(num / den, [2.5, 97.5])
     return float(lo), float(hi)
+
+
+def family_bootstrap_view(sub, div, n_boot=BOOT_N, seed=BOOT_SEED):
+    """R², RMSE, MAE of the *div* view with 95% family-bootstrap CIs.
+
+    sub : err_df rows with finite ErrPct; div : _view_divisor of the view.
+    Same families drawn as family_bootstrap_ci. Point values are computed
+    directly on the rows. Returns {'R2', 'RMSE', 'MAE'} -> (value, lo, hi),
+    RMSE and MAE in the view's unit (m for R_urban).
+    """
+    a = sub['Actual'] / div[sub.index]
+    q = sub['Predicted'] / div[sub.index]
+    t = pd.DataFrame({'Family': sub['Family'], 'Det': sub['Det'], 'n': 1.0,
+                      'sa': a, 'saa': a * a, 'sse': (a - q) ** 2,
+                      'sae': (a - q).abs()})
+    fam = t.groupby('Family').agg(det=('Det', 'first'), n=('n', 'sum'),
+                                  sa=('sa', 'sum'), saa=('saa', 'sum'),
+                                  sse=('sse', 'sum'), sae=('sae', 'sum'))
+    tot = {c: np.zeros(n_boot) for c in ('n', 'sa', 'saa', 'sse', 'sae')}
+    for g, k in _family_draws(fam, n_boot, seed):
+        for c in tot:
+            tot[c] += g[c].values[k].sum(axis=1)
+    sst = tot['saa'] - tot['sa'] ** 2 / tot['n']
+    boot = {'R2': 1 - tot['sse'] / sst,
+            'RMSE': np.sqrt(tot['sse'] / tot['n']),
+            'MAE': tot['sae'] / tot['n']}
+    point = {'R2': _r2(sub, div),
+             'RMSE': float(np.sqrt(((a - q) ** 2).mean())),
+             'MAE': float((a - q).abs().mean())}
+    return {m: (point[m], *(float(v) for v in np.percentile(boot[m], [2.5, 97.5])))
+            for m in point}
+
+
+def _primary_columns(fin, kind, n_boot, seed):
+    """R2/RMSE/MAE (+ CI95) columns of the primary view of *kind*, or {}."""
+    if kind not in PRIMARY_VIEW:
+        return {}
+    name, view = PRIMARY_VIEW[kind]
+    res = family_bootstrap_view(fin, _view_divisor(fin, view), n_boot, seed)
+    cols = {}
+    for m, unit in (('R2', ''), ('RMSE', '_m'), ('MAE', '_m')):
+        v, lo, hi = res[m]
+        cols[f'{m}_{name}{unit}'] = v
+        cols[f'{m}_{name}{unit}_CI95_lo'] = lo
+        cols[f'{m}_{name}{unit}_CI95_hi'] = hi
+    return cols
 
 
 def _coverage(sub, configs, det=None):
@@ -325,7 +398,8 @@ def summarize(err_df, kind='conv', configs=None, n_boot=BOOT_N, seed=BOOT_SEED):
     configs : DataFrame with ConfigName, Det of every config in the table;
               the denominator of Coverage_configs. None -> coverage NaN.
     Columns after Max: Mean_CI95_lo/hi [%] (family bootstrap), the two R²,
-    then coverage.
+    coverage, then for zurban the primary R_urban view: R2_Rurban,
+    RMSE_Rurban_m, MAE_Rurban_m [m], each with _CI95_lo/hi.
     """
     out = []
     for target in ('P', 'I'):
@@ -347,6 +421,7 @@ def summarize(err_df, kind='conv', configs=None, n_boot=BOOT_N, seed=BOOT_SEED):
             for name, view in R2_VIEWS[kind]:
                 row[name] = _r2(fin, _view_divisor(fin, view))
             row.update(_coverage(fin, configs, det))
+            row.update(_primary_columns(fin, kind, n_boot, seed))
             out.append(row)
     return pd.DataFrame(out)
 
@@ -389,6 +464,7 @@ FIG_STYLE = {
 FIG_VIEWS = {
     'R': (r'R_\mathrm{conv,%s}', '[m]'),
     'Z': (r'Z_\mathrm{conv,%s}', r'[m/kg$^{1/3}$]'),
+    'Ru': (r'R_\mathrm{urban,%s}', '[m]'),
     'Zu': (r'Z_\mathrm{urban,%s}', r'[m/kg$^{1/3}$]'),
     'Lambda': (r'\Lambda_\mathrm{%s}', '[-]'),
 }
@@ -398,15 +474,17 @@ def plot_logo(err_df, out_png, view='R', progress=print):
     """Predicted vs measured, out-of-fold, P and I panels.
 
     err_df  : run_logo() output (views 'R', 'Z') or run_logo_zurban() output
-              (views 'Zu', 'Lambda'); ErrPct in %.
+              (views 'Ru', 'Zu', 'Lambda'); ErrPct in %.
     out_png : output PNG path.
     view    : 'R'  R_conv [m];
               'Z'  Z_conv = R_conv / W^(1/3) [m/kg^(1/3)], W from the
                    '_w<kg>' ConfigName suffix;
+              'Ru' R_urban = Z_urban * W^(1/3) [m] (primary zurban view);
               'Zu' Z_urban [m/kg^(1/3)];
               'Lambda' Z_urban / Z_free [-].
     The error statistics do not depend on *view*; only R^2 does, because the
-    divisor (W^(1/3) or Z_free) carries part of the axis range.
+    divisor (W^(1/3), W^(-1/3) or Z_free) carries part of the axis range.
+    The 'Ru' box also gives RMSE and MAE [m], as the summary CSV.
     """
     import matplotlib
     matplotlib.use('Agg')
@@ -476,6 +554,9 @@ def plot_logo(err_df, out_png, view='R', progress=print):
                    '90th percentile = %.1f %%\n%d of %d within $\\pm$10 %%\n'
                    '%d of %d within $\\pm$20 %%'
                    % (r2, st.mean(e), med, p90, n10, len(e), n20, len(e)))
+            if view == 'Ru':
+                box += ('\nRMSE = %.2f m\nMAE = %.2f m'
+                        % (np.sqrt(((a - q) ** 2).mean()), (a - q).abs().mean()))
             ax.text(0.035, 0.955, box, transform=ax.transAxes, fontsize=7.7,
                     color='0.22', ha='left', va='top', linespacing=1.40)
             progress(f'  {view} {load}: R2 {r2:.4f}  within 10% {n10}/{len(e)}  '
@@ -544,7 +625,7 @@ def main(*, table=None, radius_method=None, model_p=MODEL_P_DEFAULT,
         stem = f'{tag}_{model_p}_{model_i}_zurban'
         if domain == 'deployable':
             stem += '_deploy'
-        views = ('Zu', 'Lambda')
+        views = ('Ru', 'Zu', 'Lambda')
         header = (f'LOGO CV  target=zurban  domain={domain}  '
                   f'tables={table.name}, {maxr_table.name}')
     else:

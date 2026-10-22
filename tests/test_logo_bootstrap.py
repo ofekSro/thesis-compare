@@ -99,6 +99,46 @@ def test_coverage_counts_configs_in_scope():
     assert row.Coverage_configs == pytest.approx((n_det1 - 3) / n_det1)
 
 
+def _zurban_df(seed=1):
+    """Z_urban-shaped err_df: Actual/Predicted = Z_urban, with Z_free."""
+    d = _err_df(seed)
+    w13 = d.Config.str.extract(r'_w(\d+)$')[0].astype(float) ** (1 / 3)
+    d['Actual'] = d['Actual'] / w13          # back to a scaled distance
+    d['Predicted'] = d['Predicted'] / w13
+    d['Z_free'] = d['Actual'] / np.random.default_rng(seed).uniform(0.9, 1.4, len(d))
+    return d
+
+
+def test_mape_identical_on_r_urban_z_urban_and_lambda():
+    d = _zurban_df()
+    for view in ('Ru', 'Zu', 'Lambda'):
+        div = logo_cv._view_divisor(d, view)
+        a, q = d.Actual / div, d.Predicted / div
+        assert np.allclose(100 * np.abs(q - a) / a, d.ErrPct, rtol=1e-12)
+
+
+def test_r_urban_columns_appended_and_match_manual():
+    d = _zurban_df()
+    s = logo_cv.summarize(d, 'zurban', _configs(d))
+    cols = list(s.columns)
+    assert cols.index('R2_Rurban') > cols.index('Coverage_configs')
+    sub = d[(d.Target == 'P') & (d.Det == 2)]
+    w13 = sub.Config.str.extract(r'_w(\d+)$')[0].astype(float) ** (1 / 3)
+    a, q = sub.Actual * w13, sub.Predicted * w13
+    row = s[(s.Target == 'P') & (s.Scope == 'det2')].iloc[0]
+    r2 = 1 - ((a - q) ** 2).sum() / ((a - a.mean()) ** 2).sum()
+    assert row.R2_Rurban == pytest.approx(r2, rel=1e-12)
+    assert row.RMSE_Rurban_m == pytest.approx(np.sqrt(((a - q) ** 2).mean()), rel=1e-12)
+    assert row.MAE_Rurban_m == pytest.approx((a - q).abs().mean(), rel=1e-12)
+    for m in ('R2_Rurban', 'RMSE_Rurban_m', 'MAE_Rurban_m'):
+        assert row[f'{m}_CI95_lo'] < row[m] < row[f'{m}_CI95_hi']
+
+
+def test_conv_summary_has_no_r_urban_columns():
+    d = _err_df()
+    assert not any('Rurban' in c for c in logo_cv.summarize(d, 'conv').columns)
+
+
 def test_per_family_ci_resamples_family_means():
     d = _err_df()
     s = logo_cv.summarize_families(d, _configs(d))
