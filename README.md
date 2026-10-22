@@ -153,10 +153,16 @@ tables (`check_formulas`, `formulas_printer`, `pi_effects`, `regime_graphs`)
 take a matching `--radius-method`.
 
 `max_radius_per_Z_*.csv` records every `(config, Z)` row, with boolean
-`beyond_P` / `beyond_I` marking rows at or outside the convergence radius. Those
-rows carry no urban information and are excluded when the Z_urban model is
-fitted (`blastlib/regression/z_urban.py::z_urban_valid_mask`) — but they stay in
-the CSV rather than being dropped, so how often it happens is visible.
+`beyond_P` / `beyond_I` marking rows whose raw reach is at or outside the
+convergence radius. Beyond R_conv the field is taken as engineering-equivalent
+to the free field (the convergence criterion holds, or the load is below the
+relevance floor) — not because the urban effect has vanished; the measured
+MaxR can exceed R_conv (D49). Those rows are outside the Z_urban fit domain and
+are excluded when the model is fitted
+(`blastlib/regression/z_urban.py::z_urban_valid_mask`), but they stay in the
+CSV rather than being dropped, so how often it happens is visible. The
+deployed chain returns Z_urban = Z_free at and beyond the predicted R_conv
+(`clip_z_urban_pred`, D50).
 
 ### Regenerating the NPZ files from raw VTKs
 
