@@ -4,3 +4,4 @@ pandas>=2.0
 matplotlib>=3.7
 scipy>=1.10
 scikit-learn>=1.3
+h5py>=3.0          # tools/toa_ff_validation: reads guioutfreq_3d from Viper .vip.bak
