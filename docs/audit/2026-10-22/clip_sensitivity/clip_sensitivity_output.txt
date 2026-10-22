@@ -1,0 +1,120 @@
+gate: clipped predictions and rows equal the tracked LOGO detail files
+
+== All rows, with vs without clip
+Target      domain Det  rows  active     model     MAPE       R2   RMSE_m    MAE_m  bias_pct
+     I conditional all   732      55 with_clip    6.749    0.964    7.628    5.541    -0.544
+     I conditional all   732      55   no_clip    6.883    0.956    8.420    5.858    -0.027
+     I  deployable all  1110     371 with_clip    9.884    0.870   20.815   12.865    -5.458
+     I  deployable all  1110     371   no_clip    7.513    0.945   13.476    8.638     0.257
+     P conditional all   422      53 with_clip    8.773    0.925    7.321    5.534    -0.943
+     P conditional all   422      53   no_clip    8.564    0.922    7.435    5.481     0.601
+     P  deployable all   498     106 with_clip    8.417    0.940    7.692    5.848    -0.733
+     P  deployable all   498     106   no_clip    9.020    0.916    9.162    6.542     2.006
+     I conditional   1   362      25 with_clip    6.325    0.971    6.863    5.127    -0.541
+     I conditional   1   362      25   no_clip    6.349    0.968    7.252    5.281    -0.086
+     I conditional   2   370      30 with_clip    7.163    0.956    8.308    5.946    -0.547
+     I conditional   2   370      30   no_clip    7.405    0.943    9.423    6.423     0.030
+     I  deployable   1   539     171 with_clip    9.468    0.876   20.685   12.400    -5.199
+     I  deployable   1   539     171   no_clip    6.893    0.960   11.692    7.796    -0.046
+     I  deployable   2   571     200 with_clip   10.277    0.863   20.937   13.305    -5.702
+     I  deployable   2   571     200   no_clip    8.098    0.930   14.966    9.434     0.543
+     P conditional   1   202      20 with_clip    8.037    0.943    6.018    4.694    -0.455
+     P conditional   1   202      20   no_clip    7.826    0.942    6.080    4.671     0.490
+     P conditional   2   220      33 with_clip    9.448    0.908    8.341    6.305    -1.390
+     P conditional   2   220      33   no_clip    9.242    0.905    8.490    6.225     0.703
+     P  deployable   1   235      42 with_clip    7.918    0.948    6.552    5.079    -0.251
+     P  deployable   1   235      42   no_clip    8.432    0.929    7.708    5.658     1.822
+     P  deployable   2   263      64 with_clip    8.862    0.933    8.584    6.534    -1.163
+     P  deployable   2   263      64   no_clip    9.546    0.903   10.290    7.332     2.170
+
+== By group (shared / deploy_only / cond_only)
+Target      domain       group Det  rows  active     model     MAPE       R2   RMSE_m    MAE_m  bias_pct
+     I conditional   cond_only all     9       9 with_clip   12.601    0.901    7.817    7.382   -12.601
+     I conditional   cond_only all     9       9   no_clip    4.975    0.975    3.919    3.269    -1.775
+     I conditional      shared all   723      46 with_clip    6.676    0.964    7.625    5.518    -0.394
+     I conditional      shared all   723      46   no_clip    6.907    0.955    8.461    5.891    -0.005
+     I  deployable deploy_only all   387     325 with_clip   15.878    0.644   33.676   26.592   -14.918
+     I  deployable deploy_only all   387     325   no_clip    8.645    0.878   19.676   13.771     0.747
+     I  deployable      shared all   723      46 with_clip    6.676    0.964    7.625    5.518    -0.394
+     I  deployable      shared all   723      46   no_clip    6.907    0.955    8.461    5.891    -0.005
+     P conditional   cond_only all    16      15 with_clip   21.615    0.555   17.008   14.976   -21.615
+     P conditional   cond_only all    16      15   no_clip    8.721    0.899    8.095    6.067    -3.069
+     P conditional      shared all   406      38 with_clip    8.267    0.938    6.657    5.162    -0.128
+     P conditional      shared all   406      38   no_clip    8.558    0.923    7.408    5.458     0.746
+     P  deployable deploy_only all    92      68 with_clip    9.077    0.887   11.168    8.874    -3.401
+     P  deployable deploy_only all    92      68   no_clip   11.061    0.807   14.570   11.326     7.565
+     P  deployable      shared all   406      38 with_clip    8.267    0.938    6.657    5.162    -0.128
+     P  deployable      shared all   406      38   no_clip    8.558    0.923    7.408    5.458     0.746
+     I conditional   cond_only   1     4       4 with_clip   16.185   -4.342    8.639    8.162   -16.185
+     I conditional   cond_only   1     4       4   no_clip    5.772    0.360    2.991    2.894    -5.772
+     I conditional   cond_only   2     5       5 with_clip    9.733    0.938    7.092    6.759    -9.733
+     I conditional   cond_only   2     5       5   no_clip    4.338    0.975    4.527    3.569     1.423
+     I conditional      shared   1   358      21 with_clip    6.215    0.971    6.841    5.093    -0.366
+     I conditional      shared   1   358      21   no_clip    6.355    0.968    7.286    5.308    -0.022
+     I conditional      shared   2   365      25 with_clip    7.128    0.956    8.323    5.935    -0.421
+     I conditional      shared   2   365      25   no_clip    7.447    0.943    9.473    6.462     0.011
+     I  deployable deploy_only   1   181     150 with_clip   15.902    0.646   34.374   26.853   -14.757
+     I  deployable deploy_only   1   181     150   no_clip    7.957    0.909   17.381   12.715    -0.094
+     I  deployable deploy_only   2   206     175 with_clip   15.857    0.641   33.050   26.363   -15.060
+     I  deployable deploy_only   2   206     175   no_clip    9.250    0.848   21.491   14.699     1.486
+     I  deployable      shared   1   358      21 with_clip    6.215    0.971    6.841    5.093    -0.366
+     I  deployable      shared   1   358      21   no_clip    6.355    0.968    7.286    5.308    -0.022
+     I  deployable      shared   2   365      25 with_clip    7.128    0.956    8.323    5.935    -0.421
+     I  deployable      shared   2   365      25   no_clip    7.447    0.943    9.473    6.462     0.011
+     P conditional   cond_only   1     7       6 with_clip   16.183    0.648    9.713    8.352   -16.183
+     P conditional   cond_only   1     7       6   no_clip    5.405    0.945    3.844    2.863    -5.337
+     P conditional   cond_only   2     9       9 with_clip   25.839    0.147   20.998   20.129   -25.839
+     P conditional   cond_only   2     9       9   no_clip   11.300    0.797   10.247    8.560    -1.306
+     P conditional      shared   1   195      14 with_clip    7.745    0.947    5.842    4.563     0.109
+     P conditional      shared   1   195      14   no_clip    7.912    0.942    6.145    4.736     0.700
+     P conditional      shared   2   211      24 with_clip    8.749    0.929    7.330    5.715    -0.348
+     P conditional      shared   2   211      24   no_clip    9.154    0.906    8.407    6.125     0.789
+     P  deployable deploy_only   1    40      28 with_clip    8.760    0.910    9.266    7.598    -2.008
+     P  deployable deploy_only   1    40      28   no_clip   10.965    0.827   12.843   10.153     7.292
+     P  deployable deploy_only   2    52      40 with_clip    9.320    0.855   12.435    9.856    -4.473
+     P  deployable deploy_only   2    52      40   no_clip   11.135    0.767   15.770   12.229     7.775
+     P  deployable      shared   1   195      14 with_clip    7.745    0.947    5.842    4.563     0.109
+     P  deployable      shared   1   195      14   no_clip    7.912    0.942    6.145    4.736     0.700
+     P  deployable      shared   2   211      24 with_clip    8.749    0.929    7.330    5.715    -0.348
+     P  deployable      shared   2   211      24   no_clip    9.154    0.906    8.407    6.125     0.789
+
+== Only rows where the clip is active
+Target      domain       group Det  rows  active     model     MAPE       R2   RMSE_m    MAE_m  bias_pct
+     I conditional   cond_only all     9       9 with_clip   12.601    0.901    7.817    7.382   -12.601
+     I conditional   cond_only all     9       9   no_clip    4.975    0.975    3.919    3.269    -1.775
+     I conditional      shared all    46      46 with_clip    5.759    0.950   10.508    7.665     1.402
+     I conditional      shared all    46      46   no_clip    9.386    0.853   17.935   13.523     7.508
+     I  deployable deploy_only all   325     325 with_clip   17.207    0.573   36.373   29.780   -16.737
+     I  deployable deploy_only all   325     325   no_clip    8.595    0.860   20.823   14.514     1.917
+     I  deployable      shared all    46      46 with_clip    5.759    0.950   10.508    7.665     1.402
+     I  deployable      shared all    46      46   no_clip    9.386    0.853   17.935   13.523     7.508
+     P conditional   cond_only all    15      15 with_clip   22.865    0.549   17.561   15.864   -22.865
+     P conditional   cond_only all    15      15   no_clip    9.112    0.898    8.350    6.361    -3.084
+     P conditional      shared all    38      38 with_clip    9.414    0.784   10.091    8.497    -0.910
+     P conditional      shared all    38      38   no_clip   12.522    0.545   14.650   11.662     8.430
+     P  deployable deploy_only all    68      68 with_clip    8.990    0.805   12.154    9.871    -6.537
+     P  deployable deploy_only all    68      68   no_clip   11.675    0.648   16.315   13.188     8.300
+     P  deployable      shared all    38      38 with_clip    9.414    0.784   10.091    8.497    -0.910
+     P  deployable      shared all    38      38   no_clip   12.522    0.545   14.650   11.662     8.430
+
+== Physical checks
+Target      domain  rows  raw>Zconv_pred  raw>Zconv_meas  meas_MaxR>Rconv_meas(beyond)  meas>Zconv_pred  ratio_raw/Zc_p50_active  ratio_raw/Zc_p90_active  ratio_raw/Zc_max  ratio_meas/Zc_p50_where_meas>Zc  ratio_meas/Zc_max
+     I conditional   732              55              43                             0               51                    1.049                    1.163             1.256                            1.052              1.299
+     I  deployable  1110             371             383                           385              387                    1.177                    1.457             1.665                            1.170              1.764
+     P conditional   422              53              40                             0               56                    1.110                    1.328             1.623                            1.097              1.709
+     P  deployable   498             106             110                            77               99                    1.108                    1.295             1.415                            1.089              1.283
+
+== Monotonicity within config
+Target      domain  adjacent_pairs  decreasing_measured  decreasing_no_clip  decreasing_with_clip
+     I conditional             636                    2                   0                     0
+     I  deployable            1015                    3                   0                     0
+     P conditional             340                    1                   0                     0
+     P  deployable             420                    1                   0                     0
+
+== Jump at the R_conv boundary: raw Z_urban(Z_free=Z_conv)/Z_conv
+              count      min      10%      50%      90%      max
+Target Det                                                      
+I      1     48.000    1.024    1.068    1.251    1.562    1.681
+       2     48.000    1.033    1.060    1.326    1.641    1.733
+P      1     48.000    0.944    0.994    1.059    1.341    1.368
+       2     48.000    1.050    1.068    1.134    1.408    1.447
