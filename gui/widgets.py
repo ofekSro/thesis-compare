@@ -271,15 +271,21 @@ class RadiusEstimatorField:
     idiom as ScaleField's manual limits). The Soft option itself is disabled —
     with a tooltip saying why — when spec['soft_status_fn'] reports that the
     v2 raw-field NPZs are unavailable, so a soft run can never start and then
-    die on the missing keys mid-pipeline. The 'Req, per direction' (reqdir)
-    radio is disabled the same way when spec['reqdir_status_fn'] reports no
-    v3 raw store, which the null city is built from.
+    die on the missing keys mid-pipeline. The two 'Req, per direction' radios
+    (reqdir: 90 equal sectors; reqdir91: 91 sectors, ends weighted 1/2, the
+    production layout since D15 was revised) are disabled the same way when
+    spec['reqdir_status_fn'] reports no v3 raw store, which the null city is
+    built from.
     """
 
-    METHODS = [('Req (equivalent area)', 'req'),
-               ('Req, per direction',    'reqdir'),
-               ('Max',                   'max'),
-               ('Percentile',            'p95')]
+    METHODS = [('Req (equivalent area)',     'req'),
+               ('Req, per direction (90)',   'reqdir'),
+               ('Req, per direction (91)',   'reqdir91'),
+               ('Max',                       'max'),
+               ('Percentile',                'p95')]
+
+    # Radios that need the v3 raw store (null city); see reqdir_status_fn.
+    DIR_METHODS = ('reqdir', 'reqdir91')
 
     SOFT_BETA_DEFAULT = 4.0
 
@@ -332,9 +338,10 @@ class RadiusEstimatorField:
         except Exception as exc:          # a broken probe must not kill the GUI
             reqdir_ok, reqdir_reason = False, str(exc)
         if not reqdir_ok:
-            radios['reqdir'].configure(state='disabled')
-            Tooltip(radios['reqdir'], reqdir_reason)
-            if self.method.get() == 'reqdir':
+            for m in self.DIR_METHODS:
+                radios[m].configure(state='disabled')
+                Tooltip(radios[m], reqdir_reason)
+            if self.method.get() in self.DIR_METHODS:
                 self.method.set('req')
 
         self._spin = ttk.Spinbox(method_line, textvariable=self.percentile,

@@ -27,7 +27,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 for _sub in ('check_formulas', 'formulas_printer', 'pi_effects', 'radius_methods',
              'regime_graphs', 'z_surface_3d', 'view_3d', 'migrate_vtks',
              'extract_1d_peaks', 'validate_migration', 'config_curve',
-             'street'):
+             'street', 'logo_cv'):
     _p = str(PROJECT_ROOT / 'tools' / _sub)
     if _p not in sys.path:
         sys.path.append(_p)
@@ -60,7 +60,7 @@ def soft_npz_status(npz_dir=None):
 
 
 def reqdir_status(npz_dir=None):
-    """(ok, reason) — can the 'reqdir' estimator run? It builds the null city
+    """(ok, reason) — can 'reqdir' / 'reqdir91' run? They build the null city
     from the raw solver fields, which only the v3 raw store carries."""
     from blastlib.io import raw_store
     d = npz_dir or paths.RAW_NPZ_DIR
@@ -225,8 +225,10 @@ TABS = [
                      'BOTH the convergence radius and MaxR; outputs are '
                      'suffixed with it (soft runs as e.g. req_soft4). Soft '
                      'reads the v2 NPZ superset. "Req, per direction" '
-                     '(reqdir) uses 90 equal sectors and normalises MaxR per '
-                     'direction by the null city; it needs data/raw_npz.'},
+                     'normalises MaxR per direction by the null city and needs '
+                     'data/raw_npz: (90) = reqdir, 90 equal sectors; (91) = '
+                     'reqdir91, 91 whole-degree sectors with the two end '
+                     'sectors weighted 1/2 (production, D15).'},
             {'key': 'npz_dir', 'label': 'NPZ folder', 'kind': 'path', 'browse': 'dir',
              'default': '',
              'help': 'blank = data/raw_npz/ when present (needed by reqdir), '
@@ -308,6 +310,49 @@ TABS = [
              'default': '', 'help': 'blank = outputs/tables/'},
             {'key': 'out_dir', 'label': 'Output folder', 'kind': 'path', 'browse': 'dir',
              'default': '', 'help': 'blank = outputs/check_results/'},
+        ],
+    },
+    {
+        'name': 'LOGO CV',
+        'blurb': 'Leave-one-geometry-out CV: each (Det, b, s, H) family is '
+                 'withheld in turn and predicted by a refit on the rest. '
+                 'Target conv = the convergence radius (figures R and Z); '
+                 'zurban = the Z_urban chain (figures Z_urban and Lambda). '
+                 'Writes the detail and summary CSVs and the figures.',
+        'target': _call('logo_cv'),
+        'requirements_fn': lambda values: _conv_table_requirements(values) + (
+            [_table_required(paths.MAXR_CSV.name, method=_values_method(values))]
+            if values.get('target') == 'zurban' else []),
+        'params': [
+            {'key': 'target', 'label': 'Target', 'kind': 'choice',
+             'options': ['conv', 'zurban'], 'default': 'conv',
+             'help': 'conv = R_conv models; zurban = Z_urban / Lambda'},
+            {'key': 'domain', 'label': 'Z_urban rows', 'kind': 'choice',
+             'options': ['conditional', 'deployable'], 'default': 'conditional',
+             'help': 'zurban only. conditional = rows inside the MEASURED '
+                     'R_conv (as the CV reports); deployable = rows inside '
+                     'the PREDICTED R_conv (what a user meets)'},
+            dict(_RADIUS_METHOD_PARAM),
+            {'key': 'model_p', 'label': 'P model', 'kind': 'choice',
+             'options': ['relwls', 'legacy'], 'default': 'relwls',
+             'help': 'relwls = production (relative-weighted fit)'},
+            {'key': 'model_i', 'label': 'I model', 'kind': 'choice',
+             'options': ['quad', 'unified', 'legacy'], 'default': 'quad',
+             'help': 'quad = production'},
+            {'key': 'figure', 'label': 'Figures', 'kind': 'choice',
+             'options': ['yes', 'no'], 'default': 'yes',
+             'cast': lambda s: s == 'yes',
+             'help': 'outputs/figures/<estimator>/logo_cv_*.png'},
+            {'key': 'out_dir', 'label': 'Output folder (CSV)', 'kind': 'path',
+             'browse': 'dir', 'default': '',
+             'help': 'blank = outputs/check_results/'},
+            {'key': 'tag', 'label': 'Filename tag', 'kind': 'text',
+             'default': '', 'advanced': True,
+             'help': 'blank = the estimator token'},
+            {'key': 'radius_i_from', 'label': 'RadiusI override CSV', 'kind': 'path',
+             'browse': 'file', 'default': '', 'advanced': True,
+             'help': "Replace the table's RadiusI column (e.g. a SHIPPED_ "
+                     'snapshot); blank = none.'},
         ],
     },
     {

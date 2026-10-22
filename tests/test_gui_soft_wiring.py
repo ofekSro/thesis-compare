@@ -61,6 +61,23 @@ def test_reqdir_radio_resolves_to_its_token():
     assert est['n_theta'] == 90 and est['normalise'] == 'dir'
 
 
+def test_reqdir91_radio_resolves_to_production_token():
+    """'Req, per direction (91)' + soft beta 3 must be exactly the production token."""
+    from blastlib import constants
+    assert estimator_value('reqdir91', '95', 'hard', '3') == {'method': 'reqdir91'}
+    est = resolve_estimator(estimator_value('reqdir91', '95', 'soft', '3'))
+    assert est['method'] == 'reqdir91_soft3' == constants.RADIUS_ESTIMATOR['method']
+    assert est['n_theta'] == 91 and est['normalise'] == 'dir'
+
+
+def test_production_default_selects_the_91_radio():
+    from gui.widgets import RadiusEstimatorField
+    from blastlib import constants
+    base, beta = RadiusEstimatorField._split_default(constants.RADIUS_ESTIMATOR['method'])
+    assert (base, beta) == ('reqdir91', 3.0)
+    assert base in dict((v, k) for k, v in RadiusEstimatorField.METHODS)
+
+
 def test_reqdir_status_probe(tmp_path):
     from gui.specs import reqdir_status
     ok, reason = reqdir_status(tmp_path / 'nope')
