@@ -50,6 +50,8 @@
     font-weight:600}
   .pill.amp{background:rgba(33,102,172,.2);color:#6ea8dc}
   .pill.att{background:rgba(192,57,43,.2);color:#e07b6b}
+  .pill.free,.pill.out{background:rgba(139,152,165,.2);color:#c5cdd5}
+  .free,.out{color:#c5cdd5}
   .tabs{display:flex;gap:8px;margin-bottom:16px}
   .tab{padding:9px 18px;background:var(--panel);border:1px solid var(--line);
     border-radius:9px;cursor:pointer;font-size:14px;color:var(--muted);
@@ -65,6 +67,7 @@
   .ban{border-radius:10px;padding:12px 15px;margin:14px 0;font-size:13.5px;
     border:1px solid}
   .ban.ok  {background:rgba(46,139,87,.13); border-color:#2e8b57; color:#7fd6a4}
+  .ban.core{background:rgba(59,130,246,.10); border-color:#3b82f6; color:#9cc2fb}
   .ban.warn{background:rgba(217,140,0,.13); border-color:#d98c00; color:#f0b95c}
   .ban.err {background:rgba(192,57,43,.13); border-color:#c0392b; color:#f0938a}
   .ban ul{margin:8px 0 4px;padding-inline-start:20px}
@@ -76,7 +79,10 @@
 <body>
 <div class="wrap">
   <h1>מחשבון רדיוס התכנסות ו-Z<sub>urban</sub></h1>
-  <div class="sub">Buckingham-Pi · קריטריון לחץ רך (tanh, β=3) סביב 10 kPa · אימפולס: |ΔI|/I<sub>ff</sub> &lt; 10% או P<sub>urban</sub> &lt; 10 kPa · מקדמי ייצור <code>req_soft3</code></div>
+  <div class="sub">Buckingham-Pi · R<sub>conv,P</sub>: קריטריון לחץ רך (tanh, β=3) סביב 10 kPa ·
+    R<sub>conv,I</sub>: |I/I<sub>ff</sub> − 1| ≤ 10% או I/W<sup>1/3</sup> &lt; 23.6 Pa·s/kg<sup>1/3</sup> (D35) ·
+    MaxR מנורמל לפי כיוון מול העיר הריקה (Λ<sub>dir</sub>, ‏91 סקטורים, קצוות במשקל ½) ·
+    מקדמי ייצור <code>reqdir91_soft3</code></div>
 
   <div class="tabs">
     <button class="tab on" id="tb1" onclick="showTab(1)">מחשבון מלא</button>
@@ -154,7 +160,11 @@
       נוסחת range-switch עם דעיכת מרחק (1/Z<sub>free</sub>): ההגברה תלוית מרחק (התאבכות).
       <b>אימפולס</b> — canyon-trap ללא איבר מרחק: הגיאומטריה קובעת פקטור קבוע. הנחתה
       (Λ&lt;1) רציפה — ln(Λ)&lt;0, בלי מסווג. <span class="clip">clip</span> = נחתך לרדיוס
-      ההתכנסות. תקף ל-Z<sub>free</sub> ≥ 2 ובתוך הרדיוס.
+      ההתכנסות. <span class="clip">חופשי</span> = מעבר לרדיוס ההתכנסות החזוי, שם משתמשים
+      בשדה החופשי כקירוב הנדסי (Z<sub>urban</sub> = Z<sub>free</sub>), ולא משום שההשפעה
+      העירונית נעלמת. תקף ל-Z<sub>free</sub> ≥ 2 ול-R<sub>free</sub> ≥ b+s (תקופה עירונית
+      אחת לפחות; מתחת לכך — מודל תיעול הרחוב). בלחץ, כש-Λ&lt;1 בגבול, התשובה קופצת
+      כלפי מעלה ברדיוס ההתכנסות (D51).
     </div>
   </div>
 </div><!-- /tab1 -->
@@ -227,61 +237,72 @@
 
 <script>
 // =====================================================================
-// Production coefficients — final_production_*_req_soft3, regenerated
-// 2026-09-28 evening on the raw-field-mask store under the
-// RELEVANCE-BOUNDED impulse criterion (|dI|/I_ff < 10% OR urban peak
-// P < 10 kPa — one relevance floor for both loads; see
-// blastlib/constants.py::IMPULSE_CRITERION,
-// outputs/check_results/impulse_pressure_floor_change_note.md and
-// docs/audit/2026-09-28/physics.md). R_conv,I is a relevance-bounded
-// radius, not a field-merging radius.
-// RadiusP: additive form, relative-error weighted LS (bit-identical
-// through every impulse-criterion change).
-// RadiusI: quad power law (the owner's original form). Keep in sync with
-// outputs/tables/final_production_*_coefficients_req_soft3.csv
+// Production model — reqdir91_soft3 (constants.RADIUS_ESTIMATOR; D15:
+// 91 sectors, ends weighted 1/2; MaxR normalised per direction by the null
+// city, Lambda_dir). Coefficients copied at full precision from
+//   outputs/tables/final_production_convergence_coefficients_reqdir91_soft3.csv
+//   outputs/tables/final_production_z_urban_coefficients_reqdir91_soft3.csv
+// (fitted on all 96 configs). Keep in sync after any Phase-2 re-run;
+// tests/test_blast_calculator.py fails if they drift.
+// R_conv,P criterion: soft tanh band (beta = 3) around 10 kPa.
+// R_conv,I criterion (D35): |I/I_ff - 1| <= 10% or I/W^(1/3) < 23.6.
+// RadiusP: additive form, relative-error weighted LS ('relwls').
+// RadiusI: quad power law.
 // =====================================================================
 const CONV_P = {
-  1:{C0:9.844992, C1:-0.764408, C2:2.571043, C3:0.520789, a:1},
-  2:{C0:11.610352, C1:-0.782647, C2:1.962672, C3:0.645310, a:2}
+  1:{C0:10.074865140207256, C1:-0.7503647561877373, C2:2.389983416564905,
+     C3:0.42369248107509, a:1},
+  2:{C0:11.544308718044398, C1:-0.7675894863777671, C2:1.925098323502448,
+     C3:0.6574892480654029, a:2}
 };
 // Z = A * rho^p * (H/s)^q * pi2^r * exp(r2*ln(pi2)^2)
 const CONV_I = {
-  1:{A:17.801042, p:0.319956, q:-0.052095, r:0.053800, r2:0.003145},
-  2:{A:17.835159, p:0.236925, q:-0.006675, r:0.126987, r2:-0.042515}
+  1:{A:20.374337728341562, p:0.2740475936656983, q:0.11239359962188873,
+     r:0.11801974981643809, r2:-0.04693061995250648},
+  2:{A:20.895539894570057, p:0.2938511423655946, q:0.1361070380599937,
+     r:0.20967129140136992, r2:-0.02878290894447677}
 };
-// Z_urban - PySR structured forms (final_production, req_soft3).
-// Pressure  (range_switch): lnL = C0 + C1*[(pi2 - A)/Zf - ln pi2] / (pi2*(s/H) + B)
-// Impulse   (canyon_trap):  lnL = C0 + C1*rho*(sqrt(H/s) - C2*rho) / (H/s + C3*sqrt(pi2))
-// The pressure block is untouched by the impulse-criterion changes; the
-// impulse block tracks the criterion through the fit domain (R_conv,I
-// bounds which rows the Lambda_I fit sees). Refit 2026-09-29 after the
-// grid-cut fix (docs/DECISIONS.md D31).
+// Z_urban — closed forms (z_urban.Z_URBAN_FORM), CSV columns in brackets.
+// Pressure (range_switch): lnL = C0 + C1*[(pi2 - A)/Zf - ln pi2] / (pi2*(s/H) + B)
+//   [C0, C1_amp, A_switch, B_open]
+// Impulse  (canyon_trap):  lnL = C0 + C1*rho*(sqrt(H/s) - C2*rho) / (H/s + C3*sqrt(pi2))
+//   [C0, C1_amp, C2_self, C3_dilute]
 const ZU = {
-  P:{ 1:{C0:0.095400, C1:2.622735, A:3.007675, B:7.677276},
-      2:{C0:0.113968, C1:0.606437, A:2.136508, B:1.610389} },
-  I:{ 1:{C0:-0.093116,C1:3.021967, C2:0.890652, C3:1.432386},
-      2:{C0:0.026303, C1:2.659625, C2:1.112587, C3:0.904680} }
+  P:{ 1:{C0:0.14437451270445167, C1:1.261969424800556, A:3.0640776799424274,
+         B:4.364977066953744},
+      2:{C0:0.18367575895546046, C1:0.857647765731151, A:2.377153699978435,
+         B:3.1856051197650115} },
+  I:{ 1:{C0:0.0012551027372991865, C1:2.7112906858532413, C2:0.9896534934580726,
+         C3:1.3578533005510687},
+      2:{C0:0.026613669426810274, C1:2.7974272710426455, C2:1.0979030166735508,
+         C3:0.9495217178251618} }
 };
+// Z_urban validity domain (z_urban.z_urban_valid_mask, deployable domain):
+// Z_free >= ZF_MIN, and R_free >= Z_URBAN_MIN_PERIODS * (b + s) (D46; this
+// also implies R_free > exclude_r, the first-street exclusion, since
+// exclude_r = sqrt(b^2 + s^2)/2 (street) or s/2 (intersection) < b + s).
+const ZF_MIN = 2.0;
+const Z_URBAN_MIN_PERIODS = 1.0;
 
 const $=id=>document.getElementById(id);
 
 function rho(b,s){ return (b*b)/((b+s)*(b+s)); }
 
 // =====================================================================
-// Validity domain — from the leave-one-geometry-out error analysis on the
-// beta=3 tables (see docs/ALGORITHM.md, "The safe domain", and
-// outputs/check_results/safe_domain_req_soft3.csv).
-// NOTE 2026-09-27: the SAFE box and its quoted error rates were
-// calibrated on the pre-raw-mask tables and have NOT been recomputed for
-// the new results of record (audit decision D6 pending). The ENV envelope
-// (the sampled hull) is unaffected.
+// Validity domain. The SAFE box BOUNDS were chosen on the pre-raw-mask
+// beta = 3 tables (docs/ALGORITHM.md, "The safe domain") and are NOT
+// re-selected (audit decision D6 pending). The QUOTED error rates below
+// are the current record: leave-one-geometry-out R_conv errors of
+// reqdir91_soft3 (outputs/check_results/logo_cv_reqdir91_soft3_relwls_quad.csv),
+// recomputed 2026-10-22 inside the same box. The ENV envelope is the exact
+// hull of the 96 configs (re-checked on the same tables).
 //
-//   SAFE   rho 0.31-0.56, pi2 0.5-5.4, H/s <= 3
-//          every held-out config below 20% error on BOTH targets
-//          (38/96 configs; P mean 7.8% max 18.9%, I mean 6.4% max 19.6%;
-//           89% of P and 95% of I within +-15%)
-//   EDGE   inside the sampled envelope but on one of its sparse corners
-//          -> answers still given, worst observed error ~30%
+//   SAFE   rho 0.31-0.56, pi2 0.5-5.4, H/s <= 3  (38/96 configs)
+//          34/38 held-out configs below 20% on BOTH targets;
+//          P mean 8.4% max 23.5%, I mean 6.1% max 28.4%;
+//          82% of P and 95% of I within +-15%
+//   EDGE   inside the envelope, on a sparse corner -> answers still given,
+//          worst observed error ~38% (P, dense rho > 0.56)
 //   OUT    outside the sampled envelope -> refuse (no extrapolation)
 // =====================================================================
 // ENV is the exact hull of the 96 simulated configurations (a hair of
@@ -305,28 +326,33 @@ function checkDomain(b,s,H,W){
     out.push('H/s = '+hs.toFixed(2)+' — מחוץ למעטפת (0.20–4.80)');
 
   // --- inside the envelope but off the safe box: name the corner ---
-  if(r>SAFE.rho[1])  edge.push('ρ = '+r.toFixed(2)+' — מרקם צפוף מאוד (מעל 0.56): פינה דלילה, שם נמדדו השגיאות הגדולות ביותר (עד ~30%)');
-  if(r<SAFE.rho[0])  edge.push('ρ = '+r.toFixed(2)+' — מרקם דליל (מתחת ל-0.31): פינה דלילה, שגיאה עד ~25%');
-  if(pi2<SAFE.pi2[0])edge.push('Π₂ = '+pi2.toFixed(2)+' — רחוב צר מאוד יחסית למטען (מתחת ל-0.5): האימפולס שוגה שם עד ~27%');
-  if(hs>SAFE.hsMax)  edge.push('H/s = '+hs.toFixed(2)+' — קניון גבוה (מעל 3): פינה דלילה, שגיאה עד ~26%');
+  // Corner maxima: LOGO R_conv error, reqdir91_soft3 (P / I).
+  if(r>SAFE.rho[1])  edge.push('ρ = '+r.toFixed(2)+' — מרקם צפוף מאוד (מעל 0.56): פינה דלילה, שם נמדדו השגיאות הגדולות ביותר (לחץ עד ~38%, אימפולס עד ~25%)');
+  if(r<SAFE.rho[0])  edge.push('ρ = '+r.toFixed(2)+' — מרקם דליל (מתחת ל-0.31): פינה דלילה, שגיאה עד ~31% (אימפולס)');
+  if(pi2<SAFE.pi2[0])edge.push('Π₂ = '+pi2.toFixed(2)+' — רחוב צר מאוד יחסית למטען (מתחת ל-0.5): האימפולס שוגה שם עד ~20%');
+  if(hs>SAFE.hsMax)  edge.push('H/s = '+hs.toFixed(2)+' — קניון גבוה (מעל 3): פינה דלילה, שגיאה עד ~25%');
 
   const tier = out.length ? 'out' : (edge.length ? 'edge' : 'safe');
   return {ok:out.length===0, tier, out, edge, pi2, rho:r, hs, W13};
 }
 
 function domainBanner(d){
+  // 'safe' is the internal tier name only; the page makes no safety claim
+  // (D6 open: the box does not meet its own 20% criterion on every config).
   if(d.tier==='safe')
-    return '<div class="ban ok"><b>✓ בתוך התחום הבטוח</b> — ρ = '+d.rho.toFixed(2)+
+    return '<div class="ban core"><b>● בתוך התיבה המרכזית של המעטפת שנדגמה</b> — ρ = '+d.rho.toFixed(2)+
            ' · Π₂ = '+d.pi2.toFixed(2)+' · H/s = '+d.hs.toFixed(2)+
-           '<span class="sub2">בתחום זה כל תצורה שנבדקה מחוץ למדגם נמצאה מתחת ל-20% שגיאה: '+
-           'לחץ ממוצע 7.8% (מקס\' 18.9%), אימפולס 6.4% (מקס\' 19.6%); '+
-           '89% מחיזויי הלחץ ו-95% מחיזויי האימפולס בתוך ±15%.</span></div>';
+           '<span class="sub2">זהו <b>אינו</b> תחום בטוח ואין בו ערובה לדיוק. שגיאת R<sub>conv</sub> '+
+           'מחוץ למדגם (LOGO, reqdir91_soft3) בתיבה זו: 34 מתוך 38 התצורות מתחת ל-20% בשני היעדים, '+
+           'ו-4 מעליו; לחץ ממוצע 8.4% (מקס\' 23.5%), אימפולס 6.1% (מקס\' 28.4%); '+
+           '82% מחיזויי הלחץ ו-95% מחיזויי האימפולס בתוך ±15%. '+
+           'גבולות התיבה נקבעו על רשומה קודמת ולא נבחרו מחדש (D6, פתוח).</span></div>';
   if(d.tier==='edge')
     return '<div class="ban warn"><b>⚠ בתוך המעטפת שנדגמה, אך על פינה דלילה</b><ul>'+
            d.edge.map(x=>'<li>'+x+'</li>').join('')+
            '</ul><span class="sub2">התוצאה מוצגת, אך יש להתייחס אליה כאומדן: באזורים אלה '+
-           'אין למודל משפחה שכנה ללמוד ממנה, והשגיאה הגרועה ביותר שנמדדה היא כ-30%. '+
-           'ראו התחום הבטוח ב-docs/ALGORITHM.md.</span></div>';
+           'אין למודל משפחה שכנה ללמוד ממנה, והשגיאה הגרועה ביותר שנמדדה היא כ-38%. '+
+           'ראו "The safe domain" ב-docs/ALGORITHM.md (המספרים שם מרשומה קודמת; D6).</span></div>';
   return '<div class="ban err"><b>✕ מחוץ למעטפת שנדגמה — לא ניתן לחשב</b><ul>'+
          d.out.map(x=>'<li>'+x+'</li>').join('')+
          '</ul><span class="sub2">הנוסחאות הן קורלציה אמפירית בתוך המעטפת שנדגמה '+
@@ -334,7 +360,8 @@ function domainBanner(d){
 }
 function blank(ids){ ids.forEach(i=>{const e=$(i); if(e) e.innerHTML='–';}); }
 
-// typical +-band on a radius, by tier (relative error observed in that zone)
+// Typical +-band on a radius, by tier. NOT recalibrated on the current
+// record (D6): inside the box P p90 is 16.9%, outside the max is 38%.
 function bandPct(tier){ return tier==='safe' ? 15 : 30; }
 
 function zConvP(det,b,s,H,W){
@@ -361,6 +388,41 @@ function lambda(target,det,b,s,H,W,Zf){
     lnL = c.C0 + c.C1*r*(Math.sqrt(hs) - c.C2*r) / (hs + c.C3*Math.sqrt(pi2));
   }
   return {lam:Math.exp(lnL), reg: lnL<0 ? 'att' : 'amp'};
+}
+
+// The deployed chain for one target (z_urban.clip_z_urban_pred, D49/D50)
+// inside the Z_urban validity domain. Both tabs call this.
+//   R_free >= R_conv_hat        -> 'free'   Z_urban = Z_free (engineering
+//                                           approximation, not the vanishing
+//                                           of the urban effect; D49)
+//   Z_free < ZF_MIN             -> 'nearZ'  outside the validity domain
+//   R_free < (b+s)              -> 'street' outside the domain (D46: the
+//                                           street-channelling model's range)
+//   Lambda*Z_free > Z_conv_hat  -> 'clip'   Z_urban = Z_conv_hat
+//   otherwise                   -> 'urban'  Z_urban = Lambda * Z_free
+// Pressure with Lambda_P < 1 at the boundary jumps upward at R_conv (D51).
+function chain(tg,det,b,s,H,W,Zf){
+  const W13=Math.cbrt(W);
+  const Zc = tg==='P' ? zConvP(det,b,s,H,W) : zConvI(det,b,s,H,W);
+  const Rfree=Zf*W13;
+  if(Rfree>=Zc*W13) return {zu:Zf, state:'free', reg:'free', Zc};
+  if(Zf<ZF_MIN) return {zu:NaN, state:'nearZ', reg:'out', Zc};
+  if(Rfree<Z_URBAN_MIN_PERIODS*(b+s)) return {zu:NaN, state:'street', reg:'out', Zc};
+  const L=lambda(tg,det,b,s,H,W,Zf);
+  let zu=L.lam*Zf, state='urban';
+  if(zu>Zc){zu=Zc; state='clip';}
+  return {zu, state, reg:L.reg, Zc};
+}
+const STATE_TXT = {
+  free:  'שדה חופשי (קירוב הנדסי מעבר לרדיוס ההתכנסות)',
+  nearZ: 'מחוץ לתחום: Z<sub>free</sub> &lt; 2',
+  street:'מחוץ לתחום: R<sub>free</sub> &lt; b+s — פחות מתקופה עירונית אחת, תחום מודל תיעול הרחוב (D46)',
+};
+function cellTxt(c){
+  if(c.state==='street'||c.state==='nearZ')
+    return '— <span class="clip">'+(c.state==='street'?'b+s':'Z&lt;2')+'</span>';
+  return c.zu.toFixed(2)+(c.state==='clip'?' <span class="clip">clip</span>'
+                        :(c.state==='free'?' <span class="clip">חופשי</span>':''));
 }
 
 function calc(){
@@ -393,8 +455,8 @@ function calc(){
   $('rci').innerHTML=RcI.toFixed(1)+'<span class="unit"> m</span>';
 
   const pct=bandPct(dom.tier);
-  $('rcpBand').innerHTML='±'+(RcP*pct/100).toFixed(0)+' m  ('+pct+'%)';
-  $('rciBand').innerHTML='±'+(RcI*pct/100).toFixed(0)+' m  ('+pct+'%)';
+  $('rcpBand').innerHTML='±'+(RcP*pct/100).toFixed(0)+' m  (רצועה טיפוסית '+pct+'%, לא כוילה מחדש — D6)';
+  $('rciBand').innerHTML='±'+(RcI*pct/100).toFixed(0)+' m  (רצועה טיפוסית '+pct+'%, לא כוילה מחדש — D6)';
 
   // single point
   point(det,b,s,H,W,Zf,ZcP,ZcI,W13);
@@ -402,42 +464,42 @@ function calc(){
   buildTable(det,b,s,H,W,ZcP,ZcI,W13);
 }
 
-function oneRow(det,b,s,H,W,Zf,ZcP,ZcI,W13){
-  const P=lambda('P',det,b,s,H,W,Zf);
-  const I=lambda('I',det,b,s,H,W,Zf);
-  let zuP=P.lam*Zf, clipP=false;
-  if(zuP>ZcP){zuP=ZcP;clipP=true;}
-  let zuI=I.lam*Zf, clipI=false;
-  if(zuI>ZcI){zuI=ZcI;clipI=true;}
-  return {reg:P.reg,regI:I.reg,zuP,clipP,zuI,clipI,lamP:zuP/Zf,lamI:zuI/Zf};
+function oneRow(det,b,s,H,W,Zf){
+  return {P:chain('P',det,b,s,H,W,Zf), I:chain('I',det,b,s,H,W,Zf)};
 }
 
+const REG_TXT = {att:'הנחתה', amp:'הגברה', free:'שדה חופשי', out:'מחוץ לתחום'};
+
 function point(det,b,s,H,W,Zf,ZcP,ZcI,W13){
-  const R=oneRow(det,b,s,H,W,Zf,ZcP,ZcI,W13);
+  const R=oneRow(det,b,s,H,W,Zf);
   const rp=$('regP');
-  rp.textContent = R.reg==='att'?'הנחתה':'הגברה';
-  rp.className='pill '+(R.reg==='att'?'att':'amp');
-  $('zup').textContent=R.zuP.toFixed(2)+(R.clipP?' *':'');
-  $('zui').textContent=R.zuI.toFixed(2)+(R.clipI?' *':'');
-  $('rup').textContent=(R.zuP*W13).toFixed(1);
-  $('rui').textContent=(R.zuI*W13).toFixed(1);
-  $('lamP').textContent=R.lamP.toFixed(2);
-  $('lamI').textContent=R.lamI.toFixed(2);
+  rp.textContent = REG_TXT[R.P.reg];
+  rp.className='pill '+R.P.reg;
+  [['P','zup','rup','lamP'],['I','zui','rui','lamI']].forEach(([tg,idZ,idR,idL])=>{
+    const c=R[tg];
+    if(c.state==='street'||c.state==='nearZ'){
+      $(idZ).innerHTML='–'; $(idR).textContent='–';
+      $(idL).innerHTML=STATE_TXT[c.state];
+      return;
+    }
+    $(idZ).textContent=c.zu.toFixed(2)+(c.state==='clip'?' *':'');
+    $(idR).textContent=(c.zu*W13).toFixed(1);
+    $(idL).innerHTML=(c.zu/Zf).toFixed(2)+(c.state==='free'?' · '+STATE_TXT.free:'');
+  });
 }
 
 function buildTable(det,b,s,H,W,ZcP,ZcI,W13){
   const tb=$('tbody'); tb.innerHTML='';
   const zmax=Math.ceil(Math.max(ZcP,ZcI));
   for(let Zf=2; Zf<=zmax; Zf++){
-    const R=oneRow(det,b,s,H,W,Zf,ZcP,ZcI,W13);
+    const R=oneRow(det,b,s,H,W,Zf);
     const tr=document.createElement('tr');
-    const regTxt = R.reg==='att'
-      ? '<span class="att">הנחתה</span>' : '<span class="amp">הגברה</span>';
+    const regTxt = '<span class="'+R.P.reg+'">'+REG_TXT[R.P.reg]+'</span>';
     tr.innerHTML =
       `<td>${Zf}</td>`+
       `<td class="reg">${regTxt}</td>`+
-      `<td>${R.zuP.toFixed(2)}${R.clipP?' <span class="clip">clip</span>':''}</td>`+
-      `<td>${R.zuI.toFixed(2)}${R.clipI?' <span class="clip">clip</span>':''}</td>`;
+      `<td>${cellTxt(R.P)}</td>`+
+      `<td>${cellTxt(R.I)}</td>`;
     tb.appendChild(tr);
   }
 }
@@ -449,13 +511,17 @@ calc();
 
 // ================= TAB 2 =================
 // Free-field lookup: Z -> peak pressure [kPa] and scaled impulse [Pa.s/kg^(1/3)]
-// (medians over all configs; scaled impulse varies <1% across charge weights).
-// Independent of the convergence criterion — this is the reference field.
+// = median over the five charge weights of data/free_field_data.csv (the
+// ring mean of the reference VTK, 219c13e), Z = 1..20. Across weights the
+// scaled impulse varies by at most 1.7% (Z = 2); the peak pressure by 10-24%
+// at every Z = 1..20 (max/min - 1), so the displayed pressure is a median, not
+// the value for the chosen W (cause and proposal: DECISIONS.md D53).
+// Independent of the convergence criterion.
 const FF_Z =[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
-const FF_P =[1371.97,259.64,105.28,59.82,40.41,30.09,23.53,19.04,15.03,12.56,
-             10.45,9.19,8.18,7.25,6.57,6.00,5.42,5.00,4.64,4.32];
-const FF_I =[196.14,111.21,83.42,65.90,53.76,45.25,39.01,34.24,30.42,27.46,
-             25.00,22.94,21.18,19.68,18.37,17.23,16.22,15.32,14.51,13.79];
+const FF_P =[1455.88,269.20,109.02,61.81,41.34,30.38,23.69,19.22,15.69,12.61,
+             10.95,9.65,8.43,7.58,6.88,6.29,5.62,5.20,4.83,4.51];
+const FF_I =[196.32,110.30,82.91,65.48,53.57,45.13,38.92,34.17,30.39,27.43,
+             24.99,22.93,21.19,19.69,18.38,17.24,16.23,15.33,14.53,13.80];
 
 function ffLookup(arr,Z){                 // log-log interpolation
   if(Z<=FF_Z[0]) return arr[0];
@@ -498,25 +564,21 @@ function calcQ(){
   $('q_Rff').innerHTML=(Zf*W13).toFixed(1)+'<span class="unit"> m</span>';
 
   const ZcP=zConvP(det,b,s,H,W), ZcI=zConvI(det,b,s,H,W);
-  const out={};
-  [['P',ZcP,'q_RP','q_dP'],['I',ZcI,'q_RI','q_dI']].forEach(([tg,Zc,idR,idD])=>{
-    let zu,clip=false,ident=false;
-    if(Zf>=Zc){                       // at/beyond the predicted R_conv
-      zu=Zf; ident=true;              // free field as an engineering approximation (D49)
-    }else{
-      const L=lambda(tg,det,b,s,H,W,Zf);
-      zu=L.lam*Zf;
-      if(zu>Zc){zu=Zc;clip=true;}     // engineering closure at R_conv; measured MaxR can exceed it (D49)
+  [['P','q_RP','q_dP'],['I','q_RI','q_dI']].forEach(([tg,idR,idD])=>{
+    const c=chain(tg,det,b,s,H,W,Zf);       // same chain as tab 1 (D50)
+    if(c.state==='street'||c.state==='nearZ'){
+      $(idR).innerHTML='–';
+      $(idD).innerHTML=STATE_TXT[c.state];
+      return;
     }
-    const R=zu*W13, Rff=Zf*W13, extra=R-Rff;
-    out[tg]={R,extra,lam:zu/Zf,clip,ident,Zc};
+    const R=c.zu*W13, Rff=Zf*W13, extra=R-Rff;
     $(idR).innerHTML=R.toFixed(1)+'<span style="font-size:15px"> m</span>';
-    $(idD).innerHTML = ident
+    $(idD).innerHTML = c.state==='free'
       ? '<b>שדה חופשי</b> — מעבר לרדיוס ההתכנסות, כקירוב הנדסי (לא משום שההשפעה העירונית נעלמת)'
       : ((extra>=0 ? `<b>+${extra.toFixed(1)} m</b> מעבר לשדה חופשי`
                    : `<b>${extra.toFixed(1)} m</b> — קרוב יותר מהשדה החופשי`)+
-         ` · Λ = ${(zu/Zf).toFixed(2)}`+
-         (clip?' <span class="clip">clip</span>':''));
+         ` · Λ = ${(c.zu/Zf).toFixed(2)}`+
+         (c.state==='clip'?' <span class="clip">clip</span>':''));
   });
 
   $('q_extra').innerHTML =
