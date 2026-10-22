@@ -332,9 +332,21 @@ Z_free and makes attenuation representable continuously: Λ < 1 (ln Λ < 0) is
 attenuation, Λ > 1 amplification, with no separate classifier — the sign falls
 out of the formula.
 
-Predictions are finally clipped from above at Z_conv (beyond the convergence
-radius the urban field *is* the free field, so Z_urban cannot exceed it) and
-converted back by R = Z·W^⅓.
+Predictions are finally closed at the *predicted* convergence radius and
+converted back by R = Z·W^⅓: inside it they are clipped from above at Z_conv,
+and at and beyond it the chain returns Z_urban = Z_free (D50). This is an
+engineering approximation, not a statement that the urban effect has vanished
+(D49): beyond R_conv the field is treated as engineering-equivalent to the
+free field because the convergence criterion holds there or the load is below
+the relevance floor. The measured MaxR does exceed R_conv (raw reach,
+`beyond_I`: 385 of 1110 deployable impulse rows). Where the free-field impulse
+of the row's level is below 23.6 Pa·s/kg^⅓ (Z_free ≥ 12) the clip
+under-predicts R_urban,I; above that level it costs no accuracy (LOGO,
+deployable: 6.31% with the clip, 6.40% without). The closed map is
+non-decreasing; for impulse it is also continuous (Λ_I > 1 in every config).
+For pressure, where Λ_P < 1 at the boundary it jumps upward there, from
+Λ·R_conv to R_conv: 10 of 96 configs with the production coefficients, at
+most +6.3% (D51, open).
 
 ## Why the algorithm is sound
 

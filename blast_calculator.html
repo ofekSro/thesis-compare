@@ -217,8 +217,9 @@
     <div class="note">
       התשובה היא הנקודה <b>הרחוקה ביותר</b> בעיר שבה העומס עדיין לפחות כמו בשדה
       חופשי במרחק שנבחר — מעבר לה העומס נמוך יותר בכל הכיוונים. ערך מסומן
-      <span class="clip">clip</span> נחתך לרדיוס ההתכנסות: מעבר לו העיר אינה
-      משנה, ולכן המרחק שווה לשדה החופשי.
+      <span class="clip">clip</span> נחתך לרדיוס ההתכנסות. מעבר לרדיוס ההתכנסות
+      משתמשים בשדה החופשי כקירוב הנדסי: השדה שם שקול הנדסית לשדה החופשי, ולא
+      משום שההשפעה העירונית נעלמת.
     </div>
   </div>
 </div><!-- /tab2 -->
@@ -500,18 +501,18 @@ function calcQ(){
   const out={};
   [['P',ZcP,'q_RP','q_dP'],['I',ZcI,'q_RI','q_dI']].forEach(([tg,Zc,idR,idD])=>{
     let zu,clip=false,ident=false;
-    if(Zf>=Zc){                       // already outside the urban zone
-      zu=Zf; ident=true;              // city has no effect: identity
+    if(Zf>=Zc){                       // at/beyond the predicted R_conv
+      zu=Zf; ident=true;              // free field as an engineering approximation (D49)
     }else{
       const L=lambda(tg,det,b,s,H,W,Zf);
       zu=L.lam*Zf;
-      if(zu>Zc){zu=Zc;clip=true;}     // cannot exceed the convergence radius
+      if(zu>Zc){zu=Zc;clip=true;}     // engineering closure at R_conv; measured MaxR can exceed it (D49)
     }
     const R=zu*W13, Rff=Zf*W13, extra=R-Rff;
     out[tg]={R,extra,lam:zu/Zf,clip,ident,Zc};
     $(idR).innerHTML=R.toFixed(1)+'<span style="font-size:15px"> m</span>';
     $(idD).innerHTML = ident
-      ? '<b>שדה חופשי</b> — מעבר לרדיוס ההתכנסות, לעיר אין השפעה'
+      ? '<b>שדה חופשי</b> — מעבר לרדיוס ההתכנסות, כקירוב הנדסי (לא משום שההשפעה העירונית נעלמת)'
       : ((extra>=0 ? `<b>+${extra.toFixed(1)} m</b> מעבר לשדה חופשי`
                    : `<b>${extra.toFixed(1)} m</b> — קרוב יותר מהשדה החופשי`)+
          ` · Λ = ${(zu/Zf).toFixed(2)}`+

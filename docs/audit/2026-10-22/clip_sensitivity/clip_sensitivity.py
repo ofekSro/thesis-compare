@@ -2,13 +2,21 @@
 
 Sensitivity check behind D49 (docs/DECISIONS.md). Reproduces the 36 LOGO
 folds of tools/logo_cv with the library fitters, takes the Lambda-formula
-prediction before (no_clip) and after (with_clip) clip_z_urban_pred on the
-SAME graded rows, gates the clipped one against the tracked LOGO detail
-CSVs, and writes the tables next to this script. Changes nothing.
+prediction before (no_clip) and after (with_clip) the Z_conv clip on the
+SAME graded rows, gates the clipped one against the LOGO detail CSVs, and
+writes the tables next to this script. Changes nothing.
+
+Pinned to the D49 record (commit RECORD): the clip is the pre-D50 one,
+copied below, and the gate reads the LOGO detail CSVs of that commit with
+`git show`. Since D50 the production chain returns Z_free for R_free >=
+R_conv_hat, which differs on 25 conditional rows (P 16, I 9); deployable
+rows are identical. Run inside the git repository.
 
 Usage (from the repo root):
     python docs/audit/2026-10-22/clip_sensitivity/clip_sensitivity.py
 """
+import io
+import subprocess
 import sys
 from pathlib import Path
 
@@ -22,8 +30,38 @@ sys.path.insert(0, str(ROOT / 'tools' / 'logo_cv'))
 import logo_cv as L                                                   # noqa: E402
 from blastlib.regression.convergence_models import predict_pi, predict_impulse  # noqa: E402
 from blastlib.regression.z_urban import (                            # noqa: E402
-    BEYOND_COL, Z_URBAN_FORM, clip_z_urban_pred, fit_z_urban_all_groups,
+    BEYOND_COL, Z_URBAN_FORM, fit_z_urban_all_groups,
     predict_z_urban, prepare_maxR_data)
+
+RECORD = 'da83d66'   # the D49 record this probe reproduces
+
+
+def clip_z_urban_pred(pred_Z, sub_valid, det_val, target_name,
+                      conv_P_coeffs, conv_I_coeffs):
+    """The pre-D50 clip, verbatim from blastlib at RECORD: min(pred, Z_conv_hat)."""
+    coeffs = conv_P_coeffs if target_name == 'Pressure' else conv_I_coeffs
+    if coeffs is None:
+        return pred_Z
+    W = sub_valid['weight'].values.astype(float)
+    W13 = W ** (1 / 3)
+    det_arr = np.full(len(sub_valid), det_val, dtype=int)
+    rho = sub_valid['rho'].values.astype(float)
+    H = sub_valid['height'].values.astype(float)
+    s = sub_valid['swidth'].values.astype(float)
+    b = sub_valid['bsize'].values.astype(float)
+    if target_name == 'Pressure':
+        Rconv = predict_pi(W, rho, H, det_arr, s, b, coeffs)
+    else:
+        Rconv = predict_impulse(W, rho, H, det_arr, s, b, coeffs)
+    return np.where(np.isfinite(Rconv), np.minimum(pred_Z, Rconv / W13), pred_Z)
+
+
+def record_csv(path):
+    """A tracked CSV as it was at RECORD."""
+    blob = subprocess.run(['git', '-C', str(ROOT), 'show', f'{RECORD}:{path}'],
+                          capture_output=True, check=True).stdout
+    return pd.read_csv(io.BytesIO(blob))
+
 
 conv = pd.read_csv(ROOT / 'outputs/tables/convergence_table_reqdir91_soft3.csv')
 maxr = pd.read_csv(ROOT / 'outputs/tables/max_radius_per_Z_reqdir91_soft3.csv')
@@ -92,7 +130,7 @@ b = pd.concat(bound, ignore_index=True)
 # Gate: clipped predictions equal the tracked LOGO detail files, row for row.
 key = ['Config', 'Target', 'Z_free']
 for domain, stem in (('conditional', 'zurban'), ('deployable', 'zurban_deploy')):
-    ref = pd.read_csv(ROOT / f'outputs/check_results/logo_cv_reqdir91_soft3_relwls_quad_{stem}.csv')
+    ref = record_csv(f'outputs/check_results/logo_cv_reqdir91_soft3_relwls_quad_{stem}.csv')
     mine = d[d.domain == domain]
     j = mine.merge(ref[key + ['Predicted', 'Actual']], on=key, how='outer', indicator=True)
     assert (j['_merge'] == 'both').all(), f'{domain}: row sets differ'
