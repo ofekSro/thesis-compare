@@ -188,16 +188,16 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         # Those same fits also supply xi to the pressure regime classifier,
         # so nothing leaks from the measured convergence radius.
         z_coeffs = fit_z_urban_all_groups(train_maxR, conv_P_coeffs)
-        z_mape_P, z_mape_I = evaluate_z_urban(test_maxR, z_coeffs,
-                                              conv_P_coeffs, conv_I_coeffs)
+        z_mape_P, z_mape_I, z_cov = evaluate_z_urban(
+            test_maxR, z_coeffs, conv_P_coeffs, conv_I_coeffs, coverage=True)
 
         # Same models, second yardstick: error on the domain a user can
         # identify BEFORE the answer (predicted R_conv; beyond rows graded
         # against the clip). Reported beside z_P/z_I, and deliberately kept
         # OUT of worst/best-split selection so best_* files are unchanged.
         # docs/audit/2026-09-27 STA-02/ALG-03, decision D3 (a)+(b).
-        z_mape_P_dep, z_mape_I_dep = evaluate_z_urban_deployable(
-            test_maxR, z_coeffs, conv_P_coeffs, conv_I_coeffs)
+        z_mape_P_dep, z_mape_I_dep, z_cov_dep = evaluate_z_urban_deployable(
+            test_maxR, z_coeffs, conv_P_coeffs, conv_I_coeffs, coverage=True)
 
         # ---- Collect MAPEs ----
         mapes = {
@@ -221,6 +221,13 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
             'z_I_dep': z_mape_I_dep,
             'conv_P_r2_Z': conv_r2_P_Z,
             'conv_I_r2_Z': conv_r2_I_Z,
+            # Z_urban coverage: graded rows and the test configs they come
+            # from, out of n_test. Reporting only; not used in selection.
+            'n_test': len(test_idx),
+            'z_P_rows': z_cov['P'][0], 'z_P_cfgs': z_cov['P'][1],
+            'z_I_rows': z_cov['I'][0], 'z_I_cfgs': z_cov['I'][1],
+            'z_P_dep_rows': z_cov_dep['P'][0], 'z_P_dep_cfgs': z_cov_dep['P'][1],
+            'z_I_dep_rows': z_cov_dep['I'][0], 'z_I_dep_cfgs': z_cov_dep['I'][1],
         })
 
         if worst_mape < target_mape:
@@ -272,6 +279,13 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
             if len(v):
                 progress(f'    {label}: {v.median():5.2f}%  '
                          f'[{v.quantile(.25):.2f}, {v.quantile(.75):.2f}]')
+    progress('  Z_urban coverage — graded test configs out of n_test, median [p25, p75]:')
+    for key, label in (('z_P', 'z_P   '), ('z_I', 'z_I   '),
+                       ('z_P_dep', 'z_P_dep'), ('z_I_dep', 'z_I_dep')):
+        frac = 100 * cv_df[f'{key}_cfgs'] / cv_df['n_test']
+        progress(f'    {label}: {frac.median():5.1f}%  '
+                 f'[{frac.quantile(.25):.1f}, {frac.quantile(.75):.1f}]  '
+                 f'(rows median {cv_df[f"{key}_rows"].median():.0f})')
     progress(f'  Iterations meeting the < {target_mape:.0f}% target: '
              f'{n_success}/{n_iterations}')
     progress('')
@@ -310,6 +324,9 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
     if impulse_model == 'unified':
         progress('  RadiusI: Z = A * Pi2^(C4 + C5*ln(rho) + C3*ln(H/s))')
         progress('               * exp(C1*rho*sqrt(H/s) + C2*ln(H/s)^2)')
+    elif impulse_model == 'quad':
+        progress('  RadiusI: Z = A * rho^p * (H/s)^q * (s/W^1/3)^r')
+        progress('               * exp(r2*ln(s/W^1/3)^2)')
     else:
         progress('  RadiusI: Z = A * rho^p * (H/s)^q * (s/W^1/3)^r')
     progress(f'{"="*60}')

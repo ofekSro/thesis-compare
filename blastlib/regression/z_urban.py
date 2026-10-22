@@ -734,14 +734,26 @@ def fit_z_urban_all_groups(train_df, conv_P_coeffs=None):
     return coeffs
 
 
-def evaluate_z_urban(test_df, z_coeffs, conv_P_coeffs=None, conv_I_coeffs=None):
+def _graded_coverage(actual, pred, cfg):
+    """(rows, configs) entering the MAPE: the finite pairs r2_mape keeps."""
+    if not actual:
+        return 0, 0
+    ok = (np.isfinite(np.concatenate(actual))
+          & np.isfinite(np.concatenate(pred)))
+    return int(ok.sum()), len(set(np.concatenate(cfg)[ok]))
+
+
+def evaluate_z_urban(test_df, z_coeffs, conv_P_coeffs=None, conv_I_coeffs=None,
+                     coverage=False):
     """Evaluate Z_urban predictions on test data. Returns (mape_P, mape_I).
 
     Predictions are clipped from above at Z_conv when convergence
     coefficients are supplied (the deployed prediction chain). No lower bound.
+    coverage=True appends {'P': (rows, configs), 'I': (rows, configs)}: the
+    graded rows and the distinct configs they come from.
     """
-    all_actual_P, all_pred_P = [], []
-    all_actual_I, all_pred_I = [], []
+    all_actual_P, all_pred_P, all_cfg_P = [], [], []
+    all_actual_I, all_pred_I, all_cfg_I = [], [], []
 
     for det_val in [1, 2]:
         mask = (test_df['det'] == det_val)
@@ -782,9 +794,11 @@ def evaluate_z_urban(test_df, z_coeffs, conv_P_coeffs=None, conv_I_coeffs=None):
             if target_name == 'Pressure':
                 all_actual_P.append(y_actual)
                 all_pred_P.append(y_pred)
+                all_cfg_P.append(sub_valid['Config'].values)
             else:
                 all_actual_I.append(y_actual)
                 all_pred_I.append(y_pred)
+                all_cfg_I.append(sub_valid['Config'].values)
 
     mape_P = np.nan
     mape_I = np.nan
@@ -797,11 +811,15 @@ def evaluate_z_urban(test_df, z_coeffs, conv_P_coeffs=None, conv_I_coeffs=None):
         p = np.concatenate(all_pred_I)
         _, mape_I = r2_mape(a, p)
 
+    if coverage:
+        return mape_P, mape_I, {
+            'P': _graded_coverage(all_actual_P, all_pred_P, all_cfg_P),
+            'I': _graded_coverage(all_actual_I, all_pred_I, all_cfg_I)}
     return mape_P, mape_I
 
 
 def evaluate_z_urban_deployable(test_df, z_coeffs, conv_P_coeffs=None,
-                                conv_I_coeffs=None):
+                                conv_I_coeffs=None, coverage=False):
     """Evaluate Z_urban on the domain a user can identify before the answer.
 
     evaluate_z_urban grades only rows passing z_urban_valid_mask, whose
@@ -817,9 +835,10 @@ def evaluate_z_urban_deployable(test_df, z_coeffs, conv_P_coeffs=None,
 
     Returns (mape_P, mape_I) [%]; NaN where a fold has no eligible rows or
     no convergence coefficients to build the predicted domain from.
+    coverage=True appends the (rows, configs) dict, as evaluate_z_urban.
     """
-    all_actual_P, all_pred_P = [], []
-    all_actual_I, all_pred_I = [], []
+    all_actual_P, all_pred_P, all_cfg_P = [], [], []
+    all_actual_I, all_pred_I, all_cfg_I = [], [], []
 
     for det_val in [1, 2]:
         mask = (test_df['det'] == det_val)
@@ -878,9 +897,11 @@ def evaluate_z_urban_deployable(test_df, z_coeffs, conv_P_coeffs=None,
             if target_name == 'Pressure':
                 all_actual_P.append(y_actual)
                 all_pred_P.append(y_pred)
+                all_cfg_P.append(sub_valid['Config'].values)
             else:
                 all_actual_I.append(y_actual)
                 all_pred_I.append(y_pred)
+                all_cfg_I.append(sub_valid['Config'].values)
 
     mape_P = np.nan
     mape_I = np.nan
@@ -893,4 +914,8 @@ def evaluate_z_urban_deployable(test_df, z_coeffs, conv_P_coeffs=None,
         p = np.concatenate(all_pred_I)
         _, mape_I = r2_mape(a, p)
 
+    if coverage:
+        return mape_P, mape_I, {
+            'P': _graded_coverage(all_actual_P, all_pred_P, all_cfg_P),
+            'I': _graded_coverage(all_actual_I, all_pred_I, all_cfg_I)}
     return mape_P, mape_I
