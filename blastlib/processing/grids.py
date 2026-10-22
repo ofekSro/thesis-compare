@@ -146,9 +146,13 @@ def process_grids(data, params, weight=None):
         out[f'refI{g}']       = RI[g]
         out[f'ratioP{g}_raw'] = out[f'ratioP{g}'].copy()
         out[f'ratioI{g}_raw'] = out[f'ratioI{g}'].copy()
-        # MaxR level reads the filled reference (PHY-04 option (a)).
-        out[f'refP{g}_fill']  = RP[g]
-        out[f'refI{g}_fill']  = RI[g]
+        # MaxR level reads the filled reference (PHY-04 option (a)), cut
+        # like the urban field it is compared with: the coarser cells inside
+        # a finer box sit low and pulled the ring median down. DECISIONS.md D37.
+        for name, ref in ((f'refP{g}_fill', RP[g]), (f'refI{g}_fill', RI[g])):
+            ref_cut = ref.astype(float)
+            ref_cut[cut[g]] = np.nan
+            out[name] = ref_cut
 
         # ---- Force ratio = 1 where the field counts as converged ----
         #

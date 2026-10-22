@@ -122,8 +122,25 @@ def test_max_fill_and_reference_fill_are_separate(out):
     outside = ~((out['X2'] <= out['X1'].max()) & (out['Z2'] <= out['Z1'].max()))
     outside &= ~building_mask(_data()['peakP2'])
     assert np.allclose(out['peakP2_orig'][outside], 40.0)
-    assert np.allclose(out['refP2_fill'], 20.0)
+    box = (out['X2'] <= out['X1'].max()) & (out['Z2'] <= out['Z1'].max())
+    assert np.allclose(out['refP2_fill'][~box], 20.0)
     assert np.allclose(out['refP1_fill'], 55.0)
+
+
+def test_reference_fill_carries_the_cut(out):
+    """The MaxR level reference is cut like the urban field: a coarser cell
+    inside a finer box is NaN, buildings are not (no buildings in the
+    reference run). DECISIONS.md D37."""
+    for gf, gc in (('1', '2'), ('2', '3')):
+        box = ((out[f'X{gc}'] <= out[f'X{gf}'].max())
+               & (out[f'Z{gc}'] <= out[f'Z{gf}'].max()))
+        for q in ('P', 'I'):
+            ref = out[f'ref{q}{gc}_fill']
+            assert np.isnan(ref[box]).all()
+            assert np.isfinite(ref[~box]).all()
+    assert np.isfinite(out['refP1_fill']).all()
+    # The criterion operand keeps the uncut filled reference.
+    assert np.isfinite(out['refP2']).all()
 
 
 def test_building_mask_is_exact_and_dtype_independent():
