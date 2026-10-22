@@ -16,10 +16,10 @@
 > pressure (`impulse_pressure_floor_change_note.md`). All quantitative
 > statements below are from the tables regenerated under the final
 > criterion.
-> Sections NOT yet refreshed (their studies were not re-run): the safe
-> domain (audit decision D6 pending), the coarsening/mesh-sensitivity
-> measurements in Limitations, and the block-period analysis — each is
-> marked in place.
+> Sections NOT yet refreshed (their studies were not re-run): the
+> coarsening/mesh-sensitivity measurements in Limitations and the
+> block-period analysis — each is marked in place. The safe domain was
+> re-derived on the current record on 2026-10-22 (audit decision D6).
 
 ## Problem
 
@@ -346,7 +346,10 @@ deployable: 6.31% with the clip, 6.40% without). The closed map is
 non-decreasing; for impulse it is also continuous (Λ_I > 1 in every config).
 For pressure, where Λ_P < 1 at the boundary it jumps upward there, from
 Λ·R_conv to R_conv: 10 of 96 configs with the production coefficients, at
-most +6.3% (D51, open).
+most +6.3% (D51: accepted as is). In pressure terms that is 0.01–1.6 kPa
+against the 10 kPa band that defines R_conv,P, and the measured Λ_P stays
+below 1 beyond R_conv (0.80–0.93), so the free field there over-predicts
+R_urban: the conservative side.
 
 ## Why the algorithm is sound
 
@@ -467,50 +470,93 @@ exceeds R_conv,P in every configuration. Predictions above those values
 are extrapolation in the one variable the pressure form is most sensitive
 to, since `range_switch` carries a 1/Z_free term.
 
-### The safe domain — where the error is bounded
+### The safe domain (D6) — an empirically found accuracy box
 
-> **Not yet recomputed (2026-09-27).** The box, its error rates and the
-> corner table below were measured on the pre-raw-mask tables and old
-> RadiusI model. The audit additionally found the box is drawn around the
-> very errors it bounds (decision D6, pending). Treat this subsection as a
-> description of the previous record until it is re-derived.
+> **Re-derived 2026-10-22 on the current record (D6).** This is a box in which
+> every configuration sampled so far was predicted, out of sample, to better
+> than 20% on both loads. It is found empirically from the same
+> leave-one-geometry-out errors it describes, so it is **not** a general
+> guarantee that any geometry inside it will be predicted to better than 20%.
+> The limits of that statement are listed below.
 
 The envelope above says where the formulas *interpolate*; it does not say how
-well. Measuring the held-out error of every configuration and asking where it
-stays bounded gives a second, tighter statement. Inside the box
+well. Each configuration is graded by the larger of its two held-out R_conv
+errors (leave-one-geometry-out, `reqdir91_soft3`,
+`outputs/check_results/logo_cv_reqdir91_soft3_relwls_quad.csv`); 76 of the 96
+are below 20%. Among all axis-aligned boxes in (ρ, Π₂, H/s) with bounds on the
+sampled values (7 × 12 × 10), exactly one holds the most configurations with
+no configuration at or above 20% inside or on its bounds:
 
 | | |
 |---|---|
-| plan density ρ | 0.31 – 0.56  (equivalently b/(b+s) = 0.56 – 0.75) |
-| Π₂ = s/W^⅓ | 0.50 – 5.4  (equivalently (s/5.4)³ ≤ W ≤ 8·s³) |
-| canyon aspect H/s | ≤ 3 |
+| plan density ρ | 0.36 – 0.5625  (equivalently b/(b+s) = 0.60 – 0.75) |
+| Π₂ = s/W^⅓ | 0.437 – 2.52  (equivalently s³/16 ≤ W ≤ 12·s³) |
+| canyon aspect H/s | 0.2 – 4.8  (the whole sampled range) |
 
-**every** held-out prediction is below 20% error, for pressure and impulse
-alike — 38 of the 96 configurations, covering measured radii of 25–110 m (P)
-and 35–140 m (I) with all five charge weights represented. Inside it, 89% of
-pressure and 95% of impulse predictions fall within ±15%, with worst cases of
-18.9% and 19.6%; the mean errors are 7.8% and 6.4%. In engineering terms, that
-is an uncertainty of roughly ±15–20 m on a 100 m radius.
+It holds 38 configurations from 16 families, with all five charge weights,
+covering measured radii of 29–134 m (P) and 60–217 m (I). Inside it the worst
+errors are 16.4% (P) and 13.3% (I), the means 7.9% and 4.6%, the 90th
+percentiles 16.0% and 10.1%; 79% of pressure and 100% of impulse predictions
+fall within ±15%, and no configuration lies between 18% and 20%. The same
+box results for any threshold from 18% to 22%. Compared with the previous
+box (ρ 0.31–0.56, Π₂ 0.5–5.4, H/s ≤ 3: also 38 configurations, 4 of them above
+20% on this record), it drops b=10/s=8 (ρ 0.31) and b=30/s=20 at W=50 kg
+(Π₂ 5.43), adds b=10/s=5 and b=15/s=5 up to H/s = 4.8, and covers 25.6% of
+the envelope instead of about 37% (ρ linear, Π₂ and H/s in log).
 
-All twelve configurations that exceed 20% lie outside this box, and each sits
-on a corner of the sampled envelope rather than in its interior:
+**What the data support, and what they do not.** The upper ρ bound is backed
+by the data (at ρ = 0.73, b=30/s=5, 9 of 18 configurations fail), as is the
+upper Π₂ bound (at Π₂ = 5.43, 6 of 12 fail). The lower ρ bound is backed only
+against ρ = 0.18 (6 of 18 fail); between ρ = 0.31 (1 of 8 fails) and 0.36
+the data do not separate. H/s needs no restriction.
 
-| corner | configurations | driver |
-|---|---|---|
-| ρ ≈ 0.73 (b=30 m with s=5 m) | 3 | densest fabric sampled, 2-member family |
-| Π₂ ≈ 0.44 (s=5 m at W=1500 kg) | 3 | narrowest street at the largest charge |
-| H/s = 4.8 at W=50 kg | 2 | tallest canyon at the smallest charge |
-| ρ ≈ 0.18–0.21 (b=10/s=12, b=15/s=20) | 4 | sparsest fabric sampled |
+**The physical pattern behind the failures.** 19 of the 20 failures occur
+where the predicted convergence radius spans at most 3.5 urban periods,
+R̂_conv,P/(b+s) = Z_conv·(1−√ρ)/Π₂ ≤ 3.5; none of the 32 configurations
+above 3.5 fails. A radius that spans few block periods is set by the
+discrete near-field geometry, which a smooth function of the Pi groups does
+not represent. This explains the Π₂ bound (a wide street against a small
+charge) and the dense corner (small 1−√ρ). It is reported as a finding, not
+used as a filter: the 3.5 was read off the same data, and config_83 sits on
+it (3.50).
 
-The mechanism is sampling density, not model form: in these corners the
-leave-one-geometry-out fold has no neighbouring family to interpolate from, so
-the test becomes extrapolation. This was checked directly — refitting with a
-minimax (worst-case) objective, which is the mathematical optimum for the
-maximum error, still cannot bring the in-sample worst case below ≈ 26%, so no
-choice of coefficients closes the gap. Filling the corners with additional
-simulations is what would extend the safe domain; the machine-readable
-per-configuration classification is in
-`outputs/check_results/safe_domain_req_soft3.csv`.
+**Limits of validity.**
+
+- *Fitted to the data it describes.* The bounds were chosen on the same LOGO
+  errors, so "no configuration above 20%" holds by construction. A nested
+  check — each family held out of the box selection in turn, then graded —
+  put 40 held-out configurations inside the re-selected box, of which one
+  failed (config_83). The LOGO errors themselves are optimistic, because the
+  model forms were also selected on LOGO (STA-01).
+- *Sensitive to one configuration.* The lower ρ bound is set by config_83
+  (b=10, s=8, H=15, W=250 kg, intersection; 22.3% in pressure). Without it
+  the box would hold 45 configurations; no other configuration changes the
+  optimum. Its failure is physical and systematic rather than a numerical
+  outlier: its street-detonation twin config_75 has the same short R_conv,P
+  (Z 8.13 against 8.28; 9.9–11.2 for the rest of the family), and at R_conv
+  the urban pressure is 11.9–12.4 kPa against 17.8–18.3 kPa in the free
+  field — the tall canyon (H/s = 1.875) at Π₂ > 1 shields the street, so the
+  radius is set by the 10 kPa floor (D7) rather than by convergence, and the
+  model over-predicts it (+22.3%, +14.1%; config_87, b=10/s=12, shows the
+  same, 25.9%). The largest box with no bound set by a single failing
+  configuration holds 26 configurations.
+- *Unsampled regions.* Π₂ between 2.52 and 5.43 (no sample at all); ρ between
+  0.5625 and 0.73; and ρ inside the box away from its three sampled values
+  (0.36, 0.444, 0.5625), since each ρ is a single (b, s) pair.
+- *Not re-derived:* the ±15% / ±30% bands quoted by the calculator, the
+  minimax check below and `outputs/check_results/safe_domain_req_soft3.csv`
+  are from the previous record. The calculator (`blast_calculator.html`)
+  applies this box and presents it as an empirically found accuracy domain,
+  not a guarantee (`tests/test_blast_calculator.py` checks both).
+
+Independent validation needs new simulations inside the box and in the
+unsampled regions above.
+
+On the previous record the corner mechanism was also checked directly:
+refitting with a minimax (worst-case) objective, the mathematical optimum
+for the maximum error, could not bring the in-sample worst case below
+≈ 26%, so no choice of coefficients closed the gap (not re-run on the
+current record).
 
 Two structural dependencies of the fit itself:
 
@@ -592,9 +638,24 @@ Z_urban (Λ forms):
 domain — R_conv,I bounds which rows the Λ_I fit sees; the structure and
 every sign have held through all three 2026-09 criterion changes.
 Machine-precision values live in
-`final_production_*_coefficients_req_soft3.csv`; the calculator and
-`tools/z_surface_3d` carry hand-synced copies that must be re-checked after
-any regression re-run.)
+`final_production_*_coefficients_reqdir91_soft3.csv` (production); the
+calculator carries a full-precision copy that `tests/test_blast_calculator.py`
+checks against them, and `tools/z_surface_3d` a hand-synced copy that must be
+re-checked after any regression re-run.)
+
+The calculator's free-field load (tab 2) is the reference of the chosen
+charge weight (D53): log-log interpolation along Z within each of the five
+simulated weights of `data/free_field_data.csv`, then ln(P) and ln(I) linear
+in ln(W) between the two bracketing weights, at fixed Z (Hopkinson
+similarity), for Z = 1–30; outside that range or 50–1500 kg it shows a
+message and no value. It also shows the spread of the five reference runs at
+that Z — a numerical spread of the reference data (up to 24% in pressure,
+1.7% in scaled impulse), not a proven statistical uncertainty. Known
+numerical limitation: the reference pressure steps where R leaves the 0.15 m
+grid (≈ 100 m) and the 0.5 m grid (≈ 250 m); at an unsampled weight the
+interpolated curve shows the step of each bracketing weight at that weight's
+own Z instead of one step at R = 100 m. The steps are numerical, not
+physical, so the interpolation is not altered to relocate them.
 
 ## Measurement definitions, precisely
 
@@ -875,9 +936,10 @@ without improving the model.
   per-sector data is retained).
 - **Worst-case error ~10% per split.** The medians above hide a tail: per-split
   worst-case MAPE averages ≈ 10%, with about half the validation splits fully
-  under 10%. Under LOGO the worst single configuration now sits at 30.1% (P) /
-  30.4% (I) — down from 43.4% / 38.5% before the soft criterion and the fit
-  fixes — and the residual tail is no longer the threshold cliff but genuine
+  under 10%. Under LOGO the worst single configuration now sits at 38.3% (P) /
+  31.4% (I) on the current record (`reqdir91_soft3`; 30.1% / 30.4% on
+  `req_soft3` at the β selection) — against 43.4% / 38.5% before the soft
+  criterion and the fit fixes — and the residual tail is no longer the threshold cliff but genuine
   between-geometry variance at the corners of the domain, i.e. extrapolation
   pressure inside the envelope, not fixable by more terms (see the safe-domain
   section, where the minimax check bounds what any coefficient choice can
