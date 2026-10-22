@@ -50,8 +50,8 @@
     font-weight:600}
   .pill.amp{background:rgba(33,102,172,.2);color:#6ea8dc}
   .pill.att{background:rgba(192,57,43,.2);color:#e07b6b}
-  .pill.free,.pill.out{background:rgba(139,152,165,.2);color:#c5cdd5}
-  .free,.out{color:#c5cdd5}
+  .pill.free,.pill.nodom{background:rgba(139,152,165,.2);color:#c5cdd5}
+  .free,.nodom{color:#c5cdd5}   /* not '.out': that is the output card */
   .tabs{display:flex;gap:8px;margin-bottom:16px}
   .tab{padding:9px 18px;background:var(--panel);border:1px solid var(--line);
     border-radius:9px;cursor:pointer;font-size:14px;color:var(--muted);
@@ -205,6 +205,7 @@
         <div class="lbl">בשדה חופשי העומס הזה נמצא במרחק</div>
         <div class="val" id="q_Rff">–<span class="unit"> m</span></div>
       </div>
+      <div class="derived" id="q_ref"></div>
     </div>
   </div>
 
@@ -229,7 +230,11 @@
       חופשי במרחק שנבחר — מעבר לה העומס נמוך יותר בכל הכיוונים. ערך מסומן
       <span class="clip">clip</span> נחתך לרדיוס ההתכנסות. מעבר לרדיוס ההתכנסות
       משתמשים בשדה החופשי כקירוב הנדסי: השדה שם שקול הנדסית לשדה החופשי, ולא
-      משום שההשפעה העירונית נעלמת.
+      משום שההשפעה העירונית נעלמת. העומס בשדה החופשי מוצג לפי ה-W שנבחר:
+      אינטרפולציה ב-Z קבוע (דמיון הופקינסון) בין שני משקלי הייחוס התוחמים, ל-Z בין
+      1 ל-30. בלחץ, בנתוני הייחוס יש מדרגות נומריות במעבר בין רמות הרשת (R ≈ 100
+      ו-250 מ'); במשקל שלא נדגם הן מופיעות במיקום של המשקלים התוחמים ולא ב-R של
+      המשקל שנבחר.
     </div>
   </div>
 </div><!-- /tab2 -->
@@ -289,27 +294,30 @@ const $=id=>document.getElementById(id);
 function rho(b,s){ return (b*b)/((b+s)*(b+s)); }
 
 // =====================================================================
-// Validity domain. The SAFE box BOUNDS were chosen on the pre-raw-mask
-// beta = 3 tables (docs/ALGORITHM.md, "The safe domain") and are NOT
-// re-selected (audit decision D6 pending). The QUOTED error rates below
-// are the current record: leave-one-geometry-out R_conv errors of
-// reqdir91_soft3 (outputs/check_results/logo_cv_reqdir91_soft3_relwls_quad.csv),
-// recomputed 2026-10-22 inside the same box. The ENV envelope is the exact
-// hull of the 96 configs (re-checked on the same tables).
+// Validity domain (DECISIONS.md D6, 2026-10-22; docs/ALGORITHM.md "The safe
+// domain"). The core box is an EMPIRICAL accuracy domain, not a guarantee:
+// each config is graded by the larger of its two leave-one-geometry-out
+// R_conv errors (reqdir91_soft3, outputs/check_results/
+// logo_cv_reqdir91_soft3_relwls_quad.csv); the box is the unique largest
+// axis-aligned box in (rho, Pi2, H/s) with no config at or above 20%.
 //
-//   SAFE   rho 0.31-0.56, pi2 0.5-5.4, H/s <= 3  (38/96 configs)
-//          34/38 held-out configs below 20% on BOTH targets;
-//          P mean 8.4% max 23.5%, I mean 6.1% max 28.4%;
-//          82% of P and 95% of I within +-15%
-//   EDGE   inside the envelope, on a sparse corner -> answers still given,
-//          worst observed error ~38% (P, dense rho > 0.56)
+//   CORE   rho 0.36-0.5625, Pi2 0.437-2.52, H/s 0.2-4.8 (38/96 configs)
+//          all 38 below 20% on both loads; P mean 7.9% max 16.4%,
+//          I mean 4.6% max 13.3%. Chosen on the same errors it describes
+//          (a nested family-out check: 1 of 40 held-out configs failed).
+//          The lower rho bound is set by one config (config_83); Pi2
+//          2.52-5.43 and rho 0.5625-0.73 are unsampled.
+//   EDGE   inside the envelope, outside the box -> answers still given,
+//          worst observed error ~38% (P, dense rho > 0.5625)
 //   OUT    outside the sampled envelope -> refuse (no extrapolation)
+// Bounds sit on the sampled values (0.437 / 2.52 are 0.43679 / 2.51984
+// rounded) with a hair of tolerance, so a sampled config on a bound is in.
 // =====================================================================
 // ENV is the exact hull of the 96 simulated configurations (a hair of
 // tolerance so a sampled point never reads as outside its own envelope).
 const ENV  = {b:[10,30], s:[5,20], H:[4,24], W:[50,1500],
               rho:[0.1836,0.7348], pi2:[0.4367,5.4289], hs:[0.1999,4.8001]};
-const SAFE = {rho:[0.308,0.563], pi2:[0.499,5.44], hsMax:3.0};
+const SAFE = {rho:[0.3599,0.5626], pi2:[0.4367,2.5199], hs:[0.1999,4.8001]};
 
 function checkDomain(b,s,H,W){
   const W13=Math.cbrt(W), pi2=s/W13, r=rho(b,s), hs=H/s;
@@ -325,34 +333,35 @@ function checkDomain(b,s,H,W){
   if(hs<ENV.hs[0]||hs>ENV.hs[1])
     out.push('H/s = '+hs.toFixed(2)+' — מחוץ למעטפת (0.20–4.80)');
 
-  // --- inside the envelope but off the safe box: name the corner ---
-  // Corner maxima: LOGO R_conv error, reqdir91_soft3 (P / I).
-  if(r>SAFE.rho[1])  edge.push('ρ = '+r.toFixed(2)+' — מרקם צפוף מאוד (מעל 0.56): פינה דלילה, שם נמדדו השגיאות הגדולות ביותר (לחץ עד ~38%, אימפולס עד ~25%)');
-  if(r<SAFE.rho[0])  edge.push('ρ = '+r.toFixed(2)+' — מרקם דליל (מתחת ל-0.31): פינה דלילה, שגיאה עד ~31% (אימפולס)');
-  if(pi2<SAFE.pi2[0])edge.push('Π₂ = '+pi2.toFixed(2)+' — רחוב צר מאוד יחסית למטען (מתחת ל-0.5): האימפולס שוגה שם עד ~20%');
-  if(hs>SAFE.hsMax)  edge.push('H/s = '+hs.toFixed(2)+' — קניון גבוה (מעל 3): פינה דלילה, שגיאה עד ~25%');
+  // --- inside the envelope but outside the core box: name the side ---
+  // Maxima: LOGO R_conv error, reqdir91_soft3 (P / I), configs on that side.
+  if(r>SAFE.rho[1])  edge.push('ρ = '+r.toFixed(2)+' — מרקם צפוף (מעל 0.5625): שם נמדדו השגיאות הגדולות ביותר (לחץ עד ~38%, אימפולס עד ~25%)');
+  if(r<SAFE.rho[0])  edge.push('ρ = '+r.toFixed(2)+' — מרקם דליל (מתחת ל-0.36): שגיאה עד ~26% (לחץ) ו-~31% (אימפולס)');
+  if(pi2>SAFE.pi2[1])edge.push('Π₂ = '+pi2.toFixed(2)+' — רחוב רחב יחסית למטען (מעל 2.52): שגיאה עד ~24% (לחץ) ו-~31% (אימפולס); בין 2.52 ל-5.43 לא נדגם');
+  if(pi2<SAFE.pi2[0])edge.push('Π₂ = '+pi2.toFixed(2)+' — מתחת לתחום');
+  if(hs<SAFE.hs[0]||hs>SAFE.hs[1]) edge.push('H/s = '+hs.toFixed(2)+' — מחוץ לתחום');
 
   const tier = out.length ? 'out' : (edge.length ? 'edge' : 'safe');
   return {ok:out.length===0, tier, out, edge, pi2, rho:r, hs, W13};
 }
 
 function domainBanner(d){
-  // 'safe' is the internal tier name only; the page makes no safety claim
-  // (D6 open: the box does not meet its own 20% criterion on every config).
+  // 'safe' is the internal tier name only; the page makes no safety claim:
+  // the core box is an empirically found accuracy domain (D6).
   if(d.tier==='safe')
-    return '<div class="ban core"><b>● בתוך התיבה המרכזית של המעטפת שנדגמה</b> — ρ = '+d.rho.toFixed(2)+
+    return '<div class="ban core"><b>● בתוך תחום הדיוק שנמצא אמפירית</b> — ρ = '+d.rho.toFixed(2)+
            ' · Π₂ = '+d.pi2.toFixed(2)+' · H/s = '+d.hs.toFixed(2)+
-           '<span class="sub2">זהו <b>אינו</b> תחום בטוח ואין בו ערובה לדיוק. שגיאת R<sub>conv</sub> '+
-           'מחוץ למדגם (LOGO, reqdir91_soft3) בתיבה זו: 34 מתוך 38 התצורות מתחת ל-20% בשני היעדים, '+
-           'ו-4 מעליו; לחץ ממוצע 8.4% (מקס\' 23.5%), אימפולס 6.1% (מקס\' 28.4%); '+
-           '82% מחיזויי הלחץ ו-95% מחיזויי האימפולס בתוך ±15%. '+
-           'גבולות התיבה נקבעו על רשומה קודמת ולא נבחרו מחדש (D6, פתוח).</span></div>';
+           '<span class="sub2">בתחום זה (ρ 0.36–0.5625, Π₂ 0.437–2.52, H/s 0.2–4.8) כל 38 התצורות '+
+           'שנבדקו מחוץ למדגם (LOGO, reqdir91_soft3) נמצאו מתחת ל-20% שגיאת R<sub>conv</sub> בשני היעדים: '+
+           'לחץ ממוצע 7.9% (מקס\' 16.4%), אימפולס 4.6% (מקס\' 13.3%). '+
+           'זו <b>אינה</b> הבטחה לשגיאה מתחת ל-20%: הגבולות נבחרו על אותן תוצאות, '+
+           'הגבול התחתון של ρ נקבע על ידי תצורה אחת, ובתוך התחום נדגמו רק שלושה ערכי ρ (D6).</span></div>';
   if(d.tier==='edge')
-    return '<div class="ban warn"><b>⚠ בתוך המעטפת שנדגמה, אך על פינה דלילה</b><ul>'+
+    return '<div class="ban warn"><b>⚠ בתוך המעטפת שנדגמה, אך מחוץ לתחום הדיוק שנמצא אמפירית</b><ul>'+
            d.edge.map(x=>'<li>'+x+'</li>').join('')+
-           '</ul><span class="sub2">התוצאה מוצגת, אך יש להתייחס אליה כאומדן: באזורים אלה '+
-           'אין למודל משפחה שכנה ללמוד ממנה, והשגיאה הגרועה ביותר שנמדדה היא כ-38%. '+
-           'ראו "The safe domain" ב-docs/ALGORITHM.md (המספרים שם מרשומה קודמת; D6).</span></div>';
+           '</ul><span class="sub2">התוצאה מוצגת, אך יש להתייחס אליה כאומדן: '+
+           'השגיאה הגרועה ביותר שנמדדה מחוץ לתחום היא כ-38%. '+
+           'ראו "The safe domain" ב-docs/ALGORITHM.md (D6).</span></div>';
   return '<div class="ban err"><b>✕ מחוץ למעטפת שנדגמה — לא ניתן לחשב</b><ul>'+
          d.out.map(x=>'<li>'+x+'</li>').join('')+
          '</ul><span class="sub2">הנוסחאות הן קורלציה אמפירית בתוך המעטפת שנדגמה '+
@@ -360,8 +369,8 @@ function domainBanner(d){
 }
 function blank(ids){ ids.forEach(i=>{const e=$(i); if(e) e.innerHTML='–';}); }
 
-// Typical +-band on a radius, by tier. NOT recalibrated on the current
-// record (D6): inside the box P p90 is 16.9%, outside the max is 38%.
+// Typical +-band on a radius, by tier. NOT re-derived on the current record
+// (D6): inside the core box P p90 is 16.0% and I 10.1%; outside, up to 38%.
 function bandPct(tier){ return tier==='safe' ? 15 : 30; }
 
 function zConvP(det,b,s,H,W){
@@ -406,8 +415,8 @@ function chain(tg,det,b,s,H,W,Zf){
   const Zc = tg==='P' ? zConvP(det,b,s,H,W) : zConvI(det,b,s,H,W);
   const Rfree=Zf*W13;
   if(Rfree>=Zc*W13) return {zu:Zf, state:'free', reg:'free', Zc};
-  if(Zf<ZF_MIN) return {zu:NaN, state:'nearZ', reg:'out', Zc};
-  if(Rfree<Z_URBAN_MIN_PERIODS*(b+s)) return {zu:NaN, state:'street', reg:'out', Zc};
+  if(Zf<ZF_MIN) return {zu:NaN, state:'nearZ', reg:'nodom', Zc};
+  if(Rfree<Z_URBAN_MIN_PERIODS*(b+s)) return {zu:NaN, state:'street', reg:'nodom', Zc};
   const L=lambda(tg,det,b,s,H,W,Zf);
   let zu=L.lam*Zf, state='urban';
   if(zu>Zc){zu=Zc; state='clip';}
@@ -468,7 +477,7 @@ function oneRow(det,b,s,H,W,Zf){
   return {P:chain('P',det,b,s,H,W,Zf), I:chain('I',det,b,s,H,W,Zf)};
 }
 
-const REG_TXT = {att:'הנחתה', amp:'הגברה', free:'שדה חופשי', out:'מחוץ לתחום'};
+const REG_TXT = {att:'הנחתה', amp:'הגברה', free:'שדה חופשי', nodom:'מחוץ לתחום'};
 
 function point(det,b,s,H,W,Zf,ZcP,ZcI,W13){
   const R=oneRow(det,b,s,H,W,Zf);
@@ -510,25 +519,61 @@ document.querySelectorAll('#tab1 input,#tab1 select').forEach(el=>{
 calc();
 
 // ================= TAB 2 =================
-// Free-field lookup: Z -> peak pressure [kPa] and scaled impulse [Pa.s/kg^(1/3)]
-// = median over the five charge weights of data/free_field_data.csv (the
-// ring mean of the reference VTK, 219c13e), Z = 1..20. Across weights the
-// scaled impulse varies by at most 1.7% (Z = 2); the peak pressure by 10-24%
-// at every Z = 1..20 (max/min - 1), so the displayed pressure is a median, not
-// the value for the chosen W (cause and proposal: DECISIONS.md D53).
-// Independent of the convergence criterion.
-const FF_Z =[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
-const FF_P =[1455.88,269.20,109.02,61.81,41.34,30.38,23.69,19.22,15.69,12.61,
-             10.95,9.65,8.43,7.58,6.88,6.29,5.62,5.20,4.83,4.51];
-const FF_I =[196.32,110.30,82.91,65.48,53.57,45.13,38.92,34.17,30.39,27.43,
-             24.99,22.93,21.19,19.69,18.38,17.24,16.23,15.33,14.53,13.80];
+// Free-field reference per charge weight (DECISIONS.md D53, method A).
+// data/free_field_data.csv (ring mean of the reference VTK, 219c13e), all five
+// simulated weights, Z = 1..30, copied at full precision: P in kPa, I in Pa.s.
+// tests/test_blast_calculator.py fails if they drift from the CSV.
+const FF_W = [50,250,500,1000,1500];
+const FF_Z = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+const FF_P = {
+  50:[1253.1961152731385,237.43925449692193,100.36712809017277,57.49071314185837,38.31811979307231,28.09347522019868,21.847088991358113,17.696707232425158,14.756544629581512,12.605369586142,10.954508575981555,9.648850879563565,8.60008064915786,7.744265947705965,7.028974209064943,6.424674504230051,5.907099164882063,5.461948069328174,5.073083764308913,4.731760721186944,4.430462314098616,4.161898083906804,3.9208717090575846,3.7038385986811497,3.5101609990916773,3.33234387728166,2.756725807762284,2.5455064718601674,2.374024746134959,2.2230463464210155],
+  250:[1395.4887144591048,259.4203917436383,106.96046348215152,60.73038835004297,40.53579663682414,29.746968299971368,23.15984061284419,18.78416902046146,15.687881703015425,13.40549879569858,11.657604145010408,10.280364381779432,9.17356278163642,8.261577021454066,7.5049690301388985,6.340166139460264,5.528037097928975,4.972072497679313,4.537144338515186,4.183472353733492,3.880976868458934,3.617449357746357,3.3883657601113875,3.184284047244791,3.003585880153271,2.843577082174765,2.6971803731929764,2.5637445930077214,2.440865616657262,2.3282960902720036],
+  500:[1455.8837319923848,269.19666036469226,109.01886635710423,61.80678799378662,41.33671660948656,30.383226965103663,23.68632789540765,19.221968122437783,16.064423488707448,13.729572629509843,11.942827879830629,10.535437624854502,8.087079522995001,7.168698885004192,6.447999032233638,5.858365669494149,5.36548569929257,4.947124853488176,4.582430346075959,4.267182702543992,3.9887864198789824,3.7420088103189535,3.523334454563832,3.323854728137912,3.1457542456376175,2.983954611686555,2.83750341844905,2.7008200929305897,2.5796453466163336,2.465652487962613],
+  1000:[1510.2719571274051,278.39816499681837,111.55819766838218,63.029151363014854,42.09509593185324,30.94427583266424,24.124850985046347,19.58625862611562,16.371932851056332,12.314039873726472,10.55004349163453,9.243572412548923,8.21642053866709,7.386122044814061,6.700096725091052,6.114707979782021,5.623405791717711,5.199569144369575,4.8303986149221805,4.50518794901766,4.215379105962328,3.9617084530001905,3.7302347508806606,3.5256132445411033,3.0345267146897976,2.8465664758654983,2.6816171214236837,2.53377609855248,2.401553688808754,2.283621104506156],
+  1500:[1550.7535825755465,282.95022318508825,112.26000534313745,63.551027271125875,42.46773232060468,31.17731786238328,24.308667015075542,19.741661915566276,15.101416985317492,12.489941703937449,10.762477405885571,9.453171647163153,8.42554244215095,7.582550978744615,6.881954422741517,6.292351836651555,5.787523672241565,5.3518481745116775,4.973819328319545,4.639111134873124,4.34618195863386,3.942750878376441,3.620169032803646,3.3549051961879264,3.134525478002734,2.9433651631649744,2.773895175270857,2.623644402930818,2.488024316285574,2.366424135132565]
+};
+const FF_I = {
+  50:[724.188090267407,412.50183058312626,306.65338579706594,241.81154990406574,198.09734687165877,166.91526154882285,143.94716756363695,126.42075544942786,112.63865133712943,101.53260782673765,92.40456147033335,84.77018152605564,78.29521049181184,72.73699578348318,67.91324451633528,63.68840894498049,59.95713319054351,56.63951422897957,53.66922883776919,50.99523432080578,48.575462488463096,46.37501415519093,44.36524126537522,42.522479672392876,40.829104107340484,39.26362146145205,37.6157039224028,36.3416882671705,35.13881279959295,34.00039507099745],
+  250:[1238.257886193044,693.6331888740187,520.1895346691986,410.6410842421093,335.90382018825795,282.9736279441383,244.04237541811668,214.33269876603853,190.96893842672384,172.13820641470656,156.65675199381886,143.71049677264136,132.7299326758918,123.29957501494972,115.113976476572,107.15636661312537,101.28296201647908,95.83438648829781,90.88413004237391,86.41157872914317,82.35144229948514,78.65089846425045,75.27404410148701,72.17433805355806,69.31989622854374,66.68349754874998,64.24027682369785,61.969743281759236,59.85371400286797,57.87838964926635],
+  500:[1558.2233734216602,874.7910191990591,657.4698664241232,519.066267553404,424.6704704438726,357.72736442233946,308.37658364097075,270.7358375855732,241.16606279015204,217.35221336840817,197.78506688744486,180.63391068032124,167.35886315840176,155.6229004182573,145.3786903480016,136.38458624126426,128.44126609115295,121.36224305741715,115.02161408638715,109.30914299441457,104.13951066417658,99.43310976211619,95.13408919511795,91.19152343781471,87.56280840903369,84.21367303762327,81.11121992386849,78.23063894672026,75.54844862011595,73.0457410724088],
+  1000:[1948.2916789846315,1104.899099129447,830.0184018350056,655.4602822356122,536.2210829892582,451.69379980729497,389.38811040351044,341.9427539594813,304.66319655541037,274.26753000898333,249.91019359800302,229.39192409390853,211.94528719474437,196.93069388905573,183.8959344711568,172.4748485879027,162.37035930289298,153.38555165603825,145.3463381590433,138.1074651203384,131.55507152413304,125.59911873776883,120.1609820014965,115.13517161493809,110.52519534536101,106.36436981408346,102.50045997473225,98.90042168602214,95.54670501222908,92.40861606293554],
+  1500:[2221.308906349885,1262.6718232546668,949.0369951793225,749.6061780300031,613.20571411419,516.650610241791,445.4761025708323,391.175861123853,347.2696934374493,313.97831441857136,286.0170261530401,262.52690282861505,242.54974120975473,225.35622842946705,210.42179296358898,197.33986388948233,185.7886654246287,175.5108964158108,166.309166376226,158.02642538594162,150.31374948999013,143.1472821635048,137.15859634814737,131.58875835861164,126.43528873591629,121.66443257120892,117.23072001398323,113.11053652200528,109.26776845334294,105.67757589519337]
+};
 
-function ffLookup(arr,Z){                 // log-log interpolation
-  if(Z<=FF_Z[0]) return arr[0];
-  if(Z>=FF_Z[FF_Z.length-1]) return arr[arr.length-1];
-  let i=0; while(FF_Z[i+1]<Z) i++;
+// Interpolation at fixed Z (Hopkinson similarity): log-log along Z for each
+// sampled weight, then ln(P) and ln(I) linear in ln(W) between the two
+// bracketing weights. At a sampled weight and a tabulated Z the table value
+// is returned exactly. Outside Z 1..30 or W 50..1500 nothing is returned —
+// no extrapolation and no silent clamp to the edge value.
+// Known numerical limitation: the reference P steps where R = Z W^(1/3)
+// leaves the 0.15 m grid (R ~ 100 m) and the 0.5 m grid (R ~ 250 m). At a
+// weight between two sampled ones the interpolated curve carries the step of
+// each bracketing weight at that weight's own Z, so it shows two partial
+// steps instead of one at R = 100 m. The steps are numerical, not physical
+// (D53); the scaled impulse is not affected (spread <= 1.7%).
+function ffAtW(tab,w,Z){                  // one sampled weight, log-log in Z
+  const a=tab[w];
+  let i=0; while(i<FF_Z.length-2 && FF_Z[i+1]<Z) i++;
   const t=(Math.log(Z)-Math.log(FF_Z[i]))/(Math.log(FF_Z[i+1])-Math.log(FF_Z[i]));
-  return Math.exp(Math.log(arr[i])+t*(Math.log(arr[i+1])-Math.log(arr[i])));
+  return Math.exp(Math.log(a[i])+t*(Math.log(a[i+1])-Math.log(a[i])));
+}
+// v: the reference at (W, Z) in the table's units. scaled = true (impulse):
+// the band is taken over I_w / w^(1/3), the Hopkinson-scaled impulse, since
+// raw impulse differs between weights by construction. The band is the
+// spread of the five REFERENCE runs at this Z (numerical), not a proven
+// statistical uncertainty.
+function ffRef(tab,W,Z,scaled){
+  if(!(Z>=FF_Z[0] && Z<=FF_Z[FF_Z.length-1])) return {out:'Z'};
+  if(!(W>=FF_W[0] && W<=FF_W[FF_W.length-1])) return {out:'W'};
+  let j=0; while(j<FF_W.length-2 && FF_W[j+1]<W) j++;
+  const wLo=FF_W[j], wHi=FF_W[j+1];
+  const t=(Math.log(W)-Math.log(wLo))/(Math.log(wHi)-Math.log(wLo));
+  const a=ffAtW(tab,wLo,Z), b=ffAtW(tab,wHi,Z);
+  const v=Math.exp((1-t)*Math.log(a)+t*Math.log(b));
+  const all=FF_W.map(w=>ffAtW(tab,w,Z)/(scaled?Math.cbrt(w):1));
+  const exact=FF_W.indexOf(W)>=0;
+  return {v, wLo:exact?W:wLo, wHi:exact?W:wHi, exact,
+          bandMin:Math.min(...all), bandMax:Math.max(...all)};
 }
 
 function showTab(n){
@@ -553,14 +598,27 @@ function calcQ(){
     `s/W<sup>1/3</sup> = <b>${(s/W13).toFixed(2)}</b>`+
     `H/s = <b>${(H/s).toFixed(2)}</b>`;
   if(!dom.ok){
-    blank(['q_P','q_I','q_Rff','q_RP','q_RI','q_dP','q_dI','q_extra']);
+    blank(['q_P','q_I','q_Rff','q_RP','q_RI','q_dP','q_dI','q_extra','q_ref']);
     return;
   }
 
-  // the load in question
-  const P=ffLookup(FF_P,Zf), Is=ffLookup(FF_I,Zf);
-  $('q_P').innerHTML=P.toFixed(1)+'<span class="unit"> kPa</span>';
-  $('q_I').textContent=Is.toFixed(1);
+  // the load in question: free-field reference at the chosen W (D53)
+  const rP=ffRef(FF_P,W,Zf,false), rI=ffRef(FF_I,W,Zf,true);
+  if(rP.out){
+    const msg = rP.out==='Z'
+      ? 'Z מחוץ לטווח נתוני הייחוס (1–30) — לא מחושב ערך'
+      : 'W מחוץ לטווח נתוני הייחוס (50–1500 ק"ג) — לא מחושב ערך';
+    $('q_P').innerHTML='–'; $('q_I').textContent='–'; $('q_ref').innerHTML=msg;
+  }else{
+    $('q_P').innerHTML=rP.v.toFixed(1)+'<span class="unit"> kPa</span>';
+    $('q_I').textContent=(rI.v/W13).toFixed(1);
+    $('q_ref').innerHTML =
+      (rP.exact ? `ייחוס של W = <b>${W}</b> ק"ג (משקל שנדגם)`
+                : `ייחוס לפי W: אינטרפולציה בין <b>${rP.wLo}</b> ל-<b>${rP.wHi}</b> ק"ג`)+
+      ` · פיזור נתוני הייחוס בין חמשת המשקלים ב-Z זה: לחץ <b dir="ltr">${rP.bandMin.toFixed(1)}–${rP.bandMax.toFixed(1)}</b> kPa, `+
+      `אימפולס <b dir="ltr">${rI.bandMin.toFixed(1)}–${rI.bandMax.toFixed(1)}</b> Pa·s/kg<sup>1/3</sup>`+
+      ` <span class="clip">פיזור נומרי של ריצות הייחוס, לא אי-ודאות סטטיסטית</span>`;
+  }
   $('q_Rff').innerHTML=(Zf*W13).toFixed(1)+'<span class="unit"> m</span>';
 
   const ZcP=zConvP(det,b,s,H,W), ZcI=zConvI(det,b,s,H,W);
