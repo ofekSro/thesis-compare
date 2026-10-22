@@ -229,8 +229,22 @@ IMPULSE_CRITERION = {
 # the same day): the same soft criterion at beta = 3 on 90 equal sectors, with
 # MaxR normalised per direction by the null city so the building-front
 # penalty cancels. 'req_soft3' remains the reproducible earlier record.
+#
+# Production is 'reqdir91_soft3' since 2026-10-21 (DECISIONS.md D15, owner):
+# the same, on the 91 whole-degree sectors with the two half-width end sectors
+# weighted 1/2 (trapezoid rule) instead of 90 equal sectors. Both integrate
+# exactly 90 deg; against 'reqdir_soft3' R_conv and Λ_dir agree to a median
+# of 1.000 (rows p5-p95 0.987-1.013) and the CV errors to 0.1 points.
+# 'reqdir_soft3' remains reproducible as the record of 2026-10-20.
+#
+# Correction (2026-10-22, DECISIONS.md D37): the MaxR reference level now
+# carries the D34 cut, which moves MaxR under every token. The 'reqdir91_soft3'
+# tables were regenerated (eec48dc). The earlier records ('req_soft3',
+# 'reqdir_soft3', the other soft tokens) reproduce only from the code at
+# 1b9dac7 or before; "remains reproducible" above holds at that commit.
+# R_conv is unchanged. docs/audit/2026-10-22/reproducibility.md, REP-13.
 RADIUS_ESTIMATOR = {
-    'method': 'reqdir_soft3',  # 'req' | 'max' | 'p95' | 'reqdir' | '<base>_soft[beta]'
+    'method': 'reqdir91_soft3',  # 'req' | 'max' | 'p95' | 'reqdir' | 'reqdir91' | '<base>_soft[beta]'
     'percentile': 95,       # used only when method is a percentile
 }
 
