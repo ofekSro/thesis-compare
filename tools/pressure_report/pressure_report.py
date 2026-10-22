@@ -16,8 +16,9 @@ Sheet "By Z" — every free-field level inside the convergence radius:
        MaxR_P      where the URBAN field still delivers it, measured from
                    (0,0) [m] — this is the "radius" of the row
        MaxR_P calc W^(1/3) * Z_urban, range_switch model, production coeffs,
-                   clipped from above at the predicted Z_conv (the deployed
-                   chain — see z_urban.clip_z_urban_pred)
+                   clipped from above at the predicted Z_conv, and Z_free
+                   where R_free >= the predicted R_conv (the deployed chain —
+                   see z_urban.clip_z_urban_pred)
        relative error on that radius
 
    "Inside the convergence radius" is exactly z_urban.z_urban_valid_mask —
@@ -206,12 +207,14 @@ def build_per_z_table(maxR_df, conv_df, conv_coeffs, z_coeffs):
         z_pred = predict_z_urban(valid['Z_free'].values, valid['rho'].values,
                                  valid['height'].values,
                                  valid['swidth'].values, W13, 'Pressure', coef)
-        z_clipped = clip_z_urban_pred(z_pred, valid, det, 'Pressure',
-                                      conv_P, conv_I)
+        z_clipped, clip_flag, _ = clip_z_urban_pred(
+            z_pred, valid, det, 'Pressure', conv_P, conv_I, return_flags=True)
 
         valid['Z_urban_P_calc'] = z_clipped
         valid['MaxR_P_calc'] = z_clipped * W13
-        valid['clipped_at_Zconv'] = z_clipped < z_pred - 1e-12
+        # A real clip only; the identity beyond the predicted R_conv is not
+        # one (D50).
+        valid['clipped_at_Zconv'] = clip_flag
         frames.append(valid)
 
     if not frames:

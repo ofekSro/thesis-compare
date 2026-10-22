@@ -261,9 +261,9 @@ def median_lambda(sub, tgt, W13):
     """Median amplification Lambda = Z_urban/Z_free over the valid rows.
 
     'Valid' is the same domain the Z_urban model is fitted on: inside the
-    convergence radius (the beyond_* flag — beyond it the urban field IS the
-    free field, so the row carries no urban information) and Z_free above the
-    validity floor. Returns (median, zf_lo, zf_hi, n), or None if no row
+    convergence radius (the beyond_* flag — beyond it the field is taken as
+    engineering-equivalent to the free field, D49, and the row is outside the
+    fit domain) and Z_free above the validity floor. Returns (median, zf_lo, zf_hi, n), or None if no row
     qualifies.
     """
     zf_min = Z_URBAN_ZF_MIN[tgt['fit_name']]

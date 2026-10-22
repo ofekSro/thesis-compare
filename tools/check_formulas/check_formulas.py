@@ -31,7 +31,8 @@ from blastlib.geometry import area_density
 from blastlib.processing.radius_estimator import resolve_estimator, VALID_METHODS
 from blastlib.regression.stats import r2_mape
 from blastlib.regression.z_urban import (prepare_maxR_data, z_urban_valid_mask,
-                                         attenuation_regime, ATTENUATION_KEYS)
+                                         attenuation_regime, ATTENUATION_KEYS,
+                                         clip_z_urban_pred)
 
 
 # ============================================================
@@ -528,9 +529,14 @@ def _z_urban_scatter_arrays(maxR_sub, conv_sub, conv_coeffs, z_coeffs):
     """Z_urban and R_urban actual/predicted arrays for a set of configs.
 
     Identical logic for the test and (optionally) train subsets: geometry
-    parsing, predicted-R_conv clipping, and the shared z_urban_valid_mask
+    parsing, the deployed chain at the predicted R_conv
+    (z_urban.clip_z_urban_pred), and the shared z_urban_valid_mask
     restriction to the rows the models were actually fitted on.
     """
+    # clip_z_urban_pred takes {det: coef}; the loaded dicts carry the same
+    # keys predict_pi / predict_impulse read.
+    conv_P = {d: c for (d, t), c in conv_coeffs.items() if t == 'RadiusP'}
+    conv_I = {d: c for (d, t), c in conv_coeffs.items() if t == 'RadiusI'}
     geo_cache = {}
     conv_pred_cache = {}
     for cfg_name in maxR_sub['Config'].unique():
@@ -539,6 +545,7 @@ def _z_urban_scatter_arrays(maxR_sub, conv_sub, conv_coeffs, z_coeffs):
             geo_cache[cfg_name] = {
                 'det': cfg['det'], 'weight': cfg['weight'],
                 'height': cfg['height'], 'swidth': cfg['swidth'],
+                'bsize': cfg['bsize'],
                 'rho': area_density(cfg['bsize'], cfg['swidth']),
             }
             conv_pred_cache[cfg_name] = predict_convergence_radius(cfg, conv_coeffs)
@@ -579,14 +586,22 @@ def _z_urban_scatter_arrays(maxR_sub, conv_sub, conv_coeffs, z_coeffs):
             z_val, geo['weight'], geo['rho'], geo['height'], geo['swidth'],
             geo['det'], z_coeffs, pred_Rconv_P=conv_pred_P_val)
 
-        # Physical closure: clip from ABOVE at the predicted R_conv only
-        # (urban = free-field beyond it). No lower bound — Z_urban < Z_free is
-        # the attenuation regime and is real, so clamping at the free-field
-        # radius would make it unrepresentable.
-        if np.isfinite(pred_mR_P) and np.isfinite(conv_pred_P_val):
-            pred_mR_P = min(pred_mR_P, conv_pred_P_val)
-        if np.isfinite(pred_mR_I) and np.isfinite(conv_pred_I_val):
-            pred_mR_I = min(pred_mR_I, conv_pred_I_val)
+        # The deployed chain (D49, D50): clipped from ABOVE at the predicted
+        # R_conv inside it, Z_free at and beyond it. No lower bound —
+        # Z_urban < Z_free is the attenuation regime and is real.
+        row_df = pd.DataFrame({
+            'weight': [geo['weight']], 'rho': [geo['rho']],
+            'height': [geo['height']], 'swidth': [geo['swidth']],
+            'bsize': [geo['bsize']], 'Z_free': [z_val],
+            'R_free': [float(row['R_free']) if 'R_free' in row else z_val * W_third]})
+        if np.isfinite(pred_mR_P):
+            pred_mR_P = W_third * float(clip_z_urban_pred(
+                np.array([pred_mR_P / W_third]), row_df, geo['det'], 'Pressure',
+                conv_P, conv_I)[0])
+        if np.isfinite(pred_mR_I):
+            pred_mR_I = W_third * float(clip_z_urban_pred(
+                np.array([pred_mR_I / W_third]), row_df, geo['det'], 'Impulse',
+                conv_P, conv_I)[0])
 
         # R_urban = W^(1/3) * Z_urban — the canonical derivation, same value
         pred_rR_P, pred_rR_I = pred_mR_P, pred_mR_I
@@ -761,8 +776,9 @@ def main(*, tables_dir=None, out_dir=None, radius_method=None,
     # Validate Z_urban (and derived R_urban = W^(1/3) * Z_urban)
     # ================================================================
     # _z_urban_scatter_arrays parses geometry per maxR row and caches the
-    # PREDICTED convergence radii per config — Z_urban predictions are
-    # clipped to them (physical closure: MaxR cannot exceed R_conv).
+    # PREDICTED convergence radii per config, and closes the chain there with
+    # z_urban.clip_z_urban_pred (engineering closure, D49: the measured MaxR
+    # can exceed R_conv; identity beyond the predicted R_conv, D50).
     zu, ru = _z_urban_scatter_arrays(maxR_df, conv_df, conv_coeffs, z_coeffs)
     zu_train = ru_train = None
     if show_train:

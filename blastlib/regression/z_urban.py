@@ -75,12 +75,16 @@ from blastlib.regression.convergence_models import predict_pi, predict_impulse
 # which left the model with no coverage over half its own domain and
 # predicting amplification where the data attenuates.
 #
-# Physical closure with the convergence radius: by definition the urban field
-# equals free-field beyond R_conv, so MaxR can never EXCEED R_conv.
-# Predictions are therefore clipped from above at Z_conv using the
-# convergence-radius formulas (RadiusP additive / RadiusI power law) — the two
-# formula systems form one consistent chain. For Z_free >= Z_conv the mapping
-# is the identity (urban = free-field).
+# Closure with the convergence radius (D49, D50): beyond R_conv the field is
+# taken as ENGINEERING-equivalent to the free field — the convergence
+# criterion holds there, or the load is below the relevance floor. R_conv is
+# not where the urban amplification vanishes, and the MEASURED MaxR can and
+# does exceed R_conv (raw reach, beyond_I: 385 of 1110 deployable impulse
+# rows; 394 by the published MaxR_I column). The chain is an
+# engineering approximation, not a prediction of how far the amplification
+# reaches: inside R_conv predictions are clipped from above at Z_conv (the
+# convergence-radius formulas, RadiusP additive / RadiusI power law); for
+# R_free >= R_conv (predicted) the mapping is the identity, Z_urban = Z_free.
 #
 # There is NO lower bound. "MaxR cannot fall below Z_free*W^(1/3)" is a
 # tautology only on an amplification-only domain; on the full domain it is
@@ -564,18 +568,36 @@ def predict_z_urban(Z_free, rho, H, s, W13, target_name, coef, xi=None):
 
 
 def clip_z_urban_pred(pred_Z, sub_valid, det_val, target_name,
-                      conv_P_coeffs, conv_I_coeffs):
-    """Clip Z_urban predictions from ABOVE at Z_conv. No lower bound.
+                      conv_P_coeffs, conv_I_coeffs, return_flags=False):
+    """Close the prediction chain at the PREDICTED R_conv. No lower bound.
 
-    Upper bound — a deliberate correction, not a patch over a bug. MaxR cannot
-    exceed the convergence radius (urban = free-field beyond it). The two radii
-    are measured with different tolerance conventions — R_conv from a band
-    around the free-field value, MaxR from a zero-tolerance exceedance test,
-    the impulse band being materially the looser — so MaxR overshoots R_conv
-    systematically rather than occasionally, and the closure has to be imposed
-    rather than assumed. Remove it only if the two criteria are first made to
-    agree. Z_conv comes from the fitted convergence formulas, so the chain
-    stays self-consistent. No-op if those coefficients are missing.
+    pred_Z    : Lambda-formula Z_urban [m/kg^(1/3)] for the rows of sub_valid
+                (columns weight, rho, height, swidth, bsize, Z_free, and
+                R_free [m] — recomputed as Z_free * W^(1/3) when absent).
+    Returns Z_urban [m/kg^(1/3)]:
+      R_free <  R_conv_hat : min(pred_Z, Z_conv_hat)  (the clip)
+      R_free >= R_conv_hat : Z_free                   (identity, D50)
+    with R_conv_hat from the fitted convergence formulas. No-op where those
+    coefficients are missing or R_conv_hat is not finite.
+    return_flags=True returns (Z_urban, clipped, identity): boolean arrays,
+    clipped = inside R_conv_hat AND the clip lowered pred_Z (a real clip);
+    identity = at or beyond R_conv_hat (Z_free returned — not a clip).
+
+    This is the chain a user runs, so every evaluator, plot and report that
+    calls it grades what the user gets (D50: before 2026-10-22 rows with
+    R_free >= R_conv_hat inside the measured-R_conv domain were graded
+    against Z_conv_hat instead of Z_free).
+
+    Why the clip — an ENGINEERING closure, not a physical bound (D49).
+    Beyond R_conv the field is taken as engineering-equivalent to the free
+    field (convergence criterion met, or load below the relevance floor).
+    R_conv is not where the amplification vanishes: the two radii use
+    different tolerances — R_conv a band (and, for impulse, the 23.6 floor),
+    MaxR a zero-tolerance exceedance — and the measured MaxR exceeds R_conv
+    in 385 of 1110 deployable impulse rows (raw reach, beyond_I). Below the
+    floor the clip
+    under-predicts R_urban systematically; above it, it costs no accuracy
+    (D49: 6.31% vs 6.40% without it). Keep it unless D49 is reopened.
 
     NO lower bound. There used to be a max(pred, Z_free) here, justified by
     "MaxR cannot fall below the free-field radius". That is a tautology only on
@@ -588,6 +610,9 @@ def clip_z_urban_pred(pred_Z, sub_valid, det_val, target_name,
     """
     coeffs = conv_P_coeffs if target_name == 'Pressure' else conv_I_coeffs
     if coeffs is None:
+        if return_flags:
+            none = np.zeros(len(np.asarray(pred_Z)), dtype=bool)
+            return pred_Z, none, none.copy()
         return pred_Z
 
     W   = sub_valid['weight'].values.astype(float)
@@ -603,7 +628,18 @@ def clip_z_urban_pred(pred_Z, sub_valid, det_val, target_name,
     else:
         Rconv = predict_impulse(W, rho, H, det_arr, s, b, coeffs)
 
-    return np.where(np.isfinite(Rconv), np.minimum(pred_Z, Rconv / W13), pred_Z)
+    Z_free = sub_valid['Z_free'].values.astype(float)
+    r_free = (sub_valid['R_free'].values.astype(float) if 'R_free' in sub_valid.columns
+              else Z_free * W13)
+    ok = np.isfinite(Rconv)
+    clipped = np.where(ok, np.minimum(pred_Z, Rconv / W13), pred_Z)
+    # D50: at and beyond the predicted R_conv the chain is the identity.
+    identity = ok & (r_free >= Rconv)
+    out = np.where(identity, Z_free, clipped)
+    if return_flags:
+        was_clipped = ok & ~identity & (np.asarray(pred_Z, float) > Rconv / W13)
+        return out, was_clipped, identity
+    return out
 
 
 # ============================================================
@@ -747,8 +783,10 @@ def evaluate_z_urban(test_df, z_coeffs, conv_P_coeffs=None, conv_I_coeffs=None,
                      coverage=False):
     """Evaluate Z_urban predictions on test data. Returns (mape_P, mape_I).
 
-    Predictions are clipped from above at Z_conv when convergence
-    coefficients are supplied (the deployed prediction chain). No lower bound.
+    Predictions go through the deployed chain (clip_z_urban_pred) when
+    convergence coefficients are supplied: clipped from above at Z_conv
+    inside the predicted R_conv, Z_free at and beyond it (D50). No lower
+    bound.
     coverage=True appends {'P': (rows, configs), 'I': (rows, configs)}: the
     graded rows and the distinct configs they come from.
     """

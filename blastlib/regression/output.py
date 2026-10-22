@@ -297,9 +297,10 @@ def print_z_urban_formulas(z_coeffs):
     print('  R_urban = W^(1/3) * Z_urban  (canonical — not separately fitted)')
     print('  Validity: Z_free >= Zf_min (at Z_free=1 the point is inside the')
     print('  first street; the mapping is invalid there)')
-    print('  Physical closure: predictions clipped from ABOVE at Z_conv only')
-    print('  (no lower bound — Z_urban < Z_free is the attenuation regime)')
-    print('  (Z_conv from the convergence formulas); identity beyond Z_conv.')
+    print('  Engineering closure (D49, D50): inside the predicted R_conv,')
+    print('  predictions are clipped from ABOVE at Z_conv only (no lower bound —')
+    print('  Z_urban < Z_free is the attenuation regime); at and beyond it,')
+    print('  Z_urban = Z_free (Z_conv from the convergence formulas).')
     print(f'{"="*70}')
 
     for target_name in ['Pressure', 'Impulse']:

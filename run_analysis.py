@@ -378,8 +378,10 @@ def run_phase1(*, npz_dir=None, ff_csv=None, tables_dir=None, figures_dir=None,
             theta_radii_P_per_Z[z_val] = r_theta_P
             theta_radii_I_per_Z[z_val] = r_theta_I
 
-            # "Beyond" = at or outside the convergence radius, where the urban
-            # field is the free field and the row carries no urban information.
+            # "Beyond" = the raw reach at or outside the convergence radius,
+            # where the field is taken as ENGINEERING-equivalent to the free
+            # field (D49) — not where the urban effect vanishes; such rows are
+            # outside the Z_urban fit domain.
             # These rows used to be dropped here (and the beyond side NaN'd),
             # which hid how often it happens. Record the flag and the raw
             # value instead; the exclusion now lives in the fit, in

@@ -124,6 +124,7 @@ def build_z_table(maxR_df, conv_df, conv_coeffs, z_coeffs):
 
         z_calc = np.full(len(df), np.nan)
         z_raw = np.full(len(df), np.nan)
+        clip_flag = np.zeros(len(df), dtype=bool)
         for det in DETS:
             coef = z_coeffs.get((det, target))
             m = (df['det'] == det).values
@@ -134,8 +135,8 @@ def build_z_table(maxR_df, conv_df, conv_coeffs, z_coeffs):
                                   sub['height'].values, sub['swidth'].values,
                                   W13[m], target, coef)
             z_raw[m] = raw
-            z_calc[m] = clip_z_urban_pred(raw, sub, det, target,
-                                          conv_P, conv_I)
+            z_calc[m], clip_flag[m], _ = clip_z_urban_pred(
+                raw, sub, det, target, conv_P, conv_I, return_flags=True)
 
         Zf = df['Z_free'].astype(float).values
         err = _rel_err_pct(df[zcol], z_calc)
@@ -151,7 +152,9 @@ def build_z_table(maxR_df, conv_df, conv_coeffs, z_coeffs):
                      np.where(df[zcol].values == Zf, 'equal', '')))
         out[f'{prefix}_rel_err_pct'] = err
         out[f'{prefix}_err_band'] = np.where(valid.values, _band_series(err), '')
-        out[f'{prefix}_clipped_at_Zconv'] = z_calc < z_raw - 1e-12
+        # A real clip only: inside the predicted R_conv and lowered there.
+        # The identity beyond it (Z_free) is not a clip (D50).
+        out[f'{prefix}_clipped_at_Zconv'] = clip_flag
         out[f'Rconv_{prefix}_meas_m'] = df[rcol]
         for name, c in conds.items():
             out[f'{prefix}_{name}'] = c.values
@@ -383,11 +386,14 @@ def _readme(method, n_cfg, n_rows, n_check):
         ('R_urban_X_meas_m', 'MaxR: farthest distance from the charge at '
                              'which the urban field still delivers that '
                              'free-field level [m]'),
-        ('Z_urban_X', 'R_urban / W^(1/3); _calc is the deployed chain, '
-                      'clipped from above at the predicted Z_conv'),
+        ('Z_urban_X', 'R_urban / W^(1/3); _calc is the deployed chain: '
+                      'clipped from above at the predicted Z_conv inside it, '
+                      'Z_free (identity) at and beyond it'),
         ('Lambda_X', 'Z_urban / Z_free (>1 amplification, <1 attenuation)'),
-        ('X_clipped_at_Zconv', 'True where the Z_conv clip changed the '
-                               'prediction'),
+        ('X_clipped_at_Zconv', 'True only where the Z_conv clip lowered the '
+                               'Lambda-formula value inside the predicted '
+                               'R_conv; rows at or beyond it take Z_free '
+                               '(identity) and are not flagged'),
         ('c1..c5 columns', 'The five conditions of '
                            'z_urban.z_urban_valid_mask: c1 MaxR inside '
                            'R_conv (beyond flag), c2 R_free < R_conv, c3 '

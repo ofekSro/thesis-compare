@@ -183,8 +183,9 @@ def run_cross_validation(conv_csv, maxR_csv, output_folder,
         # ---- Fit Z_urban ----
         # (R_urban = W^(1/3) * Z_urban identically, so no separate fit —
         #  its relative errors equal Z_urban's row-for-row.)
-        # Evaluation clips predictions from above at Z_conv using the
-        # same-iteration convergence fits — the deployed prediction chain.
+        # Evaluation runs the deployed chain (clip_z_urban_pred) with the
+        # same-iteration convergence fits: clipped at Z_conv inside the
+        # predicted R_conv, Z_free at and beyond it (D50).
         # Those same fits also supply xi to the pressure regime classifier,
         # so nothing leaks from the measured convergence radius.
         z_coeffs = fit_z_urban_all_groups(train_maxR, conv_P_coeffs)
