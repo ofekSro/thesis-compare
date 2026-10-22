@@ -1,0 +1,5 @@
+cand,decreasing_steps,max_step_over_max_slope,identity_at_x_p50,identity_at_x_max,configs_identity_beyond_data_x>=1.9,configs_identity_beyond_x=3
+C1,0,1.0000000000000933,1.0,1.0,0,0
+2a,0,1.000000000000198,1.275,1.733,0,0
+2b_min,0,1.000000000000198,1.379,3.742,28,5
+2b_4,0,1.000000000000198,4.0,4.0,96,96
