@@ -29,15 +29,17 @@ from blastlib import paths
 # 30–36/62 — see docs/DECISIONS.md D34, D35; record commit 27211b3).
 # These are NOT read from disk — if you re-run the regression, these values
 # go stale silently. Compare against
-# outputs/tables/final_production_convergence_coefficients_reqdir_soft3.csv
+# outputs/tables/final_production_convergence_coefficients_reqdir91_soft3.csv
 # (rows with Target=RadiusP: C0, C1_sW13, C2_switch, C3_canyon, a_thresh)
 # and update this dict by hand if they differ.
 COEF = {
-    # Updated 2026-10-20 to reqdir_soft3, the production estimator since D40
-    # (90 sectors); previous, req_soft3 after D44:
+    # Updated 2026-10-21 to reqdir91_soft3, the production estimator since D15
+    # was revised (91 sectors, ends weighted 1/2); previous, reqdir_soft3
+    # (90 sectors): (10.085, -0.750, 2.385, 0.421) / (11.570, -0.782, 1.979, 0.665);
+    # before that req_soft3 after D44:
     # (10.145, -0.765, 2.428, 0.419) / (11.613, -0.778, 1.929, 0.649).
-    1: dict(C0=10.085, C1=-0.750, C2=2.385, C3=0.421, a=1),  # street
-    2: dict(C0=11.570, C1=-0.782, C2=1.979, C3=0.665, a=2),  # intersection
+    1: dict(C0=10.075, C1=-0.750, C2=2.390, C3=0.424, a=1),  # street
+    2: dict(C0=11.544, C1=-0.768, C2=1.925, C3=0.657, a=2),  # intersection
 }
 
 # axis sampling ranges (match dataset coverage)
